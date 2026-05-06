@@ -19,6 +19,8 @@ def add_cache_headers(response):
     response.headers['Expires']       = '0'
     return response
 
+AUDIO_WS_URL   = 'wss://dispatch.mostlychris.com/audio-ws/'
+
 ABINFO_ACTIVE  = '/tmp/ABInfo_31001.json'
 TGLIST_BM      = '/tmp/TGList_BM.txt'
 TGLIST_TGIF    = '/tmp/TGList_TGIF.txt'
@@ -867,7 +869,7 @@ HTML = '''
             } else {
                 if (!dvsp) {
                     dvsp = new DVSwitchPlayer(8080, btn);
-                    dvsp.socketURL = 'wss://' + window.location.host + '/audio-ws/';
+                    dvsp.socketURL = '{{ audio_ws_url }}';
                     dvsp.ws = null;
                 }
                 dvsp.play();
@@ -1092,7 +1094,7 @@ HTML = '''
 
 @app.route('/')
 def index():
-    return render_template_string(HTML)
+    return render_template_string(HTML, audio_ws_url=AUDIO_WS_URL)
 
 @app.route('/api/stream')
 def stream():
