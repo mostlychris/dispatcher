@@ -19,7 +19,10 @@ def add_cache_headers(response):
     response.headers['Expires']       = '0'
     return response
 
-AUDIO_WS_URL   = 'wss://dispatch.mostlychris.com/audio-ws/'
+try:
+    from config import AUDIO_WS_URL
+except ImportError:
+    AUDIO_WS_URL = ''
 
 ABINFO_ACTIVE  = '/tmp/ABInfo_31001.json'
 TGLIST_BM      = '/tmp/TGList_BM.txt'
