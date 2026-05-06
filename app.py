@@ -1103,6 +1103,8 @@ def tune():
     tg   = data.get('tg', '').strip()
     if not tg:
         return jsonify({"ok": False, "message": "No talkgroup provided"})
+    if not tg.isdigit():
+        return jsonify({"ok": False, "message": "Invalid talkgroup"})
     run(f"/opt/MMDVM_Bridge/dvswitch.sh tune {tg}")
     return jsonify({"ok": True, "message": f"Tuned to {tg}"})
 
