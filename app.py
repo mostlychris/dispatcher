@@ -12,14 +12,21 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-ABINFO_ACTIVE = '/tmp/ABInfo_31001.json'
-TGLIST_BM        = '/tmp/TGList_BM.txt'
-TGLIST_TGIF      = '/tmp/TGList_TGIF.txt'
-TGIF_NODE_LIST   = '/tmp/TGIF_node_list.txt'
-DMRIDS_FILE   = '/var/lib/mmdvm/DMRIds.dat'
-USRP_HOST     = '127.0.0.1'
-USRP_PORT     = 31001
-USRP_LISTEN   = 31002
+@app.after_request
+def add_cache_headers(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma']        = 'no-cache'
+    response.headers['Expires']       = '0'
+    return response
+
+ABINFO_ACTIVE  = '/tmp/ABInfo_31001.json'
+TGLIST_BM      = '/tmp/TGList_BM.txt'
+TGLIST_TGIF    = '/tmp/TGList_TGIF.txt'
+TGIF_NODE_LIST = '/tmp/TGIF_node_list.txt'
+DMRIDS_FILE    = '/var/lib/mmdvm/DMRIds.dat'
+USRP_HOST      = '127.0.0.1'
+USRP_PORT      = 31001
+USRP_LISTEN    = 31002
 
 LOG_FILES = {
     'mmdvm':  '/var/log/mmdvm/MMDVM_Bridge-{date}.log',
@@ -39,6 +46,13 @@ active_tx = {
     "started":  "",
 }
 
+usrp_state = {
+    "connected":     False,
+    "registered":    False,
+    "last_packet":   0,
+    "last_reg_sent": 0,
+}
+
 sse_clients = []
 sse_lock    = threading.Lock()
 
@@ -56,12 +70,8 @@ def push_event(data):
 tg_cache_bm   = {}
 tg_cache_tgif = {}
 
-
 def load_tg_names():
     global tg_cache_bm, tg_cache_tgif
-
-    # BrandMeister: semicolon delimited
-    # Format: TG;option;name;description
     tg_cache_bm = {}
     try:
         with open(TGLIST_BM) as f:
@@ -75,8 +85,6 @@ def load_tg_names():
     except Exception as e:
         print(f"Warning: could not load BM TG names: {e}")
 
-    # TGIF: comma delimited
-    # Format: TG Number,TG Name
     tg_cache_tgif = {}
     try:
         with open(TGLIST_TGIF) as f:
@@ -90,8 +98,6 @@ def load_tg_names():
     except Exception as e:
         print(f"Warning: could not load TGIF TG names: {e}")
 
-    # TGIF node list: pipe delimited, fills in any gaps
-    # Format: TG Number|||TG Name
     try:
         with open(TGIF_NODE_LIST) as f:
             for line in f:
@@ -102,7 +108,6 @@ def load_tg_names():
                 if len(parts) >= 2:
                     tg_id = parts[0].strip()
                     name  = parts[1].strip()
-                    # Only add if not already in TGIF list
                     if tg_id not in tg_cache_tgif and name:
                         tg_cache_tgif[tg_id] = name
     except Exception as e:
@@ -125,11 +130,11 @@ def lookup_tg(tg_id):
     mode   = get_active_mode()
     tg_str = str(tg_id).strip()
     tg_int = str(int(tg_str)) if tg_str.isdigit() else tg_str
-
     if mode == "BrandMeister":
         return tg_cache_bm.get(tg_int, tg_cache_bm.get(tg_str, ''))
     else:
         return tg_cache_tgif.get(tg_int, tg_cache_tgif.get(tg_str, ''))
+
 # -------------------------
 # DMR ID LOOKUP
 # -------------------------
@@ -160,12 +165,12 @@ def get_current_tx_from_log():
     mode  = get_active_mode()
 
     if mode == "BrandMeister":
-        log_path = '/var/log/dvswitch/STFU.log'
-        pattern  = r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*src\s*=\s*(\d+).*dst\s*=\s*(\d+)'
+        log_path     = '/var/log/dvswitch/STFU.log'
+        pattern      = r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*src\s*=\s*(\d+).*dst\s*=\s*(\d+)'
         use_callsign = False
     else:
-        log_path = f'/var/log/mmdvm/MMDVM_Bridge-{today}.log'
-        pattern  = r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*voice header from (\S+) to TG (\d+)'
+        log_path     = f'/var/log/mmdvm/MMDVM_Bridge-{today}.log'
+        pattern      = r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*voice header from (\S+) to TG (\d+)'
         use_callsign = True
 
     try:
@@ -179,23 +184,13 @@ def get_current_tx_from_log():
             if m:
                 if use_callsign:
                     tg = m.group(3)
-                    return {
-                        "time":     m.group(1),
-                        "callsign": m.group(2),
-                        "dmr_id":   "",
-                        "tg":       tg,
-                        "tg_name":  lookup_tg(tg),
-                    }
+                    return {"time": m.group(1), "callsign": m.group(2),
+                            "dmr_id": "", "tg": tg, "tg_name": lookup_tg(tg)}
                 else:
                     dmr_id = m.group(2)
                     tg     = m.group(3)
-                    return {
-                        "time":     m.group(1),
-                        "callsign": lookup_dmrid(dmr_id),
-                        "dmr_id":   dmr_id,
-                        "tg":       tg,
-                        "tg_name":  lookup_tg(tg),
-                    }
+                    return {"time": m.group(1), "callsign": lookup_dmrid(dmr_id),
+                            "dmr_id": dmr_id, "tg": tg, "tg_name": lookup_tg(tg)}
     except Exception as e:
         print(f"Log read error {log_path}: {e}")
 
@@ -209,17 +204,12 @@ USRP_MAGIC = b'USRP'
 def parse_usrp(data):
     if len(data) < 32 or data[:4] != USRP_MAGIC:
         return None
-    seq   = struct.unpack_from('>I', data, 4)[0]
-    tg    = struct.unpack_from('>I', data, 8)[0]
-    ptt   = struct.unpack_from('>I', data, 12)[0]
-    ptype = struct.unpack_from('>I', data, 16)[0]
-    mpxid = struct.unpack_from('>I', data, 20)[0]
     return {
-        "seq":     seq,
-        "tg":      tg,
-        "ptt":     ptt,
-        "type":    ptype,
-        "mpxid":   mpxid,
+        "seq":     struct.unpack_from('>I', data, 4)[0],
+        "tg":      struct.unpack_from('>I', data, 8)[0],
+        "ptt":     struct.unpack_from('>I', data, 12)[0],
+        "type":    struct.unpack_from('>I', data, 16)[0],
+        "mpxid":   struct.unpack_from('>I', data, 20)[0],
         "payload": data[32:]
     }
 
@@ -228,6 +218,7 @@ def send_registration():
     frame = struct.pack('>4sIIIII', USRP_MAGIC, 0, 0, 0, 0, 0) + bytes(4) + bytes(320)
     sock.sendto(frame, (USRP_HOST, USRP_PORT))
     sock.close()
+    usrp_state["last_reg_sent"] = time.time()
 
 def usrp_listener():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -241,12 +232,18 @@ def usrp_listener():
 
     while True:
         now = time.time()
+
         if now - last_reg > 30:
             try:
                 send_registration()
             except Exception as e:
                 print(f"Registration error: {e}")
             last_reg = now
+
+        if usrp_state["connected"] and (now - usrp_state["last_packet"]) > 35:
+            usrp_state["connected"]  = False
+            usrp_state["registered"] = False
+            print("USRP connection lost")
 
         try:
             data, addr = sock.recvfrom(4096)
@@ -260,7 +257,12 @@ def usrp_listener():
         if not frame:
             continue
 
-        # PTT ON — only trigger on state change
+        usrp_state["last_packet"] = time.time()
+        if not usrp_state["connected"]:
+            usrp_state["connected"]  = True
+            usrp_state["registered"] = True
+            print(f"USRP connected from {addr}")
+
         if frame['ptt'] == 1 and last_ptt != 1:
             last_ptt = 1
             time.sleep(0.2)
@@ -269,29 +271,20 @@ def usrp_listener():
             callsign = tx_info.get('callsign', '') or (lookup_dmrid(dmr_id) if dmr_id else 'UNKNOWN')
             tg       = tx_info.get('tg', '')
             tg_name  = tx_info.get('tg_name', '') or lookup_tg(tg)
-
             active_tx.update({
-                "active":   True,
-                "callsign": callsign,
-                "dmr_id":   dmr_id,
-                "tg":       tg,
-                "tg_name":  tg_name,
-                "started":  datetime.now().strftime("%H:%M:%S"),
+                "active": True, "callsign": callsign, "dmr_id": dmr_id,
+                "tg": tg, "tg_name": tg_name,
+                "started": datetime.now().strftime("%H:%M:%S"),
             })
             push_event({"event": "tx_start", **active_tx})
 
-        # PTT OFF — only trigger on state change
         elif frame['ptt'] == 0 and last_ptt != 0:
             last_ptt = 0
             def clear_tx():
                 time.sleep(3)
                 active_tx.update({
-                    "active":   False,
-                    "callsign": "",
-                    "dmr_id":   "",
-                    "tg":       "",
-                    "tg_name":  "",
-                    "started":  "",
+                    "active": False, "callsign": "", "dmr_id": "",
+                    "tg": "", "tg_name": "", "started": "",
                 })
                 push_event({"event": "tx_end"})
             threading.Thread(target=clear_tx, daemon=True).start()
@@ -334,13 +327,15 @@ def get_status():
         mode = f"ERROR: {e}"
 
     return {
-        "mode":       mode,
-        "tg":         tg,
-        "tg_name":    tg_name,
-        "call":       call,
-        "svc_stfu":   svc("stfu.service"),
-        "svc_mmdvm":  svc("mmdvm_bridge.service"),
-        "svc_analog": svc("analog_bridge.service"),
+        "mode":            mode,
+        "tg":              tg,
+        "tg_name":         tg_name,
+        "call":            call,
+        "svc_stfu":        svc("stfu.service"),
+        "svc_mmdvm":       svc("mmdvm_bridge.service"),
+        "svc_analog":      svc("analog_bridge.service"),
+        "usrp_connected":  usrp_state["connected"],
+        "usrp_registered": usrp_state["registered"],
     }
 
 # -------------------------
@@ -359,20 +354,14 @@ def get_last_heard():
         text = result.stdout.decode('utf-8', errors='replace')
         for line in text.splitlines():
             m = re.search(
-                r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*voice header from (\S+) to TG (\d+)',
-                line
-            )
+                r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*voice header from (\S+) to TG (\d+)', line)
             if m:
                 tg = m.group(3)
                 results.append({
-                    "time":     m.group(1),
-                    "callsign": m.group(2),
-                    "dmr_id":   "",
-                    "tg":       tg,
-                    "tg_name":  tg_cache_tgif.get(tg.lstrip('0') or '0',
-                                tg_cache_tgif.get(tg,
-                                tg_cache_bm.get(tg, ''))),
-                    "source":   "TGIF"
+                    "time": m.group(1), "callsign": m.group(2), "dmr_id": "",
+                    "tg": tg,
+                    "tg_name": tg_cache_tgif.get(tg, tg_cache_bm.get(tg, '')),
+                    "source": "TGIF"
                 })
     except Exception as e:
         print(f"MMDVM log error: {e}")
@@ -386,21 +375,15 @@ def get_last_heard():
         text = result.stdout.decode('utf-8', errors='replace')
         for line in text.splitlines():
             m = re.search(
-                r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*src=(\d+).*dst=(\d+)',
-                line
-            )
+                r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*src=(\d+).*dst=(\d+)', line)
             if m:
                 dmr_id = m.group(2)
                 tg     = m.group(3)
                 results.append({
-                    "time":     m.group(1),
-                    "callsign": lookup_dmrid(dmr_id),
-                    "dmr_id":   dmr_id,
-                    "tg":       tg,
-                    "tg_name":  tg_cache_tgif.get(tg.lstrip('0') or '0',
-                                tg_cache_tgif.get(tg,
-                                tg_cache_bm.get(tg, ''))),
-                    "source":   "TGIF"
+                    "time": m.group(1), "callsign": lookup_dmrid(dmr_id),
+                    "dmr_id": dmr_id, "tg": tg,
+                    "tg_name": tg_cache_tgif.get(tg, tg_cache_bm.get(tg, '')),
+                    "source": "TGIF"
                 })
     except Exception as e:
         print(f"AB log error: {e}")
@@ -414,19 +397,15 @@ def get_last_heard():
         text = result.stdout.decode('utf-8', errors='replace')
         for line in text.splitlines():
             m = re.search(
-                r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*src\s*=\s*(\d+).*dst\s*=\s*(\d+)',
-                line
-            )
+                r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*src\s*=\s*(\d+).*dst\s*=\s*(\d+)', line)
             if m:
                 dmr_id = m.group(2)
                 tg     = m.group(3)
                 results.append({
-                    "time":     m.group(1),
-                    "callsign": lookup_dmrid(dmr_id),
-                    "dmr_id":   dmr_id,
-                    "tg":       tg,
-                    "tg_name":  tg_cache_bm.get(tg, ''),
-                    "source":   "BM"
+                    "time": m.group(1), "callsign": lookup_dmrid(dmr_id),
+                    "dmr_id": dmr_id, "tg": tg,
+                    "tg_name": tg_cache_bm.get(tg, ''),
+                    "source": "BM"
                 })
     except Exception as e:
         print(f"STFU log error: {e}")
@@ -434,11 +413,8 @@ def get_last_heard():
     results.sort(key=lambda x: x['time'], reverse=True)
     return results[:20]
 
-# Load lookup tables at startup
 load_tg_names()
 load_dmr_ids()
-
-# Start USRP listener thread
 usrp_thread = threading.Thread(target=usrp_listener, daemon=True)
 usrp_thread.start()
 
@@ -446,315 +422,401 @@ HTML = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Radio Dispatcher Console</title>
+    <title>Radio Dispatcher</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script type="text/javascript" src="/static/pcm-player.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #121212; color: #fff; font-family: monospace; padding: 20px; }
-        h1 { font-size: 18px; margin-bottom: 20px; letter-spacing: 2px; color: #fff; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 20px; }
+        body { background: #0d0d0d; color: #fff; font-family: monospace; font-size: 13px; }
 
-        .panel { background: #1e1e1e; border-radius: 8px; padding: 16px; }
-        .panel h2 { font-size: 12px; color: #888; letter-spacing: 1px; margin-bottom: 12px; }
-
-        .stat-label { font-size: 11px; color: #666; margin-top: 10px; }
-        .stat-value { font-size: 14px; margin-top: 2px; }
-
-        #modeValue { color: cyan; }
-        #callValue { color: orange; }
-        #tgValue   { color: lightgreen; }
-        #tgName    { color: #6c6; font-size: 11px; margin-top: 2px; }
-        #timeValue { color: #888; font-size: 11px; }
-
-        .status-dot {
-            display: inline-block; width: 8px; height: 8px;
-            border-radius: 50%; margin-right: 6px; background: gray;
+        /* ---- HEADER BAR ---- */
+        .header-bar {
+            background: #1a1a1a;
+            border-bottom: 1px solid #2a2a2a;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
-        .dot-active   { background: lime; }
-        .dot-inactive { background: #555; }
+        .header-bar h1 { font-size: 14px; letter-spacing: 2px; color: #aaa; }
+        .header-time   { font-size: 11px; color: #555; }
 
-        .svc-value   { font-size: 13px; }
-        .svc-running { color: lime; }
-        .svc-stopped { color: #888; }
+        /* ---- MAIN LAYOUT ---- */
+        .app-body { display: grid; grid-template-columns: 220px 1fr; gap: 0; height: calc(100vh - 37px); }
+
+        /* ---- LEFT SIDEBAR ---- */
+        .sidebar {
+            background: #141414;
+            border-right: 1px solid #222;
+            padding: 10px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .sidebar-section {
+            background: #1a1a1a;
+            border-radius: 6px;
+            padding: 10px;
+        }
+        .sidebar-section h3 {
+            font-size: 9px; color: #555;
+            letter-spacing: 1px; margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .stat-row {
+            display: flex; justify-content: space-between;
+            align-items: center; padding: 3px 0;
+            border-bottom: 1px solid #1f1f1f;
+        }
+        .stat-row:last-child { border-bottom: none; }
+        .stat-key   { font-size: 10px; color: #555; }
+        .stat-val   { font-size: 12px; color: #ccc; text-align: right; }
+
+        .mode-badge {
+            display: inline-block; padding: 1px 7px;
+            border-radius: 3px; font-weight: bold; font-size: 11px;
+        }
+        .badge-tgif    { background: #1a3a1a; color: lime; }
+        .badge-bm      { background: #1a1a3a; color: cyan; }
+        .badge-unknown { background: #2a2a2a; color: #666; }
+
+        .svc-dot {
+            display: inline-block; width: 7px; height: 7px;
+            border-radius: 50%; margin-right: 5px;
+            background: #333;
+        }
+        .dot-on  { background: lime; }
+        .dot-off { background: #444; }
+
+        .svc-text-on  { color: lime; font-size: 11px; }
+        .svc-text-off { color: #555; font-size: 11px; }
+
+        /* ---- ACTIVE TX IN SIDEBAR ---- */
+        .tx-block {
+            background: #1a1a1a;
+            border-radius: 6px;
+            padding: 10px;
+            border: 1px solid #222;
+            transition: border-color 0.3s, background 0.3s;
+        }
+        .tx-block.active {
+            background: #0d1f0d;
+            border-color: #2a4a2a;
+        }
+        .tx-block h3 {
+            font-size: 9px; color: #555;
+            letter-spacing: 1px; margin-bottom: 8px;
+            text-transform: uppercase;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .tx-pulse {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #333; flex-shrink: 0;
+        }
+        .tx-pulse.on {
+            background: lime;
+            box-shadow: 0 0 6px lime;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%   { box-shadow: 0 0 3px lime; }
+            50%  { box-shadow: 0 0 10px lime; }
+            100% { box-shadow: 0 0 3px lime; }
+        }
+        .tx-callsign {
+            font-size: 22px; font-weight: bold;
+            color: #333; letter-spacing: 2px;
+            line-height: 1.2; margin-bottom: 4px;
+        }
+        .tx-callsign.on { color: lime; }
+        .tx-detail { font-size: 10px; color: #555; margin-top: 2px; }
+        .tx-detail.on { color: #888; }
+
+        /* ---- RIGHT CONTENT ---- */
+        .content {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ---- CONTROLS BAR ---- */
+        .controls-bar {
+            background: #141414;
+            border-bottom: 1px solid #222;
+            padding: 8px 12px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
 
         button {
-            display: block; width: 100%; padding: 10px;
-            margin-bottom: 10px; border: none; border-radius: 6px;
-            background: #333; color: #fff; font-family: monospace;
-            font-size: 14px; cursor: pointer; letter-spacing: 1px;
+            padding: 5px 12px; border: none; border-radius: 4px;
+            font-family: monospace; font-size: 12px;
+            cursor: pointer; letter-spacing: 0.5px;
+            background: #2a2a2a; color: #aaa;
         }
-        button:hover        { background: #444; }
-        button.tgif         { background: #1a3a1a; color: lime; }
-        button.tgif:hover   { background: #234d23; }
-        button.bm           { background: #1a1a3a; color: cyan; }
-        button.bm:hover     { background: #23234d; }
-        button.danger       { background: #3a1a1a; color: tomato; }
-        button.danger:hover { background: #4d2323; }
-        button.tune         { background: #2a2a1a; color: gold; }
-        button.tune:hover   { background: #3d3d23; }
-        button.monitor        { background: #1a2a3a; color: #7af; }
-        button.monitor:hover  { background: #1e324a; }
-        button.monitor.active { background: #004400; color: lime; }
-        button:disabled     { opacity: 0.4; cursor: not-allowed; }
+        button:hover    { background: #333; color: #fff; }
+        button.btn-tgif { background: #1a3a1a; color: lime; }
+        button.btn-tgif:hover { background: #234d23; }
+        button.btn-bm   { background: #1a1a3a; color: cyan; }
+        button.btn-bm:hover { background: #23234d; }
+        button.btn-danger { background: #2a1a1a; color: #c66; }
+        button.btn-danger:hover { background: #3d2323; }
+        button.btn-tune { background: #2a2a1a; color: gold; }
+        button.btn-tune:hover { background: #3d3d23; }
+        button.btn-monitor { background: #1a2a3a; color: #7af; }
+        button.btn-monitor:hover { background: #1e324a; }
+        button.btn-monitor.active { background: #004400; color: lime; }
+        button:disabled { opacity: 0.35; cursor: not-allowed; }
 
-        input[type=text] {
-            width: 100%; padding: 9px; margin-bottom: 10px;
-            background: #2a2a2a; border: 1px solid #444;
-            color: #fff; font-family: monospace; font-size: 14px;
-            border-radius: 6px;
+        .controls-sep { width: 1px; height: 24px; background: #2a2a2a; margin: 0 2px; }
+
+        .tg-input {
+            padding: 5px 8px; background: #222; border: 1px solid #333;
+            color: #fff; font-family: monospace; font-size: 12px;
+            border-radius: 4px; width: 130px;
         }
 
-        #log {
-            background: #000; border-radius: 6px; padding: 12px;
-            height: 400px; overflow-y: auto;
-            font-size: 12px; line-height: 1.6;
+        /* ---- PANELS AREA ---- */
+        .panels {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        /* ---- DISPATCH LOG ---- */
+        .dispatch-log {
+            background: #000; border-radius: 4px; padding: 8px;
+            height: 160px; overflow-y: auto;
+            font-size: 11px; line-height: 1.5;
+            border: 1px solid #1a1a1a;
         }
         .log-ok    { color: lime; }
         .log-error { color: tomato; }
         .log-warn  { color: gold; }
-        .log-info  { color: #aaa; }
-
-        .mode-badge {
-            display: inline-block; padding: 3px 10px;
-            border-radius: 4px; font-weight: bold; font-size: 13px;
-        }
-        .badge-tgif    { background: #1a3a1a; color: lime; }
-        .badge-bm      { background: #1a1a3a; color: cyan; }
-        .badge-unknown { background: #333;    color: #aaa; }
-
-        hr.divider { border-color: #333; margin: 14px 0; }
-
-        /* ---- ACTIVE TX ---- */
-        .tx-panel {
-            margin-top: 20px; background: #1e1e1e;
-            border-radius: 8px; padding: 16px;
-            transition: background 0.3s;
-            border: 1px solid transparent;
-        }
-        .tx-panel.transmitting {
-            background: #1a2a1a;
-            border-color: #2a4a2a;
-        }
-        .tx-panel h2 { font-size: 12px; color: #888; letter-spacing: 1px; margin-bottom: 12px; }
-        .tx-indicator { display: flex; align-items: center; gap: 16px; }
-        .tx-dot {
-            width: 16px; height: 16px; border-radius: 50%;
-            background: #333; flex-shrink: 0; transition: background 0.2s;
-        }
-        .tx-dot.active {
-            background: lime;
-            box-shadow: 0 0 8px lime;
-            animation: pulse 1s infinite;
-        }
-        @keyframes pulse {
-            0%   { box-shadow: 0 0 4px lime; }
-            50%  { box-shadow: 0 0 14px lime; }
-            100% { box-shadow: 0 0 4px lime; }
-        }
-        .tx-info      { flex: 1; }
-        .tx-callsign  { font-size: 28px; color: lime; font-weight: bold; letter-spacing: 2px; }
-        .tx-callsign.idle { color: #333; font-size: 16px; }
-        .tx-details   { font-size: 12px; color: #666; margin-top: 4px; }
-        .tx-details.active { color: #aaa; }
-        .tx-time      { font-size: 11px; color: #555; margin-top: 4px; }
+        .log-info  { color: #555; }
 
         /* ---- COLLAPSIBLE PANELS ---- */
-        .log-viewer {
-            margin-top: 20px; background: #1e1e1e;
-            border-radius: 8px; overflow: hidden;
-        }
-        .log-viewer-header {
+        .collapse-panel { background: #141414; border-radius: 6px; overflow: hidden; border: 1px solid #1f1f1f; }
+        .collapse-header {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 12px 16px; cursor: pointer;
-            user-select: none; background: #252525;
+            padding: 8px 12px; cursor: pointer; user-select: none;
+            background: #1a1a1a;
         }
-        .log-viewer-header:hover { background: #2a2a2a; }
-        .log-viewer-header h2 { font-size: 12px; color: #888; letter-spacing: 1px; margin: 0; }
-        .collapse-arrow { color: #666; font-size: 14px; transition: transform 0.2s; }
+        .collapse-header:hover { background: #1f1f1f; }
+        .collapse-header h3 { font-size: 10px; color: #666; letter-spacing: 1px; margin: 0; }
+        .collapse-arrow { color: #444; font-size: 12px; transition: transform 0.2s; }
         .collapse-arrow.open { transform: rotate(180deg); }
-        .log-viewer-body { display: none; padding: 16px; }
-        .log-viewer-body.open { display: block; }
+        .collapse-body { display: none; padding: 10px; }
+        .collapse-body.open { display: block; }
 
-        /* ---- LAST HEARD TABLE ---- */
-        #lastHeardTable { width: 100%; border-collapse: collapse; font-size: 12px; }
+        /* ---- LAST HEARD ---- */
+        #lastHeardTable { width: 100%; border-collapse: collapse; font-size: 11px; }
         #lastHeardTable th {
-            text-align: left; color: #555; padding: 4px 10px;
-            border-bottom: 1px solid #2a2a2a;
-            font-weight: normal; letter-spacing: 1px; font-size: 11px;
+            text-align: left; color: #444; padding: 3px 8px;
+            border-bottom: 1px solid #222;
+            font-weight: normal; font-size: 10px; letter-spacing: 1px;
         }
-        #lastHeardTable td { padding: 5px 10px; border-bottom: 1px solid #1a1a1a; }
-        #lastHeardTable tr:hover td { background: #252525; }
-        .lh-time        { color: #555; }
-        .lh-callsign    { color: orange; font-weight: bold; }
-        .lh-dmrid       { color: #555; font-size: 10px; }
-        .lh-tg          { color: lightgreen; }
-        .lh-tgname      { color: #666; }
-        .lh-source-tgif { color: lime; font-size: 11px; }
-        .lh-source-bm   { color: cyan; font-size: 11px; }
+        #lastHeardTable td { padding: 4px 8px; border-bottom: 1px solid #1a1a1a; }
+        #lastHeardTable tr:hover td { background: #1f1f1f; }
+        .lh-time     { color: #444; }
+        .lh-callsign { color: orange; font-weight: bold; }
+        .lh-dmrid    { color: #444; font-size: 10px; }
+        .lh-tg       { color: lightgreen; }
+        .lh-tgname   { color: #555; }
+        .lh-tgif     { color: lime; font-size: 10px; }
+        .lh-bm       { color: cyan; font-size: 10px; }
 
-        /* ---- LOG VIEWER INTERNALS ---- */
-        .log-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+        /* ---- LOG VIEWER ---- */
+        .log-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
         .log-tab {
-            padding: 6px 16px; border-radius: 4px; background: #2a2a2a; color: #888;
-            cursor: pointer; font-size: 12px; border: 1px solid #333; font-family: monospace;
+            padding: 3px 10px; border-radius: 3px; background: #1f1f1f; color: #666;
+            cursor: pointer; font-size: 11px; border: 1px solid #2a2a2a; font-family: monospace;
         }
-        .log-tab:hover  { background: #333; color: #fff; }
-        .log-tab.active { background: #333; color: #fff; border-color: #555; }
+        .log-tab:hover { background: #252525; color: #aaa; }
+        .log-tab.active { background: #252525; color: #aaa; border-color: #444; }
         .log-tab.tab-mmdvm.active  { border-color: #7af; color: #7af; }
         .log-tab.tab-analog.active { border-color: lime; color: lime; }
         .log-tab.tab-stfu.active   { border-color: cyan; color: cyan; }
 
-        .log-controls { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-        .log-controls label { font-size: 11px; color: #666; }
+        .log-controls { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+        .log-controls label { font-size: 10px; color: #555; }
         .log-controls input[type=number] {
-            width: 60px; padding: 4px 6px; margin: 0;
-            background: #2a2a2a; border: 1px solid #444;
-            color: #fff; font-family: monospace; font-size: 12px; border-radius: 4px;
+            width: 50px; padding: 3px 5px; background: #1f1f1f;
+            border: 1px solid #333; color: #fff; font-family: monospace;
+            font-size: 11px; border-radius: 3px;
         }
-        .log-controls button {
-            display: inline-block; width: auto; padding: 4px 12px; margin: 0; font-size: 12px;
-        }
-        .btn-refresh       { background: #2a2a2a; color: #aaa; }
-        .btn-refresh:hover { background: #333; }
-        .btn-autoscroll    { background: #2a2a2a; color: #aaa; }
+        .log-controls button { padding: 3px 8px; font-size: 11px; }
         .btn-autoscroll.on { background: #1a3a1a; color: lime; }
 
         #logFileContent {
-            background: #000; border-radius: 6px; padding: 12px;
-            height: 300px; overflow-y: auto;
-            font-size: 11px; line-height: 1.5; color: #aaa;
+            background: #000; border-radius: 4px; padding: 8px;
+            height: 220px; overflow-y: auto;
+            font-size: 10px; line-height: 1.5; color: #666;
             white-space: pre-wrap; word-break: break-all;
         }
         .log-line-error { color: tomato; }
         .log-line-warn  { color: gold; }
-        .log-line-info  { color: #aaa; }
-        .log-line-debug { color: #555; }
-        .log-file-label { font-size: 10px; color: #444; margin-bottom: 6px; }
+        .log-line-info  { color: #555; }
+        .log-line-debug { color: #333; }
+        .log-file-label { font-size: 9px; color: #333; margin-bottom: 4px; }
 
-        @media (max-width: 768px) {
-            .grid { grid-template-columns: 1fr; }
-            #log  { height: 200px; }
-            #logFileContent { height: 200px; }
+        @media (max-width: 600px) {
+            .app-body { grid-template-columns: 1fr; }
+            .sidebar  { border-right: none; border-bottom: 1px solid #222; max-height: 50vh; }
         }
     </style>
 </head>
 <body>
-    <h1>⚡ RADIO DISPATCHER CONSOLE</h1>
-    <div class="grid">
 
-        <!-- STATUS PANEL -->
-        <div class="panel">
-            <h2>SYSTEM STATUS</h2>
-            <div class="stat-label">Network</div>
-            <div class="stat-value">
-                <span class="mode-badge badge-unknown" id="modeValue">--</span>
-            </div>
-            <div class="stat-label">Callsign</div>
-            <div class="stat-value" id="callValue">--</div>
-            <div class="stat-label">Talkgroup</div>
-            <div class="stat-value" id="tgValue">--</div>
-            <div id="tgName"></div>
-            <hr class="divider">
-            <h2>SERVICES</h2>
-            <div class="stat-label">STFU (BrandMeister)</div>
-            <div class="stat-value">
-                <span class="status-dot" id="dot_stfu"></span>
-                <span class="svc-value" id="svc_stfu">--</span>
-            </div>
-            <div class="stat-label">MMDVM Bridge</div>
-            <div class="stat-value">
-                <span class="status-dot" id="dot_mmdvm"></span>
-                <span class="svc-value" id="svc_mmdvm">--</span>
-            </div>
-            <div class="stat-label">Analog Bridge</div>
-            <div class="stat-value">
-                <span class="status-dot" id="dot_analog"></span>
-                <span class="svc-value" id="svc_analog">--</span>
-            </div>
-            <hr class="divider">
-            <div class="stat-value" id="timeValue">--</div>
-        </div>
-
-        <!-- CONTROLS PANEL -->
-        <div class="panel">
-            <h2>CONTROLS</h2>
-            <button class="tgif"   id="btnTGIF"    onclick="action('/api/tgif',    'Switching to TGIF...')">▶ TGIF</button>
-            <button class="bm"     id="btnBM"      onclick="action('/api/bm',      'Switching to BrandMeister...')">▶ BrandMeister</button>
-            <button class="danger" id="btnRestart" onclick="action('/api/restart', 'Restarting STFU service...')">↺ Restart STFU</button>
-            <hr class="divider">
-            <input type="text" id="tgInput" placeholder="Enter Talkgroup...">
-            <button class="tune" onclick="tuneTG()">⟶ TUNE</button>
-            <hr class="divider">
-            <button class="monitor" id="btnMonitor" onclick="toggleMonitor(this)">🔈 RX Monitor: OFF</button>
-        </div>
-
-        <!-- DISPATCH LOG PANEL -->
-        <div class="panel">
-            <h2>DISPATCH LOG</h2>
-            <div id="log"></div>
-        </div>
-
+    <div class="header-bar">
+        <h1>&#9889; RADIO DISPATCHER</h1>
+        <span class="header-time" id="headerTime">--</span>
     </div>
 
-    <!-- ACTIVE TX -->
-    <div class="tx-panel" id="txPanel">
-        <h2>📡 ACTIVE TRANSMISSION</h2>
-        <div class="tx-indicator">
-            <div class="tx-dot" id="txDot"></div>
-            <div class="tx-info">
-                <div class="tx-callsign idle" id="txCallsign">STANDBY</div>
-                <div class="tx-details"       id="txDetails">No active transmission</div>
-                <div class="tx-time"          id="txTime"></div>
-            </div>
-        </div>
-    </div>
+    <div class="app-body">
 
-    <!-- LAST HEARD -->
-    <div class="log-viewer">
-        <div class="log-viewer-header" onclick="toggleLastHeard()">
-            <h2>📻 LAST HEARD</h2>
-            <span class="collapse-arrow" id="lastHeardArrow">▼</span>
-        </div>
-        <div class="log-viewer-body" id="lastHeardBody_wrapper">
-            <table id="lastHeardTable">
-                <thead>
-                    <tr>
-                        <th>TIME</th>
-                        <th>CALLSIGN</th>
-                        <th>DMR ID</th>
-                        <th>TG</th>
-                        <th>TG NAME</th>
-                        <th>SOURCE</th>
-                    </tr>
-                </thead>
-                <tbody id="lastHeardBody">
-                    <tr><td colspan="6" style="color:#555; padding:8px;">Open to load...</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
+        <!-- SIDEBAR -->
+        <div class="sidebar">
 
-    <!-- LOG VIEWER -->
-    <div class="log-viewer">
-        <div class="log-viewer-header" onclick="toggleLogViewer()">
-            <h2>📋 LOG VIEWER</h2>
-            <span class="collapse-arrow" id="collapseArrow">▼</span>
+            <!-- ACTIVE TX -->
+            <div class="tx-block" id="txBlock">
+                <h3><span class="tx-pulse" id="txPulse"></span>ON AIR</h3>
+                <div class="tx-callsign" id="txCallsign">STANDBY</div>
+                <div class="tx-detail"   id="txDetail">&mdash;</div>
+                <div class="tx-detail"   id="txTime"></div>
+            </div>
+
+            <!-- SYSTEM STATUS -->
+            <div class="sidebar-section">
+                <h3>Status</h3>
+                <div class="stat-row">
+                    <span class="stat-key">Network</span>
+                    <span class="stat-val"><span class="mode-badge badge-unknown" id="modeValue">--</span></span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-key">Callsign</span>
+                    <span class="stat-val" id="callValue" style="color:orange;">--</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-key">Talkgroup</span>
+                    <span class="stat-val" style="text-align:right;">
+                        <span style="color:lightgreen;" id="tgValue">--</span><br>
+                        <span style="color:#4a4; font-size:10px;" id="tgName"></span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- SERVICES -->
+            <div class="sidebar-section">
+                <h3>Services</h3>
+                <div class="stat-row">
+                    <span class="stat-key"><span class="svc-dot" id="dot_stfu"></span>STFU/BM</span>
+                    <span class="stat-val svc-text-off" id="svc_stfu">--</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-key"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM</span>
+                    <span class="stat-val svc-text-off" id="svc_mmdvm">--</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-key"><span class="svc-dot" id="dot_analog"></span>Analog</span>
+                    <span class="stat-val svc-text-off" id="svc_analog">--</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-key"><span class="svc-dot" id="dot_usrp"></span>USRP</span>
+                    <span class="stat-val svc-text-off" id="svc_usrp">--</span>
+                </div>
+            </div>
         </div>
-        <div class="log-viewer-body" id="logViewerBody">
-            <div class="log-tabs">
-                <div class="log-tab tab-mmdvm active" onclick="selectTab('mmdvm', this)">MMDVM Bridge</div>
-                <div class="log-tab tab-analog"       onclick="selectTab('analog', this)">Analog Bridge</div>
-                <div class="log-tab tab-stfu"         onclick="selectTab('stfu',   this)">STFU</div>
+
+        <!-- MAIN CONTENT -->
+        <div class="content">
+
+            <!-- CONTROLS BAR -->
+            <div class="controls-bar">
+                <button class="btn-tgif"   id="btnTGIF"      onclick="action('/api/tgif',         'Switching to TGIF...')">&#9654; TGIF</button>
+                <button class="btn-bm"     id="btnBM"        onclick="action('/api/bm',            'Switching to BrandMeister...')">&#9654; BM</button>
+                <div class="controls-sep"></div>
+                <button class="btn-danger" id="btnRestart"   onclick="action('/api/restart',       'Restarting STFU...')">&#8634; STFU</button>
+                <button class="btn-danger" id="btnRestartAB" onclick="action('/api/restart_ab',    'Restarting Analog Bridge...')">&#8634; Analog</button>
+                <button class="btn-danger" id="btnRestartMM" onclick="action('/api/restart_mmdvm', 'Restarting MMDVM...')">&#8634; MMDVM</button>
+                <div class="controls-sep"></div>
+                <input  class="tg-input" type="text" id="tgInput" placeholder="Talkgroup...">
+                <button class="btn-tune" onclick="tuneTG()">&#9654; Tune</button>
+                <div class="controls-sep"></div>
+                <button class="btn-monitor" id="btnMonitor" onclick="toggleMonitor(this)">&#128264; AUDIO</button>
             </div>
-            <div class="log-controls">
-                <label>Lines:</label>
-                <input type="number" id="logLines" value="50" min="10" max="500" step="10">
-                <button class="btn-refresh" onclick="fetchLog()">↺ Refresh</button>
-                <button class="btn-autoscroll on" id="btnAutoScroll" onclick="toggleAutoScroll()">⬇ Auto-scroll: ON</button>
+
+            <!-- PANELS -->
+            <div class="panels">
+
+                <!-- DISPATCH LOG -->
+                <div class="collapse-panel">
+                    <div class="collapse-header" onclick="toggleDispatchLog()">
+                        <h3>&#128225; DISPATCH LOG</h3>
+                        <span class="collapse-arrow open" id="dispatchArrow">&#9660;</span>
+                    </div>
+                    <div class="collapse-body open" id="dispatchLogWrapper">
+                        <div class="dispatch-log" id="dispatchLog"></div>
+                    </div>
+                </div>
+
+                <!-- LAST HEARD -->
+                <div class="collapse-panel">
+                    <div class="collapse-header" onclick="toggleLastHeard()">
+                        <h3>&#128251; LAST HEARD</h3>
+                        <span class="collapse-arrow" id="lastHeardArrow">&#9660;</span>
+                    </div>
+                    <div class="collapse-body" id="lastHeardBody_wrapper">
+                        <table id="lastHeardTable">
+                            <thead>
+                                <tr>
+                                    <th>TIME</th>
+                                    <th>CALLSIGN</th>
+                                    <th>DMR ID</th>
+                                    <th>TG</th>
+                                    <th>TG NAME</th>
+                                    <th>NET</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lastHeardBody">
+                                <tr><td colspan="6" style="color:#333; padding:8px;">Open to load...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- LOG VIEWER -->
+                <div class="collapse-panel">
+                    <div class="collapse-header" onclick="toggleLogViewer()">
+                        <h3>&#128203; LOG VIEWER</h3>
+                        <span class="collapse-arrow" id="collapseArrow">&#9660;</span>
+                    </div>
+                    <div class="collapse-body" id="logViewerBody">
+                        <div class="log-tabs">
+                            <div class="log-tab tab-mmdvm active" onclick="selectTab('mmdvm', this)">MMDVM</div>
+                            <div class="log-tab tab-analog"       onclick="selectTab('analog', this)">Analog</div>
+                            <div class="log-tab tab-stfu"         onclick="selectTab('stfu',   this)">STFU</div>
+                        </div>
+                        <div class="log-controls">
+                            <label>Lines:</label>
+                            <input type="number" id="logLines" value="50" min="10" max="500" step="10">
+                            <button onclick="fetchLog()">&#8634; Refresh</button>
+                            <button class="btn-autoscroll on" id="btnAutoScroll" onclick="toggleAutoScroll()">&#11015; Auto</button>
+                        </div>
+                        <div class="log-file-label" id="logFileLabel"></div>
+                        <div id="logFileContent">Select a tab to load...</div>
+                    </div>
+                </div>
+
             </div>
-            <div class="log-file-label" id="logFileLabel"></div>
-            <div id="logFileContent">Select a log tab to load...</div>
         </div>
     </div>
 
@@ -764,62 +826,51 @@ HTML = '''
         // -------------------------
         function connectSSE() {
             const es = new EventSource('/api/stream');
-
             es.onmessage = function(e) {
                 const data = JSON.parse(e.data);
-
                 if (data.event === 'tx_start') {
-                    document.getElementById('txDot').classList.add('active');
-                    document.getElementById('txPanel').classList.add('transmitting');
-
+                    document.getElementById('txBlock').classList.add('active');
+                    document.getElementById('txPulse').classList.add('on');
                     const cs = document.getElementById('txCallsign');
                     cs.textContent = data.callsign || data.dmr_id || 'UNKNOWN';
-                    cs.classList.remove('idle');
-
-                    const det = document.getElementById('txDetails');
-                    det.textContent = `DMR ID: ${data.dmr_id}  TG: ${data.tg}${data.tg_name ? ' (' + data.tg_name + ')' : ''}`;
-                    det.classList.add('active');
-
-                    document.getElementById('txTime').textContent = `Started: ${data.started}`;
-                    log(`TX: ${data.callsign || data.dmr_id} on TG ${data.tg}`, 'ok');
+                    cs.classList.add('on');
+                    const det = document.getElementById('txDetail');
+                    det.textContent = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
+                    det.classList.add('on');
+                    document.getElementById('txTime').textContent = 'Since ' + data.started;
+                    log('TX: ' + (data.callsign || data.dmr_id) + ' → TG ' + data.tg, 'ok');
                     if (lastHeardOpen) pollLastHeard();
-
                 } else if (data.event === 'tx_end') {
-                    document.getElementById('txDot').classList.remove('active');
-                    document.getElementById('txPanel').classList.remove('transmitting');
-
+                    document.getElementById('txBlock').classList.remove('active');
+                    document.getElementById('txPulse').classList.remove('on');
                     const cs = document.getElementById('txCallsign');
                     cs.textContent = 'STANDBY';
-                    cs.classList.add('idle');
-
-                    document.getElementById('txDetails').textContent = 'No active transmission';
-                    document.getElementById('txDetails').classList.remove('active');
+                    cs.classList.remove('on');
+                    document.getElementById('txDetail').textContent = '—';
+                    document.getElementById('txDetail').classList.remove('on');
                     document.getElementById('txTime').textContent = '';
-
                     if (lastHeardOpen) pollLastHeard();
                 }
             };
-
-            es.onerror = function() {
-                setTimeout(connectSSE, 5000);
-            };
+            es.onerror = function() { setTimeout(connectSSE, 5000); };
         }
 
         // -------------------------
         // RX MONITOR
         // -------------------------
         var dvsp = null;
-
         function toggleMonitor(btn) {
             if (dvsp && dvsp.isPlaying()) {
                 dvsp.stop();
-                btn.textContent = '🔈 RX Monitor: OFF';
                 btn.classList.remove('active');
                 log('RX Monitor stopped', 'warn');
             } else {
-                if (!dvsp) { dvsp = new DVSwitchPlayer(8080, btn); }
+                if (!dvsp) {
+                    dvsp = new DVSwitchPlayer(8080, btn);
+                    dvsp.socketURL = 'wss://' + window.location.host + '/audio-ws/';
+                    dvsp.ws = null;
+                }
                 dvsp.play();
-                btn.textContent = '🔊 RX Monitor: ON';
                 btn.classList.add('active');
                 log('RX Monitor started', 'ok');
             }
@@ -849,42 +900,42 @@ HTML = '''
                 const rows = await res.json();
                 const body = document.getElementById('lastHeardBody');
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="6" style="color:#555; padding:8px;">No activity yet today</td></tr>';
+                    body.innerHTML = '<tr><td colspan="6" style="color:#333; padding:6px;">No activity yet today</td></tr>';
                     return;
                 }
-                body.innerHTML = rows.map((r) => `
+                body.innerHTML = rows.map(r => `
                     <tr>
                         <td class="lh-time">${r.time.split(' ')[1]}</td>
                         <td class="lh-callsign">${r.callsign}</td>
                         <td class="lh-dmrid">${r.dmr_id || ''}</td>
                         <td class="lh-tg">${r.tg}</td>
                         <td class="lh-tgname">${r.tg_name || ''}</td>
-                        <td class="${r.source === 'BM' ? 'lh-source-bm' : 'lh-source-tgif'}">${r.source}</td>
-                    </tr>
-                `).join('');
-            } catch(e) {
-                log('Last heard poll failed: ' + e, 'error');
-            }
+                        <td class="${r.source === 'BM' ? 'lh-bm' : 'lh-tgif'}">${r.source}</td>
+                    </tr>`).join('');
+            } catch(e) { log('Last heard error: ' + e, 'error'); }
         }
 
         // -------------------------
         // LOG VIEWER
         // -------------------------
-        var currentLog    = 'mmdvm';
-        var autoScroll    = true;
-        var logViewerOpen = false;
-        var logPollTimer  = null;
+        var currentLog      = 'mmdvm';
+        var autoScroll      = true;
+        var logViewerOpen   = false;
+        var logPollTimer    = null;
+        var dispatchLogOpen = true;
+
+        function toggleDispatchLog() {
+            dispatchLogOpen = !dispatchLogOpen;
+            document.getElementById('dispatchLogWrapper').classList.toggle('open', dispatchLogOpen);
+            document.getElementById('dispatchArrow').classList.toggle('open', dispatchLogOpen);
+        }
 
         function toggleLogViewer() {
             logViewerOpen = !logViewerOpen;
             document.getElementById('logViewerBody').classList.toggle('open', logViewerOpen);
             document.getElementById('collapseArrow').classList.toggle('open', logViewerOpen);
-            if (logViewerOpen) {
-                fetchLog();
-                logPollTimer = setInterval(fetchLog, 5000);
-            } else {
-                clearInterval(logPollTimer);
-            }
+            if (logViewerOpen) { fetchLog(); logPollTimer = setInterval(fetchLog, 5000); }
+            else { clearInterval(logPollTimer); }
         }
 
         function selectTab(logKey, el) {
@@ -897,7 +948,7 @@ HTML = '''
         function toggleAutoScroll() {
             autoScroll = !autoScroll;
             const btn = document.getElementById('btnAutoScroll');
-            btn.textContent = `⬇ Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+            btn.textContent = '⬇ Auto ' + (autoScroll ? 'ON' : 'OFF');
             btn.classList.toggle('on', autoScroll);
         }
 
@@ -921,7 +972,7 @@ HTML = '''
                 });
                 if (autoScroll) content.scrollTop = content.scrollHeight;
             } catch(e) {
-                document.getElementById('logFileContent').textContent = 'Error fetching log: ' + e;
+                document.getElementById('logFileContent').textContent = 'Error: ' + e;
             }
         }
 
@@ -933,10 +984,10 @@ HTML = '''
         }
 
         function log(msg, type='info') {
-            const div  = document.getElementById('log');
+            const div  = document.getElementById('dispatchLog');
             const line = document.createElement('div');
-            line.className   = `log-${type}`;
-            line.textContent = `${timestamp()} [${type.toUpperCase()}] ${msg}`;
+            line.className   = 'log-' + type;
+            line.textContent = timestamp() + ' ' + msg;
             div.appendChild(line);
             div.scrollTop = div.scrollHeight;
         }
@@ -945,7 +996,7 @@ HTML = '''
         // CONTROLS
         // -------------------------
         function setButtons(disabled) {
-            ['btnTGIF', 'btnBM', 'btnRestart'].forEach(id => {
+            ['btnTGIF','btnBM','btnRestart','btnRestartAB','btnRestartMM'].forEach(id => {
                 document.getElementById(id).disabled = disabled;
             });
         }
@@ -955,14 +1006,12 @@ HTML = '''
             setButtons(true);
             try {
                 const res  = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: '{}'
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
                 });
                 const data = await res.json();
                 log(data.message, data.ok ? 'ok' : 'error');
             } catch(e) {
-                log('Request failed: ' + e, 'error');
+                log('Failed: ' + e, 'error');
             } finally {
                 setButtons(false);
                 pollStatus();
@@ -972,10 +1021,9 @@ HTML = '''
         function tuneTG() {
             const tg = document.getElementById('tgInput').value.trim();
             if (!tg) { log('No talkgroup entered', 'error'); return; }
-            log(`Tuning to TG ${tg}...`);
+            log('Tuning to TG ' + tg + '...');
             fetch('/api/tune', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({tg})
             })
             .then(r => r.json())
@@ -1001,17 +1049,30 @@ HTML = '''
                 document.getElementById('callValue').textContent = d.call    || '--';
                 document.getElementById('tgValue').textContent   = d.tg      || '--';
                 document.getElementById('tgName').textContent    = d.tg_name || '';
-                document.getElementById('timeValue').textContent = 'Updated: ' + timestamp();
+                document.getElementById('headerTime').textContent = timestamp();
 
                 ['stfu', 'mmdvm', 'analog'].forEach(svc => {
-                    const val     = d[`svc_${svc}`];
-                    const running = val === 'RUNNING';
-                    const svcEl   = document.getElementById(`svc_${svc}`);
-                    const dotEl   = document.getElementById(`dot_${svc}`);
-                    svcEl.textContent = val;
-                    svcEl.className   = `svc-value ${running ? 'svc-running' : 'svc-stopped'}`;
-                    dotEl.className   = `status-dot ${running ? 'dot-active' : 'dot-inactive'}`;
+                    const running = d['svc_' + svc] === 'RUNNING';
+                    document.getElementById('svc_' + svc).textContent = running ? 'RUN' : 'STOP';
+                    document.getElementById('svc_' + svc).className   = running ? 'stat-val svc-text-on' : 'stat-val svc-text-off';
+                    document.getElementById('dot_' + svc).className   = 'svc-dot ' + (running ? 'dot-on' : 'dot-off');
                 });
+
+                const usrpEl  = document.getElementById('svc_usrp');
+                const usrpDot = document.getElementById('dot_usrp');
+                if (d.usrp_connected) {
+                    usrpEl.textContent = 'CONN';
+                    usrpEl.className   = 'stat-val svc-text-on';
+                    usrpDot.className  = 'svc-dot dot-on';
+                } else if (d.usrp_registered) {
+                    usrpEl.textContent = 'REG';
+                    usrpEl.className   = 'stat-val svc-text-off';
+                    usrpDot.className  = 'svc-dot dot-off';
+                } else {
+                    usrpEl.textContent = 'OFF';
+                    usrpEl.className   = 'stat-val svc-text-off';
+                    usrpDot.className  = 'svc-dot dot-off';
+                }
             } catch(e) {
                 log('Poll failed: ' + e, 'error');
             }
@@ -1023,7 +1084,7 @@ HTML = '''
         connectSSE();
         setInterval(pollStatus, 5000);
         pollStatus();
-        log('Radio Dispatcher Console started', 'ok');
+        log('Dispatcher ready', 'ok');
     </script>
 </body>
 </html>
@@ -1050,7 +1111,6 @@ def stream():
         finally:
             with sse_lock:
                 sse_clients.remove(q)
-
     return Response(event_stream(), mimetype='text/event-stream',
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
@@ -1073,29 +1133,49 @@ def get_log(log_key):
     if not os.path.exists(path):
         return jsonify({"path": path, "lines": [f"Log file not found: {path}"]})
     try:
-        result = subprocess.run(
-            ['tail', '-n', str(lines), path],
-            capture_output=True, timeout=5
-        )
-        text = result.stdout.decode('utf-8', errors='replace')
+        result = subprocess.run(['tail', '-n', str(lines), path], capture_output=True, timeout=5)
+        text   = result.stdout.decode('utf-8', errors='replace')
         return jsonify({"path": path, "lines": text.splitlines()})
     except Exception as e:
         return jsonify({"path": path, "lines": [f"Error reading log: {e}"]})
 
 @app.route('/api/tgif', methods=['POST'])
 def tgif():
-    run("/opt/MMDVM_Bridge/connectTGIF.sh")
-    return jsonify({"ok": True, "message": "Switched to TGIF"})
+    subprocess.Popen(
+        ['/bin/bash', '/opt/MMDVM_Bridge/connectTGIF.sh'],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    return jsonify({"ok": True, "message": "Switching to TGIF (allow 20 seconds)..."})
 
 @app.route('/api/bm', methods=['POST'])
 def bm():
-    run("/opt/MMDVM_Bridge/connectBM.sh")
-    return jsonify({"ok": True, "message": "Switched to BrandMeister"})
+    subprocess.Popen(
+        ['/bin/bash', '/opt/MMDVM_Bridge/connectBM.sh'],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    return jsonify({"ok": True, "message": "Switching to BrandMeister (allow 20 seconds)..."})
 
 @app.route('/api/restart', methods=['POST'])
 def restart():
     run("sudo systemctl restart stfu.service")
     return jsonify({"ok": True, "message": "STFU service restarted"})
+
+@app.route('/api/restart_ab', methods=['POST'])
+def restart_ab():
+    run("sudo systemctl restart analog_bridge.service")
+    def reregister():
+        time.sleep(5)
+        try:
+            send_registration()
+        except Exception as e:
+            print(f"Re-registration error: {e}")
+    threading.Thread(target=reregister, daemon=True).start()
+    return jsonify({"ok": True, "message": "Analog Bridge restarted"})
+
+@app.route('/api/restart_mmdvm', methods=['POST'])
+def restart_mmdvm():
+    run("sudo systemctl restart mmdvm_bridge.service")
+    return jsonify({"ok": True, "message": "MMDVM Bridge restarted"})
 
 @app.route('/api/tune', methods=['POST'])
 def tune():
