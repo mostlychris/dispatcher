@@ -310,6 +310,21 @@ def svc(name):
     result = run(f"systemctl is-active {name}")
     return "RUNNING" if result.strip() == "active" else "STOPPED"
 
+def get_svc_uptime(name):
+    try:
+        r = subprocess.run(
+            ['systemctl', 'show', name, '--property=ActiveEnterTimestamp'],
+            capture_output=True, text=True, timeout=5
+        )
+        ts = r.stdout.strip().split('=', 1)[-1].strip()
+        # "Wed 2024-01-01 14:32:00 UTC" → "2024-01-01 14:32:00"
+        parts = ts.split()
+        if len(parts) >= 3 and parts[1] != 'n/a':
+            return f"{parts[1]} {parts[2]}"
+    except Exception:
+        pass
+    return ''
+
 def get_log_path(log_key):
     pattern = LOG_FILES.get(log_key, '')
     today   = datetime.now().strftime('%Y-%m-%d')
@@ -331,11 +346,17 @@ def get_status():
     except Exception as e:
         mode = f"ERROR: {e}"
 
+    if mode == "BrandMeister":
+        connected_since = get_svc_uptime("stfu.service")
+    else:
+        connected_since = get_svc_uptime("mmdvm_bridge.service")
+
     return {
         "mode":            mode,
         "tg":              tg,
         "tg_name":         tg_name,
         "call":            call,
+        "connected_since": connected_since,
         "svc_stfu":        svc("stfu.service"),
         "svc_mmdvm":       svc("mmdvm_bridge.service"),
         "svc_analog":      svc("analog_bridge.service"),
@@ -707,6 +728,10 @@ HTML = '''
                     <span class="stat-val"><span class="mode-badge badge-unknown" id="modeValue">--</span></span>
                 </div>
                 <div class="stat-row">
+                    <span class="stat-key">Since</span>
+                    <span class="stat-val" id="connectedSince" style="color:#666; font-size:10px;">--</span>
+                </div>
+                <div class="stat-row">
                     <span class="stat-key">Callsign</span>
                     <span class="stat-val" id="callValue" style="color:orange;">--</span>
                 </div>
@@ -1051,9 +1076,10 @@ HTML = '''
                     d.mode === 'BrandMeister' ? 'badge-bm'   : 'badge-unknown'
                 );
 
-                document.getElementById('callValue').textContent = d.call    || '--';
-                document.getElementById('tgValue').textContent   = d.tg      || '--';
-                document.getElementById('tgName').textContent    = d.tg_name || '';
+                document.getElementById('callValue').textContent        = d.call            || '--';
+                document.getElementById('tgValue').textContent          = d.tg              || '--';
+                document.getElementById('tgName').textContent           = d.tg_name         || '';
+                document.getElementById('connectedSince').textContent   = d.connected_since || '--';
                 document.getElementById('headerTime').textContent = timestamp();
 
                 ['stfu', 'mmdvm', 'analog'].forEach(svc => {
