@@ -24,6 +24,8 @@ try:
 except ImportError:
     AUDIO_WS_URL = ''
 
+FAVORITES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
+
 ABINFO_ACTIVE  = '/tmp/ABInfo_31001.json'
 TGLIST_BM      = '/tmp/TGList_BM.txt'
 TGLIST_TGIF    = '/tmp/TGList_TGIF.txt'
@@ -439,6 +441,30 @@ def get_last_heard():
     results.sort(key=lambda x: x['time'], reverse=True)
     return results[:20]
 
+# -------------------------
+# FAVORITES & TUNE HISTORY
+# -------------------------
+favorites_lock = threading.Lock()
+tune_history   = []
+HISTORY_MAX    = 20
+
+def load_favorites():
+    try:
+        with open(FAVORITES_FILE) as f:
+            data = json.load(f)
+        return {"BM": data.get("BM", []), "TGIF": data.get("TGIF", [])}
+    except:
+        return {"BM": [], "TGIF": []}
+
+def save_favorites(data):
+    try:
+        with open(FAVORITES_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"Warning: could not save favorites: {e}")
+
+favorites = load_favorites()
+
 load_tg_names()
 load_dmr_ids()
 usrp_thread = threading.Thread(target=usrp_listener, daemon=True)
@@ -694,6 +720,44 @@ HTML = '''
         .log-line-debug { color: #333; }
         .log-file-label { font-size: 9px; color: #333; margin-bottom: 4px; }
 
+        /* ---- QUICK TUNE ---- */
+        .qt-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .qt-section-label {
+            font-size: 9px; color: #555;
+            letter-spacing: 1px; margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .fav-entry {
+            display: flex; align-items: stretch;
+            gap: 3px; margin-bottom: 3px;
+        }
+        .btn-fav-tune {
+            flex: 1; text-align: left;
+            padding: 4px 7px; font-size: 11px;
+            overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; background: #2a2a1a; color: gold;
+        }
+        .btn-fav-tune:hover { background: #3d3d23; }
+        .btn-fav-del {
+            background: #1f1515; color: #553333;
+            padding: 4px 7px; font-size: 10px; flex-shrink: 0;
+            border: none; border-radius: 4px; cursor: pointer;
+            font-family: monospace;
+        }
+        .btn-fav-del:hover { background: #3d2323; color: #c66; }
+        .btn-save-fav { background: #2a2a1a; color: gold; }
+        .btn-save-fav:hover { background: #3d3d23; }
+        .qt-empty { color: #333; font-size: 10px; padding: 2px 0; }
+        .qt-hist-net {
+            font-size: 9px; color: #555;
+            margin-right: 5px; letter-spacing: 0.5px;
+        }
+
         @media (max-width: 600px) {
             .app-body { grid-template-columns: 1fr; }
             .sidebar  { border-right: none; border-bottom: 1px solid #222; max-height: 50vh; }
@@ -780,6 +844,7 @@ HTML = '''
                 <div class="controls-sep"></div>
                 <input  class="tg-input" type="text" id="tgInput" placeholder="Talkgroup...">
                 <button class="btn-tune" onclick="tuneTG()">&#9654; Tune</button>
+                <button class="btn-save-fav" onclick="saveFavorite()" title="Save to favorites for current network">&#9733; Fav</button>
                 <div class="controls-sep"></div>
                 <button class="btn-monitor" id="btnMonitor" onclick="toggleMonitor(this)">&#128264; AUDIO</button>
             </div>
@@ -795,6 +860,28 @@ HTML = '''
                     </div>
                     <div class="collapse-body open" id="dispatchLogWrapper">
                         <div class="dispatch-log" id="dispatchLog"></div>
+                    </div>
+                </div>
+
+                <!-- QUICK TUNE -->
+                <div class="collapse-panel">
+                    <div class="collapse-header" onclick="toggleQuickTune()">
+                        <h3>&#9733; QUICK TUNE</h3>
+                        <span class="collapse-arrow" id="quickTuneArrow">&#9660;</span>
+                    </div>
+                    <div class="collapse-body" id="quickTuneBody">
+                        <div class="qt-grid">
+                            <div>
+                                <div class="qt-section-label">TGIF Favorites</div>
+                                <div id="favsTGIF"><div class="qt-empty">None saved</div></div>
+                            </div>
+                            <div>
+                                <div class="qt-section-label">BM Favorites</div>
+                                <div id="favsBM"><div class="qt-empty">None saved</div></div>
+                            </div>
+                        </div>
+                        <div class="qt-section-label" style="margin-top:6px;">Recent</div>
+                        <div id="tuneHistory"><div class="qt-empty">No history yet</div></div>
                     </div>
                 </div>
 
@@ -1062,6 +1149,93 @@ HTML = '''
         }
 
         // -------------------------
+        // QUICK TUNE
+        // -------------------------
+        var quickTuneOpen = false;
+        var currentMode   = 'TGIF';
+
+        function toggleQuickTune() {
+            quickTuneOpen = !quickTuneOpen;
+            document.getElementById('quickTuneBody').classList.toggle('open', quickTuneOpen);
+            document.getElementById('quickTuneArrow').classList.toggle('open', quickTuneOpen);
+            if (quickTuneOpen) loadQuickTune();
+        }
+
+        async function loadQuickTune() {
+            try {
+                const [fr, hr] = await Promise.all([
+                    fetch('/api/favorites'), fetch('/api/tune_history')
+                ]);
+                const favs = await fr.json();
+                const hist = await hr.json();
+                renderFavs('TGIF', favs.TGIF || []);
+                renderFavs('BM',   favs.BM   || []);
+                renderHistory(hist);
+            } catch(e) { log('Quick tune error: ' + e, 'error'); }
+        }
+
+        function renderFavs(network, list) {
+            const el = document.getElementById('favs' + network);
+            if (!list.length) {
+                el.innerHTML = '<div class="qt-empty">None saved</div>';
+                return;
+            }
+            el.innerHTML = list.map(f => {
+                const label = f.tg + (f.name ? ' · ' + f.name : '');
+                return `<div class="fav-entry">
+                    <button class="btn-fav-tune" onclick="quickTune('${f.tg}')" title="${label}">${label}</button>
+                    <button class="btn-fav-del"  onclick="removeFav('${network}','${f.tg}')">&#10005;</button>
+                </div>`;
+            }).join('');
+        }
+
+        function renderHistory(list) {
+            const el = document.getElementById('tuneHistory');
+            if (!list.length) {
+                el.innerHTML = '<div class="qt-empty">No history yet</div>';
+                return;
+            }
+            el.innerHTML = list.map(h => {
+                const label = h.tg + (h.name ? ' · ' + h.name : '');
+                return `<div class="fav-entry">
+                    <button class="btn-fav-tune" onclick="quickTune('${h.tg}')" title="${label}">
+                        <span class="qt-hist-net">${h.network}</span>${label}
+                    </button>
+                </div>`;
+            }).join('');
+        }
+
+        function quickTune(tg) {
+            document.getElementById('tgInput').value = tg;
+            tuneTG();
+            if (quickTuneOpen) setTimeout(loadQuickTune, 300);
+        }
+
+        async function saveFavorite() {
+            const tg = document.getElementById('tgInput').value.trim();
+            if (!tg) { log('Enter a talkgroup first', 'error'); return; }
+            const network = currentMode === 'BrandMeister' ? 'BM' : 'TGIF';
+            try {
+                const res  = await fetch('/api/favorites', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({tg, network})
+                });
+                const data = await res.json();
+                log(data.message, data.ok ? 'ok' : 'warn');
+                if (quickTuneOpen) loadQuickTune();
+            } catch(e) { log('Save favorite failed: ' + e, 'error'); }
+        }
+
+        async function removeFav(network, tg) {
+            try {
+                const res  = await fetch('/api/favorites/' + network + '/' + tg, {method: 'DELETE'});
+                const data = await res.json();
+                log(data.message, data.ok ? 'ok' : 'error');
+                if (quickTuneOpen) loadQuickTune();
+            } catch(e) { log('Remove favorite failed: ' + e, 'error'); }
+        }
+
+        // -------------------------
         // STATUS POLLING
         // -------------------------
         async function pollStatus() {
@@ -1069,6 +1243,7 @@ HTML = '''
                 const res = await fetch('/api/status');
                 const d   = await res.json();
 
+                currentMode = d.mode;
                 const modeEl = document.getElementById('modeValue');
                 modeEl.textContent = d.mode;
                 modeEl.className   = 'mode-badge ' + (
@@ -1216,8 +1391,57 @@ def tune():
         return jsonify({"ok": False, "message": "No talkgroup provided"})
     if not tg.isdigit():
         return jsonify({"ok": False, "message": "Invalid talkgroup"})
+
+    mode    = get_active_mode()
+    network = "BM" if mode == "BrandMeister" else "TGIF"
+    tg_name = lookup_tg(tg)
+    entry   = {"tg": tg, "name": tg_name, "network": network,
+               "time": datetime.now().strftime("%H:%M:%S")}
+    tune_history[:] = [h for h in tune_history if not (h['tg'] == tg and h['network'] == network)]
+    tune_history.insert(0, entry)
+    if len(tune_history) > HISTORY_MAX:
+        tune_history.pop()
+
     run(f"/opt/MMDVM_Bridge/dvswitch.sh tune {tg}")
     return jsonify({"ok": True, "message": f"Tuned to {tg}"})
+
+@app.route('/api/favorites', methods=['GET'])
+def get_favs():
+    with favorites_lock:
+        return jsonify(favorites)
+
+@app.route('/api/favorites', methods=['POST'])
+def add_fav():
+    data    = request.get_json()
+    tg      = data.get('tg', '').strip()
+    network = data.get('network', '').strip().upper()
+    if not tg or not tg.isdigit():
+        return jsonify({"ok": False, "message": "Invalid talkgroup"})
+    if network not in ('BM', 'TGIF'):
+        return jsonify({"ok": False, "message": "Invalid network"})
+    cache = tg_cache_bm if network == 'BM' else tg_cache_tgif
+    name  = cache.get(tg, '')
+    with favorites_lock:
+        fav = favorites.setdefault(network, [])
+        if any(f['tg'] == tg for f in fav):
+            return jsonify({"ok": True, "message": f"TG {tg} already in {network} favorites"})
+        fav.append({"tg": tg, "name": name})
+        save_favorites(favorites)
+    return jsonify({"ok": True, "message": f"Saved TG {tg} to {network} favorites"})
+
+@app.route('/api/favorites/<network>/<tg>', methods=['DELETE'])
+def remove_fav(network, tg):
+    network = network.upper()
+    if network not in ('BM', 'TGIF'):
+        return jsonify({"ok": False, "message": "Invalid network"})
+    with favorites_lock:
+        favorites[network] = [f for f in favorites.get(network, []) if f['tg'] != tg]
+        save_favorites(favorites)
+    return jsonify({"ok": True, "message": f"Removed TG {tg} from {network} favorites"})
+
+@app.route('/api/tune_history', methods=['GET'])
+def get_tune_history():
+    return jsonify(tune_history)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9090, debug=False, threaded=True)
