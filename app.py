@@ -24,7 +24,8 @@ try:
 except ImportError:
     AUDIO_WS_URL = ''
 
-FAVORITES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
+FAVORITES_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
+LAST_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'last_state.json')
 
 ABINFO_ACTIVE  = '/tmp/ABInfo_31001.json'
 TGLIST_BM      = '/tmp/TGList_BM.txt'
@@ -348,6 +349,7 @@ def get_log_path(log_key):
 # -------------------------
 def get_status():
     tg, mode, call, tg_name = "N/A", "UNKNOWN", "", ""
+    status_source = "live"
     try:
         with open(ABINFO_ACTIVE) as f:
             abinfo = json.load(f)
@@ -356,8 +358,14 @@ def get_status():
         tg      = abinfo.get('digital', {}).get('tg', 'N/A')
         call    = abinfo.get('digital', {}).get('call', '')
         tg_name = lookup_tg(tg)
-    except Exception as e:
-        mode = f"ERROR: {e}"
+    except Exception:
+        status_source = "cached"
+        if last_state.get("network"):
+            mode    = "BrandMeister" if last_state["network"] == "BM" else "TGIF"
+            tg      = last_state.get("tg", "N/A")
+            tg_name = last_state.get("tg_name", "")
+        else:
+            mode = "UNKNOWN"
 
     if mode == "BrandMeister":
         connected_since = get_svc_uptime("stfu.service")
@@ -375,6 +383,10 @@ def get_status():
         "svc_analog":      svc("analog_bridge.service"),
         "usrp_connected":  usrp_state["connected"],
         "usrp_registered": usrp_state["registered"],
+        "status_source":   status_source,
+        "last_tg":         last_state.get("tg", ""),
+        "last_tg_name":    last_state.get("tg_name", ""),
+        "last_network":    last_state.get("network", ""),
     }
 
 # -------------------------
@@ -453,6 +465,27 @@ def get_last_heard():
     return results[:20]
 
 # -------------------------
+# LAST TUNED STATE
+# -------------------------
+last_state = {"tg": "", "tg_name": "", "network": "", "time": ""}
+
+def load_last_state():
+    global last_state
+    try:
+        with open(LAST_STATE_FILE) as f:
+            last_state.update(json.load(f))
+        print(f"Last state loaded: {last_state['network']} TG {last_state['tg']}")
+    except:
+        pass
+
+def save_last_state():
+    try:
+        with open(LAST_STATE_FILE, 'w') as f:
+            json.dump(last_state, f, indent=2)
+    except Exception as e:
+        print(f"Warning: could not save last state: {e}")
+
+# -------------------------
 # FAVORITES & TUNE HISTORY
 # -------------------------
 favorites_lock = threading.Lock()
@@ -481,6 +514,7 @@ def tg_refresh_loop():
         time.sleep(300)
         load_tg_names()
 
+load_last_state()
 load_tg_names()
 load_dmr_ids()
 usrp_thread      = threading.Thread(target=usrp_listener,  daemon=True)
@@ -1256,6 +1290,8 @@ HTML = '''
         // -------------------------
         // STATUS POLLING
         // -------------------------
+        var tgInputPopulated = false;
+
         async function pollStatus() {
             try {
                 const res = await fetch('/api/status');
@@ -1268,12 +1304,19 @@ HTML = '''
                     d.mode === 'TGIF'         ? 'badge-tgif' :
                     d.mode === 'BrandMeister' ? 'badge-bm'   : 'badge-unknown'
                 );
+                modeEl.title = d.status_source === 'cached' ? 'Last known (radio stack offline)' : '';
+                modeEl.style.opacity = d.status_source === 'cached' ? '0.6' : '1';
 
                 document.getElementById('callValue').textContent        = d.call            || '--';
                 document.getElementById('tgValue').textContent          = d.tg              || '--';
                 document.getElementById('tgName').textContent           = d.tg_name         || '';
                 document.getElementById('connectedSince').textContent   = d.connected_since || '--';
                 document.getElementById('headerTime').textContent = timestamp();
+
+                if (!tgInputPopulated && d.last_tg) {
+                    document.getElementById('tgInput').value = d.last_tg;
+                    tgInputPopulated = true;
+                }
 
                 ['stfu', 'mmdvm', 'analog'].forEach(svc => {
                     const running = d['svc_' + svc] === 'RUNNING';
@@ -1369,6 +1412,8 @@ def tgif():
         ['/bin/bash', '/opt/MMDVM_Bridge/connectTGIF.sh'],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
+    last_state["network"] = "TGIF"
+    save_last_state()
     return jsonify({"ok": True, "message": "Switching to TGIF (allow 20 seconds)..."})
 
 @app.route('/api/bm', methods=['POST'])
@@ -1377,6 +1422,8 @@ def bm():
         ['/bin/bash', '/opt/MMDVM_Bridge/connectBM.sh'],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
+    last_state["network"] = "BM"
+    save_last_state()
     return jsonify({"ok": True, "message": "Switching to BrandMeister (allow 20 seconds)..."})
 
 @app.route('/api/restart', methods=['POST'])
@@ -1413,12 +1460,17 @@ def tune():
     mode    = get_active_mode()
     network = "BM" if mode == "BrandMeister" else "TGIF"
     tg_name = lookup_tg(tg)
+    now     = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     entry   = {"tg": tg, "name": tg_name, "network": network,
                "time": datetime.now().strftime("%H:%M:%S")}
     tune_history[:] = [h for h in tune_history if not (h['tg'] == tg and h['network'] == network)]
     tune_history.insert(0, entry)
     if len(tune_history) > HISTORY_MAX:
         tune_history.pop()
+
+    last_state.update({"tg": tg, "tg_name": tg_name, "network": network, "time": now})
+    save_last_state()
 
     run(f"/opt/MMDVM_Bridge/dvswitch.sh tune {tg}")
     return jsonify({"ok": True, "message": f"Tuned to {tg}"})
