@@ -131,16 +131,27 @@ def get_active_mode():
     except:
         return "TGIF"
 
+def _tg_norm(tg_id):
+    s = str(tg_id).strip()
+    return str(int(s)) if s.isdigit() else s
+
 def lookup_tg(tg_id):
-    if not tg_cache_bm and not tg_cache_tgif:
+    mode = get_active_mode()
+    if mode == "BrandMeister" and not tg_cache_bm:
         load_tg_names()
-    mode   = get_active_mode()
-    tg_str = str(tg_id).strip()
-    tg_int = str(int(tg_str)) if tg_str.isdigit() else tg_str
+    elif mode != "BrandMeister" and not tg_cache_tgif:
+        load_tg_names()
+    tg = _tg_norm(tg_id)
     if mode == "BrandMeister":
-        return tg_cache_bm.get(tg_int, tg_cache_bm.get(tg_str, ''))
+        return tg_cache_bm.get(tg, '')
     else:
-        return tg_cache_tgif.get(tg_int, tg_cache_tgif.get(tg_str, ''))
+        return tg_cache_tgif.get(tg, '')
+
+def lookup_tg_by_source(tg_id, source):
+    tg = _tg_norm(tg_id)
+    if source == 'BM':
+        return tg_cache_bm.get(tg, '')
+    return tg_cache_tgif.get(tg, '')
 
 # -------------------------
 # DMR ID LOOKUP
@@ -388,7 +399,7 @@ def get_last_heard():
                 results.append({
                     "time": m.group(1), "callsign": m.group(2), "dmr_id": "",
                     "tg": tg,
-                    "tg_name": tg_cache_tgif.get(tg, tg_cache_bm.get(tg, '')),
+                    "tg_name": lookup_tg_by_source(tg, 'TGIF'),
                     "source": "TGIF"
                 })
     except Exception as e:
@@ -410,7 +421,7 @@ def get_last_heard():
                 results.append({
                     "time": m.group(1), "callsign": lookup_dmrid(dmr_id),
                     "dmr_id": dmr_id, "tg": tg,
-                    "tg_name": tg_cache_tgif.get(tg, tg_cache_bm.get(tg, '')),
+                    "tg_name": lookup_tg_by_source(tg, 'TGIF'),
                     "source": "TGIF"
                 })
     except Exception as e:
@@ -432,7 +443,7 @@ def get_last_heard():
                 results.append({
                     "time": m.group(1), "callsign": lookup_dmrid(dmr_id),
                     "dmr_id": dmr_id, "tg": tg,
-                    "tg_name": tg_cache_bm.get(tg, ''),
+                    "tg_name": lookup_tg_by_source(tg, 'BM'),
                     "source": "BM"
                 })
     except Exception as e:
@@ -465,10 +476,17 @@ def save_favorites(data):
 
 favorites = load_favorites()
 
+def tg_refresh_loop():
+    while True:
+        time.sleep(300)
+        load_tg_names()
+
 load_tg_names()
 load_dmr_ids()
-usrp_thread = threading.Thread(target=usrp_listener, daemon=True)
+usrp_thread      = threading.Thread(target=usrp_listener,  daemon=True)
+tg_refresh_thread = threading.Thread(target=tg_refresh_loop, daemon=True)
 usrp_thread.start()
+tg_refresh_thread.start()
 
 HTML = '''
 <!DOCTYPE html>
