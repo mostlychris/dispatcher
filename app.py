@@ -26,6 +26,7 @@ except ImportError:
 
 FAVORITES_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
 LAST_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'last_state.json')
+TG_NAMES_CACHE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tg_names_cache.json')
 
 ABINFO_ACTIVE  = '/tmp/ABInfo_31001.json'
 TGLIST_BM      = '/tmp/TGList_BM.txt'
@@ -80,7 +81,8 @@ tg_cache_tgif = {}
 
 def load_tg_names():
     global tg_cache_bm, tg_cache_tgif
-    tg_cache_bm = {}
+    fresh_bm, fresh_tgif = {}, {}
+
     try:
         with open(TGLIST_BM) as f:
             for line in f:
@@ -89,11 +91,10 @@ def load_tg_names():
                     continue
                 parts = line.split(';')
                 if len(parts) >= 3:
-                    tg_cache_bm[parts[0].strip()] = parts[2].strip()
+                    fresh_bm[parts[0].strip()] = parts[2].strip()
     except Exception as e:
         print(f"Warning: could not load BM TG names: {e}")
 
-    tg_cache_tgif = {}
     try:
         with open(TGLIST_TGIF) as f:
             for line in f:
@@ -102,7 +103,7 @@ def load_tg_names():
                     continue
                 parts = line.split(',', 1)
                 if len(parts) >= 2:
-                    tg_cache_tgif[parts[0].strip()] = parts[1].strip()
+                    fresh_tgif[parts[0].strip()] = parts[1].strip()
     except Exception as e:
         print(f"Warning: could not load TGIF TG names: {e}")
 
@@ -116,12 +117,29 @@ def load_tg_names():
                 if len(parts) >= 2:
                     tg_id = parts[0].strip()
                     name  = parts[1].strip()
-                    if tg_id not in tg_cache_tgif and name:
-                        tg_cache_tgif[tg_id] = name
+                    if tg_id not in fresh_tgif and name:
+                        fresh_tgif[tg_id] = name
     except Exception as e:
         print(f"Warning: could not load TGIF node list: {e}")
 
-    print(f"Loaded {len(tg_cache_bm)} BM TGs, {len(tg_cache_tgif)} TGIF TGs")
+    if fresh_bm or fresh_tgif:
+        tg_cache_bm   = fresh_bm
+        tg_cache_tgif = fresh_tgif
+        try:
+            with open(TG_NAMES_CACHE, 'w') as f:
+                json.dump({"bm": tg_cache_bm, "tgif": tg_cache_tgif}, f)
+        except Exception as e:
+            print(f"Warning: could not save TG names cache: {e}")
+        print(f"Loaded {len(tg_cache_bm)} BM TGs, {len(tg_cache_tgif)} TGIF TGs from /tmp")
+    else:
+        try:
+            with open(TG_NAMES_CACHE) as f:
+                data = json.load(f)
+            tg_cache_bm   = data.get("bm",   {})
+            tg_cache_tgif = data.get("tgif", {})
+            print(f"Loaded {len(tg_cache_bm)} BM TGs, {len(tg_cache_tgif)} TGIF TGs from local cache")
+        except Exception as e:
+            print(f"Warning: no TG names available ({e})")
 
 def get_active_mode():
     try:
