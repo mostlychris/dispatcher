@@ -756,6 +756,29 @@ HTML = '''
         .lh-tgif     { color: lime; font-size: 10px; }
         .lh-bm       { color: cyan; font-size: 10px; }
 
+        /* ---- VOLUME SLIDER ---- */
+        .vol-row {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 6px;
+        }
+        .vol-label { font-size: 10px; color: #555; }
+        .vol-pct   { font-size: 11px; color: #aaa; }
+        .vol-slider {
+            width: 100%; cursor: pointer; outline: none;
+            -webkit-appearance: none; appearance: none;
+            height: 4px; border-radius: 2px;
+            background: linear-gradient(to right, gold 0%, gold var(--vol-pct, 100%), #333 var(--vol-pct, 100%));
+        }
+        .vol-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 13px; height: 13px; border-radius: 50%;
+            background: gold; cursor: pointer; border: none;
+        }
+        .vol-slider::-moz-range-thumb {
+            width: 13px; height: 13px; border-radius: 50%;
+            background: gold; cursor: pointer; border: none;
+        }
+
         /* ---- LOG VIEWER ---- */
         .log-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
         .log-tab {
@@ -897,6 +920,18 @@ HTML = '''
                     <span class="stat-key"><span class="svc-dot" id="dot_usrp"></span>USRP</span>
                     <span class="stat-val svc-text-off" id="svc_usrp">--</span>
                 </div>
+            </div>
+
+            <!-- AUDIO -->
+            <div class="sidebar-section">
+                <h3>Audio</h3>
+                <div class="vol-row">
+                    <span class="vol-label">RX Volume</span>
+                    <span class="vol-pct" id="volDisplay">100%</span>
+                </div>
+                <input type="range" class="vol-slider" id="volSlider"
+                       min="0" max="100" value="100"
+                       oninput="setVolume(this.value)">
             </div>
         </div>
 
@@ -1045,6 +1080,25 @@ HTML = '''
         // -------------------------
         // RX MONITOR
         // -------------------------
+        // -------------------------
+        // VOLUME
+        // -------------------------
+        function setVolume(val) {
+            val = parseInt(val);
+            document.getElementById('volDisplay').textContent = val + '%';
+            document.getElementById('volSlider').style.setProperty('--vol-pct', val + '%');
+            if (dvsp && dvsp.player) dvsp.player.volume(val / 100);
+            localStorage.setItem('rxVolume', val);
+        }
+
+        function applyStoredVolume() {
+            const saved = localStorage.getItem('rxVolume');
+            if (saved !== null) {
+                document.getElementById('volSlider').value = saved;
+                setVolume(saved);
+            }
+        }
+
         var dvsp = null;
         function toggleMonitor(btn) {
             if (dvsp && dvsp.isPlaying()) {
@@ -1056,6 +1110,7 @@ HTML = '''
                     dvsp = new DVSwitchPlayer(8080, btn);
                     dvsp.socketURL = '{{ audio_ws_url }}';
                     dvsp.ws = null;
+                    applyStoredVolume();
                 }
                 dvsp.play();
                 btn.classList.add('active');
@@ -1369,6 +1424,7 @@ HTML = '''
         connectSSE();
         setInterval(pollStatus, 5000);
         pollStatus();
+        applyStoredVolume();
         log('Dispatcher ready', 'ok');
     </script>
 </body>
