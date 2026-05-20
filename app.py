@@ -779,20 +779,35 @@ HTML = '''
             background: gold; cursor: pointer; border: none;
         }
 
-        .lpf-slider {
+        .hpf-slider {
             width: 100%; cursor: pointer; outline: none;
             -webkit-appearance: none; appearance: none;
             height: 4px; border-radius: 2px;
-            background: linear-gradient(to right, #7af 0%, #7af var(--lpf-pct, 100%), #333 var(--lpf-pct, 100%));
+            background: linear-gradient(to right, #fa8 0%, #fa8 var(--hpf-pct, 0%), #333 var(--hpf-pct, 0%));
         }
-        .lpf-slider::-webkit-slider-thumb {
+        .hpf-slider::-webkit-slider-thumb {
             -webkit-appearance: none; appearance: none;
             width: 13px; height: 13px; border-radius: 50%;
-            background: #7af; cursor: pointer; border: none;
+            background: #fa8; cursor: pointer; border: none;
         }
-        .lpf-slider::-moz-range-thumb {
+        .hpf-slider::-moz-range-thumb {
             width: 13px; height: 13px; border-radius: 50%;
-            background: #7af; cursor: pointer; border: none;
+            background: #fa8; cursor: pointer; border: none;
+        }
+        .pres-slider {
+            width: 100%; cursor: pointer; outline: none;
+            -webkit-appearance: none; appearance: none;
+            height: 4px; border-radius: 2px;
+            background: linear-gradient(to right, lime 0%, lime var(--pres-pct, 0%), #333 var(--pres-pct, 0%));
+        }
+        .pres-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 13px; height: 13px; border-radius: 50%;
+            background: lime; cursor: pointer; border: none;
+        }
+        .pres-slider::-moz-range-thumb {
+            width: 13px; height: 13px; border-radius: 50%;
+            background: lime; cursor: pointer; border: none;
         }
 
         /* ---- LOG VIEWER ---- */
@@ -949,12 +964,19 @@ HTML = '''
                        min="0" max="100" value="100"
                        oninput="setVolume(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
-                    <span class="vol-label">Low Pass</span>
-                    <span class="vol-pct" id="lpfDisplay">8.0 kHz</span>
+                    <span class="vol-label">High Pass</span>
+                    <span class="vol-pct" id="hpfDisplay" style="color:#fa8;">OFF</span>
                 </div>
-                <input type="range" class="lpf-slider" id="lpfSlider"
-                       min="2000" max="8000" step="100" value="8000"
-                       oninput="setLpFilter(this.value)">
+                <input type="range" class="hpf-slider" id="hpfSlider"
+                       min="80" max="400" step="10" value="80"
+                       oninput="setHpFilter(this.value)">
+                <div class="vol-row" style="margin-top:8px;">
+                    <span class="vol-label">Presence</span>
+                    <span class="vol-pct" id="presDisplay" style="color:lime;">0 dB</span>
+                </div>
+                <input type="range" class="pres-slider" id="presSlider"
+                       min="0" max="12" step="0.5" value="0"
+                       oninput="setPresence(this.value)">
             </div>
         </div>
 
@@ -1123,38 +1145,65 @@ HTML = '''
         }
 
         // -------------------------
-        // LOW PASS FILTER
+        // DMR AUDIO FILTERS
         // -------------------------
-        var lpFilter = null;
+        var hpFilter   = null;
+        var presFilter = null;
 
-        function setupLowPassFilter(hz) {
+        function setupAudioFilters() {
             if (!dvsp || !dvsp.player || !dvsp.player.audioCtx) return;
+            if (hpFilter) return;
             const player = dvsp.player;
-            if (!lpFilter) {
-                lpFilter = player.audioCtx.createBiquadFilter();
-                lpFilter.type = 'lowpass';
-                lpFilter.Q.value = 0.7;
-                player.gainNode.disconnect();
-                player.gainNode.connect(lpFilter);
-                lpFilter.connect(player.audioCtx.destination);
-            }
-            lpFilter.frequency.value = hz;
+
+            // High-pass: cuts low-end codec mud
+            hpFilter = player.audioCtx.createBiquadFilter();
+            hpFilter.type = 'highpass';
+            hpFilter.Q.value = 0.7;
+
+            // Peaking EQ: restores presence the AMBE vocoder rolls off
+            presFilter = player.audioCtx.createBiquadFilter();
+            presFilter.type = 'peaking';
+            presFilter.frequency.value = 2500;
+            presFilter.Q.value = 1.0;
+
+            // gainNode → hpFilter → presFilter → destination
+            player.gainNode.disconnect();
+            player.gainNode.connect(hpFilter);
+            hpFilter.connect(presFilter);
+            presFilter.connect(player.audioCtx.destination);
+
+            // Apply whatever values the sliders already have
+            const hpVal   = parseInt(document.getElementById('hpfSlider').value);
+            const presVal = parseFloat(document.getElementById('presSlider').value);
+            hpFilter.frequency.value = hpVal;
+            presFilter.gain.value    = presVal;
         }
 
-        function setLpFilter(val) {
+        function setHpFilter(val) {
             val = parseInt(val);
-            const pct = ((val - 2000) / 6000 * 100).toFixed(1);
-            document.getElementById('lpfDisplay').textContent = (val / 1000).toFixed(1) + ' kHz';
-            document.getElementById('lpfSlider').style.setProperty('--lpf-pct', pct + '%');
-            setupLowPassFilter(val);
-            localStorage.setItem('rxLpFilter', val);
+            const pct = ((val - 80) / 320 * 100).toFixed(1);
+            document.getElementById('hpfDisplay').textContent = val <= 80 ? 'OFF' : val + ' Hz';
+            document.getElementById('hpfSlider').style.setProperty('--hpf-pct', pct + '%');
+            if (hpFilter) hpFilter.frequency.value = val;
+            localStorage.setItem('rxHpFilter', val);
         }
 
-        function applyStoredLpFilter() {
-            const saved = localStorage.getItem('rxLpFilter');
-            const val   = saved !== null ? parseInt(saved) : 8000;
-            document.getElementById('lpfSlider').value = val;
-            setLpFilter(val);
+        function setPresence(val) {
+            val = parseFloat(val);
+            const pct = (val / 12 * 100).toFixed(1);
+            document.getElementById('presDisplay').textContent = val === 0 ? '0 dB' : '+' + val.toFixed(1) + ' dB';
+            document.getElementById('presSlider').style.setProperty('--pres-pct', pct + '%');
+            if (presFilter) presFilter.gain.value = val;
+            localStorage.setItem('rxPresence', val);
+        }
+
+        function applyStoredFilters() {
+            const hpVal   = parseInt(localStorage.getItem('rxHpFilter')  ?? 80);
+            const presVal = parseFloat(localStorage.getItem('rxPresence') ?? 0);
+            document.getElementById('hpfSlider').value  = hpVal;
+            document.getElementById('presSlider').value = presVal;
+            setHpFilter(hpVal);
+            setPresence(presVal);
         }
 
         var dvsp = null;
@@ -1169,7 +1218,7 @@ HTML = '''
                     dvsp.socketURL = '{{ audio_ws_url }}';
                     dvsp.ws = null;
                     applyStoredVolume();
-                    applyStoredLpFilter();
+                    setupAudioFilters();
                 }
                 dvsp.play();
                 btn.classList.add('active');
@@ -1484,7 +1533,7 @@ HTML = '''
         setInterval(pollStatus, 5000);
         pollStatus();
         applyStoredVolume();
-        applyStoredLpFilter();
+        applyStoredFilters();
         log('Dispatcher ready', 'ok');
     </script>
 </body>
