@@ -779,6 +779,22 @@ HTML = '''
             background: gold; cursor: pointer; border: none;
         }
 
+        .lpf-slider {
+            width: 100%; cursor: pointer; outline: none;
+            -webkit-appearance: none; appearance: none;
+            height: 4px; border-radius: 2px;
+            background: linear-gradient(to right, #7af 0%, #7af var(--lpf-pct, 100%), #333 var(--lpf-pct, 100%));
+        }
+        .lpf-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 13px; height: 13px; border-radius: 50%;
+            background: #7af; cursor: pointer; border: none;
+        }
+        .lpf-slider::-moz-range-thumb {
+            width: 13px; height: 13px; border-radius: 50%;
+            background: #7af; cursor: pointer; border: none;
+        }
+
         /* ---- LOG VIEWER ---- */
         .log-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
         .log-tab {
@@ -932,6 +948,13 @@ HTML = '''
                 <input type="range" class="vol-slider" id="volSlider"
                        min="0" max="100" value="100"
                        oninput="setVolume(this.value)">
+                <div class="vol-row" style="margin-top:8px;">
+                    <span class="vol-label">Low Pass</span>
+                    <span class="vol-pct" id="lpfDisplay">8.0 kHz</span>
+                </div>
+                <input type="range" class="lpf-slider" id="lpfSlider"
+                       min="2000" max="8000" step="100" value="8000"
+                       oninput="setLpFilter(this.value)">
             </div>
         </div>
 
@@ -1099,6 +1122,41 @@ HTML = '''
             }
         }
 
+        // -------------------------
+        // LOW PASS FILTER
+        // -------------------------
+        var lpFilter = null;
+
+        function setupLowPassFilter(hz) {
+            if (!dvsp || !dvsp.player || !dvsp.player.audioCtx) return;
+            const player = dvsp.player;
+            if (!lpFilter) {
+                lpFilter = player.audioCtx.createBiquadFilter();
+                lpFilter.type = 'lowpass';
+                lpFilter.Q.value = 0.7;
+                player.gainNode.disconnect();
+                player.gainNode.connect(lpFilter);
+                lpFilter.connect(player.audioCtx.destination);
+            }
+            lpFilter.frequency.value = hz;
+        }
+
+        function setLpFilter(val) {
+            val = parseInt(val);
+            const pct = ((val - 2000) / 6000 * 100).toFixed(1);
+            document.getElementById('lpfDisplay').textContent = (val / 1000).toFixed(1) + ' kHz';
+            document.getElementById('lpfSlider').style.setProperty('--lpf-pct', pct + '%');
+            setupLowPassFilter(val);
+            localStorage.setItem('rxLpFilter', val);
+        }
+
+        function applyStoredLpFilter() {
+            const saved = localStorage.getItem('rxLpFilter');
+            const val   = saved !== null ? parseInt(saved) : 8000;
+            document.getElementById('lpfSlider').value = val;
+            setLpFilter(val);
+        }
+
         var dvsp = null;
         function toggleMonitor(btn) {
             if (dvsp && dvsp.isPlaying()) {
@@ -1111,6 +1169,7 @@ HTML = '''
                     dvsp.socketURL = '{{ audio_ws_url }}';
                     dvsp.ws = null;
                     applyStoredVolume();
+                    applyStoredLpFilter();
                 }
                 dvsp.play();
                 btn.classList.add('active');
@@ -1425,6 +1484,7 @@ HTML = '''
         setInterval(pollStatus, 5000);
         pollStatus();
         applyStoredVolume();
+        applyStoredLpFilter();
         log('Dispatcher ready', 'ok');
     </script>
 </body>
