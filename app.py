@@ -868,15 +868,16 @@ HTML = '''
 
         #logFileContent {
             background: #000; border-radius: 4px; padding: 8px;
+            color: #fff;
             height: 220px; overflow-y: auto;
             font-size: 10px; line-height: 1.5; color: #666;
             white-space: pre-wrap; word-break: break-all;
         }
         .log-line-error { color: tomato; }
         .log-line-warn  { color: gold; }
-        .log-line-info  { color: #555; }
-        .log-line-debug { color: #333; }
-        .log-file-label { font-size: 9px; color: #333; margin-bottom: 4px; }
+        .log-line-info  { color: #aaa; }
+        .log-line-debug { color: #888; }
+        .log-file-label { font-size: 9px; color: #555; margin-bottom: 4px; }
 
         /* ---- QUICK TUNE ---- */
         .qt-grid {
