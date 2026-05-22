@@ -1,0 +1,10 @@
+* text=auto
+
+# Shell scripts must always use LF so they execute correctly on Linux
+*.sh  text eol=lf
+
+# Everything else normalised
+*.py   text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
