@@ -1007,7 +1007,7 @@ HTML = '''
                     <span class="vol-pct" id="hpfDisplay" style="color:#fa8;">OFF</span>
                 </div>
                 <input type="range" class="hpf-slider" id="hpfSlider"
-                       min="80" max="400" step="10" value="80"
+                       min="100" max="400" step="10" value="200"
                        oninput="setHpFilter(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
                     <span class="vol-label">Presence</span>
@@ -1188,13 +1188,17 @@ HTML = '''
         // -------------------------
         var hpFilter   = null;
         var presFilter = null;
+        var compressor = null;
 
         function setupAudioFilters() {
             if (!dvsp || !dvsp.player || !dvsp.player.audioCtx) return;
             if (hpFilter) return;
             const player = dvsp.player;
 
-            // High-pass: cuts low-end codec mud
+            // Reduce flush interval: 2000ms chunks cause boundary thumps; 500ms is smooth
+            player.option.flushingTime = 500;
+
+            // High-pass: cuts AMBE low-frequency mud (vocoder artifacts below ~200 Hz)
             hpFilter = player.audioCtx.createBiquadFilter();
             hpFilter.type = 'highpass';
             hpFilter.Q.value = 0.7;
@@ -1205,11 +1209,20 @@ HTML = '''
             presFilter.frequency.value = 2500;
             presFilter.Q.value = 1.0;
 
-            // gainNode → hpFilter → presFilter → destination
+            // Compressor: tames the uneven level swings typical of DMR codec frames
+            compressor = player.audioCtx.createDynamicsCompressor();
+            compressor.threshold.value = -24;  // start compressing at -24 dBFS
+            compressor.knee.value      = 6;    // gentle knee
+            compressor.ratio.value     = 4;    // 4:1 — transparent but effective
+            compressor.attack.value    = 0.003;
+            compressor.release.value   = 0.2;
+
+            // gainNode → hpFilter → presFilter → compressor → destination
             player.gainNode.disconnect();
             player.gainNode.connect(hpFilter);
             hpFilter.connect(presFilter);
-            presFilter.connect(player.audioCtx.destination);
+            presFilter.connect(compressor);
+            compressor.connect(player.audioCtx.destination);
 
             // Apply whatever values the sliders already have
             const hpVal   = parseInt(document.getElementById('hpfSlider').value);
@@ -1220,8 +1233,8 @@ HTML = '''
 
         function setHpFilter(val) {
             val = parseInt(val);
-            const pct = ((val - 80) / 320 * 100).toFixed(1);
-            document.getElementById('hpfDisplay').textContent = val <= 80 ? 'OFF' : val + ' Hz';
+            const pct = ((val - 100) / 300 * 100).toFixed(1);
+            document.getElementById('hpfDisplay').textContent = val + ' Hz';
             document.getElementById('hpfSlider').style.setProperty('--hpf-pct', pct + '%');
             if (hpFilter) hpFilter.frequency.value = val;
             localStorage.setItem('rxHpFilter', val);
@@ -1237,7 +1250,7 @@ HTML = '''
         }
 
         function applyStoredFilters() {
-            const hpVal   = parseInt(localStorage.getItem('rxHpFilter')  ?? 80);
+            const hpVal   = parseInt(localStorage.getItem('rxHpFilter')  ?? 200);
             const presVal = parseFloat(localStorage.getItem('rxPresence') ?? 0);
             document.getElementById('hpfSlider').value  = hpVal;
             document.getElementById('presSlider').value = presVal;
