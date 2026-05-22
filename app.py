@@ -1734,5 +1734,14 @@ def remove_fav(network, tg):
 def get_tune_history():
     return jsonify(tune_history)
 
+@app.route('/api/debug/abinfo')
+def debug_abinfo():
+    try:
+        with open(ABINFO_ACTIVE) as f:
+            raw = json.load(f)
+        return jsonify({"ok": True, "path": ABINFO_ACTIVE, "data": raw})
+    except Exception as e:
+        return jsonify({"ok": False, "path": ABINFO_ACTIVE, "error": str(e)})
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9090, debug=False, threaded=True)
