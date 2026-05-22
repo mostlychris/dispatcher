@@ -79,6 +79,10 @@ def push_event(data):
 tg_cache_bm   = {}
 tg_cache_tgif = {}
 
+# current_mode is updated by get_status() based on service state (not ABInfo).
+# get_active_mode() reads it so callers never need to shell out themselves.
+current_mode = "TGIF"
+
 def load_tg_names():
     global tg_cache_bm, tg_cache_tgif
     fresh_bm, fresh_tgif = {}, {}
@@ -142,13 +146,7 @@ def load_tg_names():
             print(f"Warning: no TG names available ({e})")
 
 def get_active_mode():
-    try:
-        with open(ABINFO_ACTIVE) as f:
-            abinfo = json.load(f)
-        ambe_mode = abinfo.get('tlv', {}).get('ambe_mode', '')
-        return "BrandMeister" if ambe_mode == 'STFU' else "TGIF"
-    except:
-        return "TGIF"
+    return current_mode
 
 def _tg_norm(tg_id):
     s = str(tg_id).strip()
@@ -366,31 +364,40 @@ def get_log_path(log_key):
 # STATUS
 # -------------------------
 def get_status():
-    tg, mode, call, tg_name = "N/A", "UNKNOWN", "", ""
+    global current_mode
+    tg, call, tg_name = "N/A", "", ""
     status_source = "live"
-    abinfo = {}
 
+    # Pre-compute service states first — they determine mode reliably.
+    # STFU running → BrandMeister stack; MMDVM Bridge running → TGIF stack.
+    svc_stfu   = svc("stfu.service")
+    svc_mmdvm  = svc("mmdvm_bridge.service")
+    svc_analog = svc("analog_bridge.service")
+
+    if svc_stfu == "RUNNING":
+        mode = "BrandMeister"
+    elif svc_mmdvm == "RUNNING":
+        mode = "TGIF"
+    else:
+        # Neither service is up — keep the last known mode so lookups stay correct
+        mode = current_mode
+
+    # Update the global so get_active_mode() / lookup_tg() pick it up immediately
+    current_mode = mode
+
+    # Read TG/call from ABInfo (ground truth for what talkgroup is active)
     try:
         with open(ABINFO_ACTIVE) as f:
             abinfo = json.load(f)
-        ambe_mode = abinfo.get('tlv', {}).get('ambe_mode', '')
-        mode    = "BrandMeister" if ambe_mode == 'STFU' else "TGIF"
         tg      = str(abinfo.get('digital', {}).get('tg', 'N/A'))
         call    = abinfo.get('digital', {}).get('call', '')
         tg_name = lookup_tg(tg)
     except Exception:
-        # ABInfo unreadable — fall back to what the user last explicitly set
+        # ABInfo unreadable — fall back to what the user last explicitly tuned
         status_source = "cached"
-        if last_state.get("network"):
-            mode = "BrandMeister" if last_state["network"] == "BM" else "TGIF"
         if last_state.get("tg"):
             tg      = last_state["tg"]
             tg_name = last_state.get("tg_name") or lookup_tg(tg)
-
-    # Pre-compute service states once (each call shells out to systemctl)
-    svc_stfu   = svc("stfu.service")
-    svc_mmdvm  = svc("mmdvm_bridge.service")
-    svc_analog = svc("analog_bridge.service")
 
     if mode == "BrandMeister":
         connected_since = get_svc_uptime("stfu.service")
