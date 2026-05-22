@@ -369,50 +369,62 @@ def get_status():
     tg, mode, call, tg_name = "N/A", "UNKNOWN", "", ""
     status_source = "live"
     abinfo = {}
+
     try:
         with open(ABINFO_ACTIVE) as f:
             abinfo = json.load(f)
         ambe_mode = abinfo.get('tlv', {}).get('ambe_mode', '')
-        mode = "BrandMeister" if ambe_mode == 'STFU' else "TGIF"
-        call = abinfo.get('digital', {}).get('call', '')
+        mode    = "BrandMeister" if ambe_mode == 'STFU' else "TGIF"
+        tg      = str(abinfo.get('digital', {}).get('tg', 'N/A'))
+        call    = abinfo.get('digital', {}).get('call', '')
+        tg_name = lookup_tg(tg)
     except Exception:
+        # ABInfo unreadable — fall back to what the user last explicitly set
         status_source = "cached"
+        if last_state.get("network"):
+            mode = "BrandMeister" if last_state["network"] == "BM" else "TGIF"
+        if last_state.get("tg"):
+            tg      = last_state["tg"]
+            tg_name = last_state.get("tg_name") or lookup_tg(tg)
 
-    # last_state always wins — it records what the user explicitly tuned,
-    # whereas ABInfo reflects the radio stack's current state which may be
-    # stale, default, or different from the last manual selection.
-    if last_state.get("network"):
-        mode = "BrandMeister" if last_state["network"] == "BM" else "TGIF"
-    if last_state.get("tg"):
-        tg      = last_state["tg"]
-        tg_name = last_state.get("tg_name") or lookup_tg(tg)
-    else:
-        # No explicit tune on record — fall back to whatever ABInfo says
-        ab_tg = str(abinfo.get('digital', {}).get('tg', ''))
-        if ab_tg:
-            tg      = ab_tg
-            tg_name = lookup_tg(ab_tg)
+    # Pre-compute service states once (each call shells out to systemctl)
+    svc_stfu   = svc("stfu.service")
+    svc_mmdvm  = svc("mmdvm_bridge.service")
+    svc_analog = svc("analog_bridge.service")
 
     if mode == "BrandMeister":
         connected_since = get_svc_uptime("stfu.service")
+        core_up = svc_stfu == "RUNNING" and svc_analog == "RUNNING"
     else:
         connected_since = get_svc_uptime("mmdvm_bridge.service")
+        core_up = svc_mmdvm == "RUNNING" and svc_analog == "RUNNING"
+
+    # Connection state: answers "am I tuned or just quiet?"
+    if active_tx["active"]:
+        conn_state = "rx"           # audio actively flowing
+    elif usrp_state["connected"] and core_up:
+        conn_state = "idle"         # tuned and ready, no traffic
+    elif core_up:
+        conn_state = "starting"     # services up, USRP not yet connected
+    else:
+        conn_state = "offline"      # radio stack is down
 
     return {
-        "mode":            mode,
-        "tg":              tg,
-        "tg_name":         tg_name,
-        "call":            call,
-        "connected_since": connected_since,
-        "svc_stfu":        svc("stfu.service"),
-        "svc_mmdvm":       svc("mmdvm_bridge.service"),
-        "svc_analog":      svc("analog_bridge.service"),
-        "usrp_connected":  usrp_state["connected"],
-        "usrp_registered": usrp_state["registered"],
-        "status_source":   status_source,
-        "last_tg":         last_state.get("tg", ""),
-        "last_tg_name":    last_state.get("tg_name", ""),
-        "last_network":    last_state.get("network", ""),
+        "mode":             mode,
+        "tg":               tg,
+        "tg_name":          tg_name,
+        "call":             call,
+        "connected_since":  connected_since,
+        "svc_stfu":         svc_stfu,
+        "svc_mmdvm":        svc_mmdvm,
+        "svc_analog":       svc_analog,
+        "usrp_connected":   usrp_state["connected"],
+        "usrp_registered":  usrp_state["registered"],
+        "status_source":    status_source,
+        "conn_state":       conn_state,
+        "last_tg":          last_state.get("tg", ""),
+        "last_tg_name":     last_state.get("tg_name", ""),
+        "last_network":     last_state.get("network", ""),
     }
 
 # -------------------------
@@ -612,6 +624,13 @@ HTML = '''
         .badge-tgif    { background: #1a3a1a; color: lime; }
         .badge-bm      { background: #1a1a3a; color: cyan; }
         .badge-unknown { background: #2a2a2a; color: #666; }
+
+        .conn-badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-weight: bold; font-size: 11px; }
+        .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
+        .conn-idle     { background: #0d1a0d; color: #5c5; }
+        .conn-starting { background: #2a2200; color: gold; }
+        .conn-offline  { background: #1a1a1a; color: #444; }
+        .conn-cached   { background: #1a1a1a; color: #555; font-style: italic; }
 
         .svc-dot {
             display: inline-block; width: 7px; height: 7px;
@@ -922,6 +941,10 @@ HTML = '''
                 <div class="stat-row">
                     <span class="stat-key">Network</span>
                     <span class="stat-val"><span class="mode-badge badge-unknown" id="modeValue">--</span></span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-key">State</span>
+                    <span class="stat-val"><span class="conn-badge conn-offline" id="connState">OFFLINE</span></span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-key">Since</span>
@@ -1493,8 +1516,15 @@ HTML = '''
                     d.mode === 'TGIF'         ? 'badge-tgif' :
                     d.mode === 'BrandMeister' ? 'badge-bm'   : 'badge-unknown'
                 );
-                modeEl.title = d.status_source === 'cached' ? 'Last known (radio stack offline)' : '';
-                modeEl.style.opacity = d.status_source === 'cached' ? '0.6' : '1';
+
+                const connEl    = document.getElementById('connState');
+                const connLabel = {rx:'RX', idle:'READY', starting:'STARTING', offline:'OFFLINE'};
+                connEl.textContent = d.status_source === 'cached'
+                    ? 'LAST KNOWN'
+                    : (connLabel[d.conn_state] || '--');
+                connEl.className = 'conn-badge ' + (
+                    d.status_source === 'cached' ? 'conn-cached' : 'conn-' + d.conn_state
+                );
 
                 document.getElementById('callValue').textContent        = d.call            || '--';
                 document.getElementById('tgValue').textContent          = d.tg              || '--';
