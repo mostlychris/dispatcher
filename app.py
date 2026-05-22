@@ -368,22 +368,30 @@ def get_log_path(log_key):
 def get_status():
     tg, mode, call, tg_name = "N/A", "UNKNOWN", "", ""
     status_source = "live"
+    abinfo = {}
     try:
         with open(ABINFO_ACTIVE) as f:
             abinfo = json.load(f)
         ambe_mode = abinfo.get('tlv', {}).get('ambe_mode', '')
-        mode    = "BrandMeister" if ambe_mode == 'STFU' else "TGIF"
-        tg      = abinfo.get('digital', {}).get('tg', 'N/A')
-        call    = abinfo.get('digital', {}).get('call', '')
-        tg_name = lookup_tg(tg)
+        mode = "BrandMeister" if ambe_mode == 'STFU' else "TGIF"
+        call = abinfo.get('digital', {}).get('call', '')
     except Exception:
         status_source = "cached"
-        if last_state.get("network"):
-            mode    = "BrandMeister" if last_state["network"] == "BM" else "TGIF"
-            tg      = last_state.get("tg", "N/A")
-            tg_name = last_state.get("tg_name", "")
-        else:
-            mode = "UNKNOWN"
+
+    # last_state always wins — it records what the user explicitly tuned,
+    # whereas ABInfo reflects the radio stack's current state which may be
+    # stale, default, or different from the last manual selection.
+    if last_state.get("network"):
+        mode = "BrandMeister" if last_state["network"] == "BM" else "TGIF"
+    if last_state.get("tg"):
+        tg      = last_state["tg"]
+        tg_name = last_state.get("tg_name") or lookup_tg(tg)
+    else:
+        # No explicit tune on record — fall back to whatever ABInfo says
+        ab_tg = str(abinfo.get('digital', {}).get('tg', ''))
+        if ab_tg:
+            tg      = ab_tg
+            tg_name = lookup_tg(ab_tg)
 
     if mode == "BrandMeister":
         connected_since = get_svc_uptime("stfu.service")
