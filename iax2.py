@@ -1,5 +1,4 @@
 """Minimal IAX2 client for receiving audio from a local Allstar/Asterisk node."""
-import math
 import socket
 import struct
 import hashlib
@@ -35,9 +34,10 @@ class IAX2Client:
     """RX-only IAX2 client.  Connects to a local Asterisk node and emits PCM."""
 
     # Frame types
-    FRAME_DTMF  = 0x01
-    FRAME_VOICE = 0x02
-    FRAME_IAX   = 0x06
+    FRAME_DTMF_END   = 0x01
+    FRAME_DTMF_BEGIN = 0x0E
+    FRAME_VOICE      = 0x02
+    FRAME_IAX        = 0x06
 
     # IAX subclasses
     IAX_NEW       = 0x01
@@ -117,86 +117,35 @@ class IAX2Client:
                              args=(digits, inter_digit), daemon=True)
         t.start()
 
-    # ------------------------------------------------------------------ audio TX
-
-    _DTMF_FREQS = {
-        '0': (941, 1336), '1': (697, 1209), '2': (697, 1336), '3': (697, 1477),
-        '4': (770, 1209), '5': (770, 1336), '6': (770, 1477), '7': (852, 1209),
-        '8': (852, 1336), '9': (852, 1477), '*': (941, 1209), '#': (941, 1477),
-        'A': (697, 1633), 'B': (770, 1633), 'C': (852, 1633), 'D': (941, 1633),
-    }
-
-    def _dtmf_ulaw(self, digit: str, duration_ms: int = 150) -> bytes:
-        f1, f2 = self._DTMF_FREQS[digit.upper()]
-        n = 8000 * duration_ms // 1000
-        # Build 16-bit signed PCM, then convert to ulaw with audioop
-        pcm = bytearray(n * 2)
-        for i in range(n):
-            t = i / 8000
-            s = math.sin(2 * math.pi * f1 * t) + math.sin(2 * math.pi * f2 * t)
-            sample = max(-32768, min(32767, int(s * 8192)))
-            struct.pack_into('<h', pcm, i * 2, sample)
-        try:
-            return audioop.lin2ulaw(bytes(pcm), 2)
-        except NameError:
-            # audioop unavailable (Python 3.13+) — simple fallback
-            return bytes([(b ^ 0xFF) & 0xFF for b in pcm[::2]])
-
-    def _send_voice_frame(self, ulaw_data: bytes) -> None:
+    def _send_dtmf_frame(self, ftype: int, digit: str) -> None:
         with self._send_lock:
             seq = self._oseqno
             src = self._src_call | 0x8000
             pkt = struct.pack('>HHIBBBB',
                               src, self._dst_call, self._ts(),
                               seq, self._iseqno,
-                              self.FRAME_VOICE, 0x82) + ulaw_data
+                              ftype, ord(digit))
             self._raw_send(pkt)
-            self._tx_buf[seq] = ulaw_data
+            self._tx_buf[seq] = b''
             if len(self._tx_buf) > 128:
                 del self._tx_buf[min(self._tx_buf)]
             self._oseqno = (self._oseqno + 1) & 0xFF
 
-    _SILENCE_20MS = bytes([0xFF] * 160)
-
     def _dtmf_thread(self, digits: str, inter_digit: float):
-        """Send DTMF as in-band audio tones in FRAME_VOICE frames.
+        """Send each digit as a matched DTMF_BEGIN + DTMF_END pair.
 
-        app_rpt with the X (iaxRPT) option uses DSP detection on the audio
-        stream — it ignores IAX2 native DTMF frames entirely.
-
-        Pre-builds the full sequence then sends with absolute timing so
-        accumulated sleep drift doesn't cause audible jitter.
+        Sending only DTMF_END caused Asterisk to do begin-emulation for the
+        first digit ('*'), which skips the normal dtmf queue delivery path and
+        the digit is never seen by app_rpt.  Sending an explicit BEGIN first
+        gives Asterisk a matched pair and delivers all digits normally.
         """
-        CHUNK       = 160   # 20 ms at 8 kHz
-        SILENCE_MS  = 200   # silence between digits (ms)
-        TONE_MS     = 250   # tone duration (ms)
-        PRIME_MS    = 200   # leading silence to establish audio path
-
-        silence_chunk = self._SILENCE_20MS
-        prime_frames  = PRIME_MS  // 20
-        tone_frames   = TONE_MS   // 20
-        gap_frames    = SILENCE_MS // 20
-
-        # Build ordered list of (ulaw_chunk) for the whole sequence
-        sequence: list[bytes] = []
-        for _ in range(prime_frames):
-            sequence.append(silence_chunk)
+        TONE_MS = 100
         for ch in digits:
-            tone = self._dtmf_ulaw(ch, duration_ms=TONE_MS)
-            for i in range(0, len(tone), CHUNK):
-                sequence.append(tone[i:i + CHUNK].ljust(CHUNK, b'\xff'))
-            log.debug(f'IAX2 DTMF tone {ch!r} queued')
-            for _ in range(gap_frames):
-                sequence.append(silence_chunk)
-
-        # Send with absolute timing — avoids accumulated sleep drift
-        t0 = time.monotonic()
-        for idx, chunk in enumerate(sequence):
-            self._send_voice_frame(chunk)
-            deadline = t0 + (idx + 1) * (CHUNK / 8000)
-            remaining = deadline - time.monotonic()
-            if remaining > 0:
-                time.sleep(remaining)
+            self._send_dtmf_frame(self.FRAME_DTMF_BEGIN, ch)
+            time.sleep(TONE_MS / 1000)
+            self._send_dtmf_frame(self.FRAME_DTMF_END, ch)
+            log.debug(f'IAX2 DTMF {ch!r} begin+end sent')
+            time.sleep(inter_digit)
 
     def connect(self):
         if self._running:
