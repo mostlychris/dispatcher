@@ -2199,14 +2199,14 @@ def allstar_link():
     mode   = data.get('mode', 'monitor')
     if not remote.isdigit():
         return jsonify({'ok': False, 'message': 'Invalid node number'})
-    local = allstar_mgr.client.node if allstar_mgr.client else ALLSTAR_NODE
+    if not allstar_mgr.client or allstar_mgr.client.state != 'connected':
+        return jsonify({'ok': False, 'message': 'Not connected to Allstar'})
     prefix = '*2' if mode == 'monitor' else '*3'
-    cmd = f'asterisk -rx "rpt fun {local} {prefix}{remote}"'
-    out = run(cmd)
-    who = run('id')
-    ver = run('asterisk -rx "core show version"')
-    ok  = not out.startswith('ERROR')
-    return jsonify({'ok': ok, 'cmd': cmd, 'output': out, 'who': who, 'asterisk': ver, 'message': f'Linking to {remote} ({mode})...' if ok else out})
+    try:
+        allstar_mgr.send_dtmf(prefix + remote)
+        return jsonify({'ok': True, 'message': f'Linking to {remote} ({mode})...'})
+    except RuntimeError as e:
+        return jsonify({'ok': False, 'message': str(e)})
 
 
 @app.route('/api/allstar/unlink', methods=['POST'])
@@ -2215,10 +2215,13 @@ def allstar_unlink():
     remote = str(data.get('node', '')).strip()
     if not remote.isdigit():
         return jsonify({'ok': False, 'message': 'Invalid node number'})
-    local = allstar_mgr.client.node if allstar_mgr.client else ALLSTAR_NODE
-    out = run(f'asterisk -rx "rpt fun {local} *1{remote}"')
-    ok  = not out.startswith('ERROR')
-    return jsonify({'ok': ok, 'message': f'Unlinking {remote}...' if ok else out})
+    if not allstar_mgr.client or allstar_mgr.client.state != 'connected':
+        return jsonify({'ok': False, 'message': 'Not connected to Allstar'})
+    try:
+        allstar_mgr.send_dtmf('*1' + remote)
+        return jsonify({'ok': True, 'message': f'Unlinking {remote}...'})
+    except RuntimeError as e:
+        return jsonify({'ok': False, 'message': str(e)})
 
 
 @sock.route('/ws/allstar-audio')
