@@ -194,6 +194,7 @@ class IAX2Client:
         ies += self._ie(self.IE_CALLED_NUMBER,       self.node)
         ies += self._ie(self.IE_CALLING_NUMBER,      '0')
         ies += self._ie(self.IE_CALLING_NAME,        self.username)
+        ies += self._ie(self.IE_CALLED_CONTEXT,      self.context)
         ies += self._ie_int(self.IE_FORMAT,          self.CODEC_ULAW)
         ies += self._ie_int(self.IE_CAPABILITY,      self.CODEC_ULAW)
         ies += self._ie(self.IE_USERNAME,            self.username)
