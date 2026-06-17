@@ -33,13 +33,25 @@ except ImportError:
     AUDIO_WS_URL = ''
 
 try:
-    from config import ALLSTAR_HOST, ALLSTAR_PORT, ALLSTAR_USER, ALLSTAR_SECRET, ALLSTAR_NODE
+    from config import ALLSTAR_HOST
 except ImportError:
-    ALLSTAR_HOST   = '127.0.0.1'
-    ALLSTAR_PORT   = 4569
-    ALLSTAR_USER   = 'iaxrpt'
+    ALLSTAR_HOST = '127.0.0.1'
+try:
+    from config import ALLSTAR_PORT
+except ImportError:
+    ALLSTAR_PORT = 4569
+try:
+    from config import ALLSTAR_USER
+except ImportError:
+    ALLSTAR_USER = 'iaxrpt'
+try:
+    from config import ALLSTAR_SECRET
+except ImportError:
     ALLSTAR_SECRET = ''
-    ALLSTAR_NODE   = ''
+try:
+    from config import ALLSTAR_NODE
+except ImportError:
+    ALLSTAR_NODE = ''
 
 
 FAVORITES_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
