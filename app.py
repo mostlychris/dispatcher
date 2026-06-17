@@ -590,11 +590,13 @@ favorites = load_favorites()
 # -------------------------
 class AllstarManager:
     def __init__(self):
-        self.client = None
-        self._ws_qs = []
-        self._lock  = threading.Lock()
+        self.client     = None
+        self._ws_qs     = []
+        self._lock      = threading.Lock()
+        self._last_audio = 0.0
 
     def _on_audio(self, pcm: bytes):
+        self._last_audio = time.time()
         with self._lock:
             dead = []
             for q in self._ws_qs:
@@ -626,11 +628,14 @@ class AllstarManager:
     @property
     def status(self):
         if not self.client:
-            return {'state': 'idle', 'node': '', 'error': ''}
+            return {'state': 'idle', 'node': '', 'error': '', 'active': False}
+        active = (self.client.state == 'connected' and
+                  time.time() - self._last_audio < 0.6)
         return {
-            'state': self.client.state,
-            'node':  self.client.node,
-            'error': self.client.error_msg,
+            'state':  self.client.state,
+            'node':   self.client.node,
+            'error':  self.client.error_msg,
+            'active': active,
         }
 
     def send_dtmf(self, digits: str):
@@ -730,6 +735,10 @@ HTML = '''
         .badge-unknown { background: #2a2a2a; color: #666; }
 
         .conn-badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-weight: bold; font-size: 11px; }
+        .conn-active   { background: #0a2a0a; color: #4f4; }
+        .rx-dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#333; margin-right:5px; vertical-align:middle; transition: background 0.15s; }
+        .rx-dot.lit  { background:#4f4; box-shadow: 0 0 6px #4f4; animation: rx-pulse 0.6s ease-out; }
+        @keyframes rx-pulse { 0%{box-shadow:0 0 10px #4f4;} 100%{box-shadow:0 0 4px #4f4;} }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
         .conn-idle     { background: #0d1a0d; color: #5c5; }
         .conn-starting { background: #2a2200; color: gold; }
@@ -1094,7 +1103,10 @@ HTML = '''
                 <h3>Allstar</h3>
                 <div class="stat-row">
                     <span class="stat-key">State</span>
-                    <span class="stat-val"><span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span></span>
+                    <span class="stat-val">
+                        <span class="rx-dot" id="asRxDot" title="RX activity"></span>
+                        <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
+                    </span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-key">Node</span>
@@ -1817,12 +1829,15 @@ HTML = '''
             if (asPlayer) asPlayer.setVolume(val);
         }
 
+        var _asPoller = null;
+
         async function pollAllstarStatus() {
             try {
                 const res = await fetch('/api/allstar/status');
                 const d   = await res.json();
-                const badge   = document.getElementById('asStateBadge');
-                const nodeEl  = document.getElementById('asNodeBadge');
+                const badge  = document.getElementById('asStateBadge');
+                const nodeEl = document.getElementById('asNodeBadge');
+                const dot    = document.getElementById('asRxDot');
                 const sMap = {
                     idle:       ['OFFLINE',    'conn-offline'],
                     connecting: ['CONNECTING', 'conn-starting'],
@@ -1830,8 +1845,14 @@ HTML = '''
                     error:      ['ERROR',      'conn-offline'],
                 };
                 const [label, cls] = sMap[d.state] || ['--', 'conn-offline'];
-                badge.textContent = d.error || label;
-                badge.className   = 'conn-badge ' + cls;
+                if (d.state === 'connected' && d.active) {
+                    badge.textContent = 'RX';
+                    badge.className   = 'conn-badge conn-active';
+                } else {
+                    badge.textContent = d.error || label;
+                    badge.className   = 'conn-badge ' + cls;
+                }
+                if (dot) dot.className = 'rx-dot' + (d.active ? ' lit' : '');
                 nodeEl.textContent = d.node || '--';
 
                 const btnConn = document.getElementById('btnAsConnect');
@@ -1841,6 +1862,13 @@ HTML = '''
 
                 if (d.node && !document.getElementById('asNodeInput').value) {
                     document.getElementById('asNodeInput').value = d.node;
+                }
+
+                // keep polling while connected; stop when offline
+                if (d.state === 'connected' || d.state === 'connecting') {
+                    if (!_asPoller) _asPoller = setInterval(pollAllstarStatus, 400);
+                } else {
+                    if (_asPoller) { clearInterval(_asPoller); _asPoller = null; }
                 }
             } catch(e) { /* sidebar badge stays stale — non-fatal */ }
         }
