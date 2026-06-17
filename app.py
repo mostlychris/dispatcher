@@ -1244,6 +1244,7 @@ HTML = '''
                                 <button class="btn-tune"   onclick="allstarLink('monitor')">&#9654; Monitor</button>
                                 <button class="btn-tune"   onclick="allstarLink('transceive')">&#9654; Xceive</button>
                                 <button class="btn-danger" onclick="allstarUnlink()">&#9632; Unlink</button>
+                                <button class="btn-monitor" onclick="allstarStatus()">&#9432; Status</button>
                             </div>
                         </div>
                         <div style="margin-bottom:10px;">
@@ -1813,6 +1814,13 @@ HTML = '''
             .catch(e => log('Allstar unlink: ' + e, 'error'));
         }
 
+        function allstarStatus() {
+            fetch('/api/allstar/status_cmd', {method: 'POST'})
+            .then(r => r.json())
+            .then(d => log(d.message, d.ok ? 'ok' : 'error'))
+            .catch(e => log('Allstar status: ' + e, 'error'));
+        }
+
         function toggleAllstarAudio(btn) {
             if (!asPlayer) asPlayer = new AllstarPlayer();
             if (asPlayer.isPlaying()) {
@@ -2220,6 +2228,17 @@ def allstar_unlink():
     try:
         allstar_mgr.send_dtmf('*1' + remote)
         return jsonify({'ok': True, 'message': f'Unlinking {remote}...'})
+    except RuntimeError as e:
+        return jsonify({'ok': False, 'message': str(e)})
+
+
+@app.route('/api/allstar/status_cmd', methods=['POST'])
+def allstar_status_cmd():
+    if not allstar_mgr.client or allstar_mgr.client.state != 'connected':
+        return jsonify({'ok': False, 'message': 'Not connected to Allstar'})
+    try:
+        allstar_mgr.send_dtmf('*70')
+        return jsonify({'ok': True, 'message': 'Status requested (*70)'})
     except RuntimeError as e:
         return jsonify({'ok': False, 'message': str(e)})
 
