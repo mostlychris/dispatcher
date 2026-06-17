@@ -1246,6 +1246,10 @@ HTML = '''
                                 <button class="btn-danger" onclick="allstarUnlink()">&#9632; Unlink</button>
                             </div>
                         </div>
+                        <div style="margin-bottom:10px;">
+                            <div class="qt-section-label" style="margin-bottom:5px;">CONNECTED NODES</div>
+                            <div id="asNodeList" style="font-size:12px; color:#aaa; min-height:16px;">--</div>
+                        </div>
                         <div style="display:flex; gap:8px; align-items:center;">
                             <span class="vol-label" style="white-space:nowrap; flex-shrink:0;">AS Volume</span>
                             <input type="range" class="vol-slider" id="asVolSlider"
@@ -1830,6 +1834,26 @@ HTML = '''
         }
 
         var _asPoller = null;
+        var _asNodePoller = null;
+
+        async function pollAllstarNodes() {
+            try {
+                const res = await fetch('/api/allstar/nodes');
+                const d   = await res.json();
+                const el  = document.getElementById('asNodeList');
+                if (!d.nodes || d.nodes.length === 0) {
+                    el.textContent = '(none)';
+                    return;
+                }
+                const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
+                el.innerHTML = d.nodes.map(n =>
+                    `<span style="display:inline-block;margin-right:10px;">
+                        <span style="color:#5c5;">${n.node}</span>
+                        <span style="color:#666;font-size:10px;">${modeLabel[n.mode] || n.mode}</span>
+                    </span>`
+                ).join('');
+            } catch(e) {}
+        }
 
         async function pollAllstarStatus() {
             try {
@@ -1867,8 +1891,11 @@ HTML = '''
                 // keep polling while connected; stop when offline
                 if (d.state === 'connected' || d.state === 'connecting') {
                     if (!_asPoller) _asPoller = setInterval(pollAllstarStatus, 400);
+                    if (!_asNodePoller) { pollAllstarNodes(); _asNodePoller = setInterval(pollAllstarNodes, 3000); }
                 } else {
-                    if (_asPoller) { clearInterval(_asPoller); _asPoller = null; }
+                    if (_asPoller)     { clearInterval(_asPoller);     _asPoller     = null; }
+                    if (_asNodePoller) { clearInterval(_asNodePoller); _asNodePoller = null; }
+                    document.getElementById('asNodeList').textContent = '--';
                 }
             } catch(e) { /* sidebar badge stays stale — non-fatal */ }
         }
@@ -2106,6 +2133,27 @@ def debug_abinfo():
 @app.route('/api/allstar/status')
 def allstar_status():
     return jsonify(allstar_mgr.status)
+
+
+@app.route('/api/allstar/nodes')
+def allstar_nodes():
+    node = allstar_mgr.client.node if allstar_mgr.client else ALLSTAR_NODE
+    out  = run(f'asterisk -rx "rpt nodes {node}"')
+    nodes = []
+    for line in out.splitlines():
+        line = line.strip()
+        if not line or line.startswith('*') or line.startswith('-'):
+            continue
+        # each entry looks like: R556982, Tiaxrpt
+        for part in line.split(','):
+            part = part.strip()
+            if not part:
+                continue
+            mode   = part[0] if part else '?'
+            number = part[1:].strip()
+            if number.isdigit():
+                nodes.append({'node': number, 'mode': mode})
+    return jsonify({'nodes': nodes})
 
 
 @app.route('/api/allstar/debug')
