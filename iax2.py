@@ -80,7 +80,7 @@ class IAX2Client:
     IAX_INVAL     = 0x0A
     IAX_LAGRQ     = 0x0B
     IAX_LAGRP     = 0x0C
-    IAX_TRANSFER  = 0x12
+    IAX_VNAK      = 0x12
     IAX_CALLTOKEN = 0x28
 
     # Information elements
@@ -124,9 +124,8 @@ class IAX2Client:
         self._audio_cbs = []
         self._state_cbs = []
 
-        # TX audio stream: queue of 160-sample ulaw chunks; None = silence
-        self._tx_queue   = []
-        self._tx_lock    = threading.Lock()
+        # Retransmit buffer: oseqno -> ulaw payload for VNAK recovery
+        self._tx_buf  = {}
 
     # ------------------------------------------------------------------ public
 
@@ -146,41 +145,33 @@ class IAX2Client:
                              args=(digits, inter_digit), daemon=True)
         t.start()
 
-    def _tx_loop(self):
-        """Continuous TX audio thread. Sends silence when idle, tones when queued."""
-        CHUNK    = 160        # 20ms at 8kHz
-        INTERVAL = CHUNK / 8000  # 0.02 s
-        # Wait until connected before streaming
-        while self._running and self.state != 'connected':
-            time.sleep(0.1)
-        while self._running and self.state == 'connected':
-            t0 = time.time()
-            with self._tx_lock:
-                chunk = self._tx_queue.pop(0) if self._tx_queue else None
-            audio = chunk if chunk is not None else _SILENCE_20MS
-            with self._send_lock:
-                src = self._src_call | 0x8000
-                pkt = struct.pack('>HHIBBBB',
-                                  src, self._dst_call, self._ts(),
-                                  self._oseqno, self._iseqno,
-                                  self.FRAME_VOICE, 0x82) + audio
-                self._raw_send(pkt)
-                self._oseqno = (self._oseqno + 1) & 0xFF
-            elapsed = time.time() - t0
-            time.sleep(max(0, INTERVAL - elapsed))
+    def _send_voice_frame(self, ulaw_data: bytes):
+        """Send one full FRAME_VOICE and store it in the retransmit buffer."""
+        with self._send_lock:
+            seq = self._oseqno
+            src = self._src_call | 0x8000
+            pkt = struct.pack('>HHIBBBB',
+                              src, self._dst_call, self._ts(),
+                              seq, self._iseqno,
+                              self.FRAME_VOICE, 0x82) + ulaw_data
+            self._raw_send(pkt)
+            self._tx_buf[seq] = ulaw_data
+            if len(self._tx_buf) > 128:
+                del self._tx_buf[min(self._tx_buf)]
+            self._oseqno = (self._oseqno + 1) & 0xFF
 
     def _dtmf_thread(self, digits: str, inter_digit: float):
-        """Queue in-band dual-tone audio chunks for each digit."""
-        CHUNK           = 160
-        silence_chunks  = max(1, int(inter_digit * 8000 / CHUNK))
-        frames: list[bytes] = []
+        """Send DTMF as in-band audio burst. Real-time paced, 20ms per frame."""
+        CHUNK          = 160   # 20ms at 8kHz
+        silence_frames = max(1, int(inter_digit * 8000 / CHUNK))
         for ch in digits:
             tone = _dtmf_ulaw(ch, duration_ms=120)
             for i in range(0, len(tone), CHUNK):
-                frames.append(tone[i:i + CHUNK].ljust(CHUNK, b'\xff'))
-            frames.extend([_SILENCE_20MS] * silence_chunks)
-        with self._tx_lock:
-            self._tx_queue.extend(frames)
+                self._send_voice_frame(tone[i:i + CHUNK].ljust(CHUNK, b'\xff'))
+                time.sleep(CHUNK / 8000)
+            for _ in range(silence_frames):
+                self._send_voice_frame(_SILENCE_20MS)
+                time.sleep(CHUNK / 8000)
 
     def connect(self):
         if self._running:
@@ -199,8 +190,6 @@ class IAX2Client:
         self._thread = threading.Thread(
             target=self._recv_loop, daemon=True, name='iax2-recv')
         self._thread.start()
-        threading.Thread(
-            target=self._tx_loop, daemon=True, name='iax2-tx').start()
 
     def disconnect(self):
         self._running = False
@@ -289,6 +278,7 @@ class IAX2Client:
             'src':     sr & 0x7FFF,
             'dst':     dr & 0x7FFF,
             'oseq':    oseq,
+            'iseq':    iseq,
             'type':    ftype,
             'sub':     sub,
             'ies':     self._parse_ies(data[12:]) if ftype == self.FRAME_IAX else {},
@@ -405,8 +395,21 @@ class IAX2Client:
             elif sub == self.IAX_LAGRQ:
                 self._send_iax(self.IAX_LAGRP)
 
-            elif sub not in (self.IAX_ACK, self.IAX_PONG, self.IAX_INVAL,
-                             self.IAX_TRANSFER):
+            elif sub == self.IAX_VNAK:
+                # Retransmit all buffered voice frames from requested sequence
+                vnak_seq = f['iseq']
+                log.debug(f'IAX2: VNAK seq={vnak_seq}, retransmitting from buffer')
+                with self._send_lock:
+                    for seq in sorted(self._tx_buf):
+                        if ((seq - vnak_seq) & 0xFF) < 64:
+                            src = self._src_call | 0x8000
+                            pkt = struct.pack('>HHIBBBB',
+                                              src, self._dst_call, self._ts(),
+                                              seq, self._iseqno,
+                                              self.FRAME_VOICE, 0x82) + self._tx_buf[seq]
+                            self._raw_send(pkt)
+
+            elif sub not in (self.IAX_ACK, self.IAX_PONG, self.IAX_INVAL):
                 log.debug(f'IAX2: unhandled IAX sub=0x{sub:02x}, sending ACK')
                 self._send_iax(self.IAX_ACK)
 
