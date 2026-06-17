@@ -402,8 +402,8 @@ class IAX2Client:
                             self._raw_send(pkt)
 
             elif sub == self.IAX_ACK:
-                # Asterisk ACKs our frame at oseq=f['iseq']; clear from retransmit buf
-                acked = f['iseq']
+                # ACK.iseq = next seq expected from us = our_sent_seq + 1
+                acked = (f['iseq'] - 1) & 0xFF
                 with self._send_lock:
                     self._tx_buf.pop(acked, None)
 
