@@ -190,12 +190,15 @@ class IAX2Client:
             self._oseqno = (self._oseqno + 1) & 0xFF
 
     def _send_new(self):
-        ies  = self._ie(self.IE_CALLED_NUMBER,  self.node)
-        ies += self._ie(self.IE_CALLING_NUMBER, '0')
-        ies += self._ie(self.IE_CALLING_NAME,   self.username)
-        ies += self._ie(self.IE_USERNAME,       self.username)
-        ies += self._ie_int(self.IE_CAPABILITY, self.CODEC_ULAW)
-        ies += self._ie_int(self.IE_FORMAT,     self.CODEC_ULAW)
+        # CAPABILITY 0x000e = ulaw(4) | gsm(2) | alaw(8) — matches iaxRPT
+        CAPABILITY = 0x000e
+        ies  = self._ie_short(self.IE_VERSION,       2)
+        ies += self._ie(self.IE_CALLED_NUMBER,       self.node)
+        ies += self._ie(self.IE_CALLING_NUMBER,      '0')
+        ies += self._ie(self.IE_CALLING_NAME,        self.username)
+        ies += self._ie_int(self.IE_CAPABILITY,      CAPABILITY)
+        ies += self._ie_int(self.IE_FORMAT,          self.CODEC_ULAW)
+        ies += self._ie(self.IE_USERNAME,            self.username)
         if self._call_token is not None:
             ies += self._ie(self.IE_CALLTOKEN, self._call_token)
         log.debug(f'IAX2 -> NEW node={self.node} user={self.username} '
