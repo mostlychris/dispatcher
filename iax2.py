@@ -307,7 +307,7 @@ class IAX2Client:
                 log.debug(f'IAX2 AUTHREQ parsed IEs: { {hex(k): v.hex() for k, v in ies.items()} }')
                 challenge = ies.get(self.IE_CHALLENGE, b'').decode('utf-8', errors='replace')
                 log.debug(f'IAX2: got AUTHREQ challenge={challenge!r}')
-                md5       = hashlib.md5((challenge + self.secret).encode()).hexdigest()
+                md5       = hashlib.md5((self.secret + challenge).encode()).hexdigest()
                 self._send_iax(self.IAX_AUTHREP,
                                self._ie(self.IE_MD5_RESULT, md5))
 
