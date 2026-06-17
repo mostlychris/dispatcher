@@ -61,8 +61,8 @@ class IAX2Client:
     IE_CAPABILITY     = 0x0A
     IE_FORMAT         = 0x0B
     IE_VERSION        = 0x0D
-    IE_CHALLENGE      = 0x11
-    IE_MD5_RESULT     = 0x13
+    IE_CHALLENGE      = 0x0F
+    IE_MD5_RESULT     = 0x10
     IE_CALLTOKEN      = 0x39
 
     CODEC_ULAW = 0x0004
