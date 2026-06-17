@@ -124,6 +124,10 @@ class IAX2Client:
         self._audio_cbs = []
         self._state_cbs = []
 
+        # TX audio stream: queue of 160-sample ulaw chunks; None = silence
+        self._tx_queue   = []
+        self._tx_lock    = threading.Lock()
+
     # ------------------------------------------------------------------ public
 
     def on_audio(self, cb):
@@ -142,29 +146,41 @@ class IAX2Client:
                              args=(digits, inter_digit), daemon=True)
         t.start()
 
-    def _send_voice_frame(self, ulaw_data: bytes):
-        # Full FRAME_VOICE; subclass 0x82 = compressed ulaw (C-bit | exponent 2 = 2^2 = 4)
-        with self._send_lock:
-            src = self._src_call | 0x8000
-            pkt = struct.pack('>HHIBBBB',
-                              src, self._dst_call, self._ts(),
-                              self._oseqno, self._iseqno,
-                              self.FRAME_VOICE, 0x82) + ulaw_data
-            self._raw_send(pkt)
-            self._oseqno = (self._oseqno + 1) & 0xFF
+    def _tx_loop(self):
+        """Continuous TX audio thread. Sends silence when idle, tones when queued."""
+        CHUNK    = 160        # 20ms at 8kHz
+        INTERVAL = CHUNK / 8000  # 0.02 s
+        # Wait until connected before streaming
+        while self._running and self.state != 'connected':
+            time.sleep(0.1)
+        while self._running and self.state == 'connected':
+            t0 = time.time()
+            with self._tx_lock:
+                chunk = self._tx_queue.pop(0) if self._tx_queue else None
+            audio = chunk if chunk is not None else _SILENCE_20MS
+            with self._send_lock:
+                src = self._src_call | 0x8000
+                pkt = struct.pack('>HHIBBBB',
+                                  src, self._dst_call, self._ts(),
+                                  self._oseqno, self._iseqno,
+                                  self.FRAME_VOICE, 0x82) + audio
+                self._raw_send(pkt)
+                self._oseqno = (self._oseqno + 1) & 0xFF
+            elapsed = time.time() - t0
+            time.sleep(max(0, INTERVAL - elapsed))
 
     def _dtmf_thread(self, digits: str, inter_digit: float):
-        """Send each digit as in-band dual-tone audio so app_rpt's DSP detects it."""
-        chunk = 160  # 20ms at 8kHz
-        silence_frames = max(1, int(inter_digit * 8000 / chunk))
+        """Queue in-band dual-tone audio chunks for each digit."""
+        CHUNK           = 160
+        silence_chunks  = max(1, int(inter_digit * 8000 / CHUNK))
+        frames: list[bytes] = []
         for ch in digits:
             tone = _dtmf_ulaw(ch, duration_ms=120)
-            for i in range(0, len(tone), chunk):
-                self._send_voice_frame(tone[i:i + chunk])
-                time.sleep(chunk / 8000)
-            for _ in range(silence_frames):
-                self._send_voice_frame(_SILENCE_20MS)
-                time.sleep(chunk / 8000)
+            for i in range(0, len(tone), CHUNK):
+                frames.append(tone[i:i + CHUNK].ljust(CHUNK, b'\xff'))
+            frames.extend([_SILENCE_20MS] * silence_chunks)
+        with self._tx_lock:
+            self._tx_queue.extend(frames)
 
     def connect(self):
         if self._running:
@@ -183,6 +199,8 @@ class IAX2Client:
         self._thread = threading.Thread(
             target=self._recv_loop, daemon=True, name='iax2-recv')
         self._thread.start()
+        threading.Thread(
+            target=self._tx_loop, daemon=True, name='iax2-tx').start()
 
     def disconnect(self):
         self._running = False
