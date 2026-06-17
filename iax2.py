@@ -98,7 +98,9 @@ class IAX2Client:
         self._state_cbs = []
 
         # Retransmit buffer: oseqno -> ulaw payload for VNAK recovery
-        self._tx_buf  = {}
+        self._tx_buf   = {}
+        # Serialise DTMF sends — only one sequence at a time
+        self._dtmf_lock = threading.Lock()
 
     # ------------------------------------------------------------------ public
 
@@ -111,7 +113,11 @@ class IAX2Client:
         self._state_cbs.append(cb)
 
     def send_dtmf(self, digits: str, inter_digit: float = 0.0):
-        """Send DTMF digits (non-blocking; fires a daemon thread)."""
+        """Send DTMF digits (non-blocking; fires a daemon thread).
+
+        If a previous sequence is still in flight the new one is queued
+        behind it via _dtmf_lock so they never interleave.
+        """
         if self.state != 'connected':
             raise RuntimeError('Not connected')
         t = threading.Thread(target=self._dtmf_thread,
@@ -141,19 +147,23 @@ class IAX2Client:
         It sends one TEXT frame per digit in this format, which app_rpt
         processes directly without going through the channel DTMF queue.
         """
-        ACK_TIMEOUT = 0.2   # wait up to 200ms for ACK before proceeding
-        for ch in digits:
-            text = f'D {self.node} 0 1 {ch}'
-            self._send_text_frame(text)
-            log.debug(f'IAX2 TEXT sent: {text!r}')
-            # Wait for ACK to pace sends — do NOT retry (would duplicate digits)
-            seq      = (self._oseqno - 1) & 0xFF
-            deadline = time.monotonic() + ACK_TIMEOUT
-            while time.monotonic() < deadline:
-                with self._send_lock:
-                    if seq not in self._tx_buf:
-                        break
-                time.sleep(0.01)
+        with self._dtmf_lock:   # serialise: only one sequence at a time
+            try:
+                ACK_TIMEOUT = 0.2
+                for ch in digits:
+                    text = f'D {self.node} 0 1 {ch}'
+                    self._send_text_frame(text)
+                    log.debug(f'IAX2 TEXT sent: {text!r}')
+                    # Wait for ACK to pace sends — no retry (avoids duplicate digits)
+                    seq      = (self._oseqno - 1) & 0xFF
+                    deadline = time.monotonic() + ACK_TIMEOUT
+                    while time.monotonic() < deadline:
+                        with self._send_lock:
+                            if seq not in self._tx_buf:
+                                break
+                        time.sleep(0.01)
+            except Exception:
+                log.exception('IAX2 _dtmf_thread error')
 
     def connect(self):
         if self._running:
