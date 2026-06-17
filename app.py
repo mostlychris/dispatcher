@@ -2152,7 +2152,7 @@ def allstar_link():
     if not remote.isdigit():
         return jsonify({'ok': False, 'message': 'Invalid node number'})
     local = allstar_mgr.client.node if allstar_mgr.client else ALLSTAR_NODE
-    prefix = '*3' if mode == 'monitor' else '*5'
+    prefix = '*2' if mode == 'monitor' else '*5'
     out = run(f'asterisk -rx "rpt fun {local} {prefix}{remote}"')
     ok  = not out.startswith('ERROR')
     return jsonify({'ok': ok, 'message': f'Linking to {remote} ({mode})...' if ok else out})
