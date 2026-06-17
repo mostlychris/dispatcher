@@ -2203,8 +2203,10 @@ def allstar_link():
     prefix = '*2' if mode == 'monitor' else '*3'
     cmd = f'asterisk -rx "rpt fun {local} {prefix}{remote}"'
     out = run(cmd)
+    who = run('id')
+    ver = run('asterisk -rx "core show version"')
     ok  = not out.startswith('ERROR')
-    return jsonify({'ok': ok, 'cmd': cmd, 'output': out, 'message': f'Linking to {remote} ({mode})...' if ok else out})
+    return jsonify({'ok': ok, 'cmd': cmd, 'output': out, 'who': who, 'asterisk': ver, 'message': f'Linking to {remote} ({mode})...' if ok else out})
 
 
 @app.route('/api/allstar/unlink', methods=['POST'])
