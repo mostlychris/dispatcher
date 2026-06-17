@@ -2201,9 +2201,10 @@ def allstar_link():
         return jsonify({'ok': False, 'message': 'Invalid node number'})
     local = allstar_mgr.client.node if allstar_mgr.client else ALLSTAR_NODE
     prefix = '*2' if mode == 'monitor' else '*3'
-    out = run(f'asterisk -rx "rpt fun {local} {prefix}{remote}"')
+    cmd = f'asterisk -rx "rpt fun {local} {prefix}{remote}"'
+    out = run(cmd)
     ok  = not out.startswith('ERROR')
-    return jsonify({'ok': ok, 'message': f'Linking to {remote} ({mode})...' if ok else out})
+    return jsonify({'ok': ok, 'cmd': cmd, 'output': out, 'message': f'Linking to {remote} ({mode})...' if ok else out})
 
 
 @app.route('/api/allstar/unlink', methods=['POST'])
