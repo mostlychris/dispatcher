@@ -2,7 +2,6 @@
 import socket
 import struct
 import hashlib
-import math
 import time
 import threading
 import logging
@@ -29,34 +28,6 @@ except ImportError:
             struct.pack_into('<h', out, i * 2, s)
         return bytes(out)
 
-
-_DTMF_FREQS = {
-    '0': (941, 1336), '1': (697, 1209), '2': (697, 1336), '3': (697, 1477),
-    '4': (770, 1209), '5': (770, 1336), '6': (770, 1477), '7': (852, 1209),
-    '8': (852, 1336), '9': (852, 1477), '*': (941, 1209), '#': (941, 1477),
-    'A': (697, 1633), 'B': (770, 1633), 'C': (852, 1633), 'D': (941, 1633),
-}
-
-def _lin2ulaw(s: int) -> int:
-    BIAS, CLIP = 0x84, 32635
-    sign = 0x80 if s < 0 else 0
-    s = min(abs(s), CLIP) + BIAS
-    exp = 7
-    while exp > 0 and s < (1 << (exp + 3)):
-        exp -= 1
-    return (~(sign | (exp << 4) | ((s >> (exp + 3)) & 0x0F))) & 0xFF
-
-def _dtmf_ulaw(digit: str, duration_ms: int = 120, rate: int = 8000) -> bytes:
-    f1, f2 = _DTMF_FREQS[digit.upper()]
-    n = rate * duration_ms // 1000
-    buf = bytearray(n)
-    for i in range(n):
-        t = i / rate
-        s = math.sin(2 * math.pi * f1 * t) + math.sin(2 * math.pi * f2 * t)
-        buf[i] = _lin2ulaw(int(s * 16000))
-    return bytes(buf)
-
-_SILENCE_20MS = bytes([0xFF] * 160)  # 20ms silence at 8kHz ulaw
 
 
 class IAX2Client:
@@ -145,33 +116,23 @@ class IAX2Client:
                              args=(digits, inter_digit), daemon=True)
         t.start()
 
-    def _send_voice_frame(self, ulaw_data: bytes):
-        """Send one full FRAME_VOICE and store it in the retransmit buffer."""
-        with self._send_lock:
-            seq = self._oseqno
-            src = self._src_call | 0x8000
-            pkt = struct.pack('>HHIBBBB',
-                              src, self._dst_call, self._ts(),
-                              seq, self._iseqno,
-                              self.FRAME_VOICE, 0x82) + ulaw_data
-            self._raw_send(pkt)
-            self._tx_buf[seq] = ulaw_data
-            if len(self._tx_buf) > 128:
-                del self._tx_buf[min(self._tx_buf)]
-            self._oseqno = (self._oseqno + 1) & 0xFF
-
     def _dtmf_thread(self, digits: str, inter_digit: float):
-        """Send DTMF as in-band audio burst. Real-time paced, 20ms per frame."""
-        CHUNK          = 160   # 20ms at 8kHz
-        silence_frames = max(1, int(inter_digit * 8000 / CHUNK))
+        """Send each digit as a native IAX2 DTMF frame (FRAME_DTMF / DTMF_END)."""
         for ch in digits:
-            tone = _dtmf_ulaw(ch, duration_ms=120)
-            for i in range(0, len(tone), CHUNK):
-                self._send_voice_frame(tone[i:i + CHUNK].ljust(CHUNK, b'\xff'))
-                time.sleep(CHUNK / 8000)
-            for _ in range(silence_frames):
-                self._send_voice_frame(_SILENCE_20MS)
-                time.sleep(CHUNK / 8000)
+            with self._send_lock:
+                seq = self._oseqno
+                src = self._src_call | 0x8000
+                pkt = struct.pack('>HHIBBBB',
+                                  src, self._dst_call, self._ts(),
+                                  seq, self._iseqno,
+                                  self.FRAME_DTMF, ord(ch))
+                self._raw_send(pkt)
+                self._tx_buf[seq] = b''   # placeholder for VNAK retransmit
+                if len(self._tx_buf) > 128:
+                    del self._tx_buf[min(self._tx_buf)]
+                self._oseqno = (self._oseqno + 1) & 0xFF
+                log.debug(f'IAX2 -> DTMF {ch!r} oseq={seq}')
+            time.sleep(inter_digit)
 
     def connect(self):
         if self._running:
