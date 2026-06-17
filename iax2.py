@@ -126,25 +126,21 @@ class IAX2Client:
         'A': (697, 1633), 'B': (770, 1633), 'C': (852, 1633), 'D': (941, 1633),
     }
 
-    @staticmethod
-    def _lin2ulaw(s: int) -> int:
-        BIAS, CLIP = 0x84, 32635
-        sign = 0x80 if s < 0 else 0
-        s = min(abs(s), CLIP) + BIAS
-        exp = 7
-        while exp > 0 and s < (1 << (exp + 3)):
-            exp -= 1
-        return (~(sign | (exp << 4) | ((s >> (exp + 3)) & 0x0F))) & 0xFF
-
     def _dtmf_ulaw(self, digit: str, duration_ms: int = 150) -> bytes:
         f1, f2 = self._DTMF_FREQS[digit.upper()]
         n = 8000 * duration_ms // 1000
-        buf = bytearray(n)
+        # Build 16-bit signed PCM, then convert to ulaw with audioop
+        pcm = bytearray(n * 2)
         for i in range(n):
             t = i / 8000
             s = math.sin(2 * math.pi * f1 * t) + math.sin(2 * math.pi * f2 * t)
-            buf[i] = self._lin2ulaw(int(s * 6000))
-        return bytes(buf)
+            sample = max(-32768, min(32767, int(s * 8192)))
+            struct.pack_into('<h', pcm, i * 2, sample)
+        try:
+            return audioop.lin2ulaw(bytes(pcm), 2)
+        except NameError:
+            # audioop unavailable (Python 3.13+) — simple fallback
+            return bytes([(b ^ 0xFF) & 0xFF for b in pcm[::2]])
 
     def _send_voice_frame(self, ulaw_data: bytes) -> None:
         with self._send_lock:
