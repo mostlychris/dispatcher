@@ -190,8 +190,7 @@ class IAX2Client:
             self._oseqno = (self._oseqno + 1) & 0xFF
 
     def _send_new(self):
-        ies  = self._ie_short(self.IE_VERSION, 2)
-        ies += self._ie(self.IE_CALLED_NUMBER,  self.node)
+        ies  = self._ie(self.IE_CALLED_NUMBER,  self.node)
         ies += self._ie(self.IE_CALLING_NUMBER, self.username)
         ies += self._ie(self.IE_CALLING_NAME,   self.username)
         ies += self._ie(self.IE_CALLED_CONTEXT, self.context)
