@@ -131,19 +131,37 @@ class IAX2Client:
                 del self._tx_buf[min(self._tx_buf)]
             self._oseqno = (self._oseqno + 1) & 0xFF
 
+    _SILENCE_ULAW = bytes([0xFF] * 160)  # 20 ms of ulaw silence
+
+    def _send_voice_frame(self, ulaw_data: bytes) -> None:
+        with self._send_lock:
+            seq = self._oseqno
+            src = self._src_call | 0x8000
+            pkt = struct.pack('>HHIBBBB',
+                              src, self._dst_call, self._ts(),
+                              seq, self._iseqno,
+                              self.FRAME_VOICE, 0x82) + ulaw_data
+            self._raw_send(pkt)
+            self._tx_buf[seq] = ulaw_data
+            if len(self._tx_buf) > 128:
+                del self._tx_buf[min(self._tx_buf)]
+            self._oseqno = (self._oseqno + 1) & 0xFF
+
     def _dtmf_thread(self, digits: str, inter_digit: float):
         """Send each digit as a matched DTMF_BEGIN + DTMF_END pair.
 
-        Sending only DTMF_END caused Asterisk to do begin-emulation for the
-        first digit ('*'), which skips the normal dtmf queue delivery path and
-        the digit is never seen by app_rpt.  Sending an explicit BEGIN first
-        gives Asterisk a matched pair and delivers all digits normally.
+        Asterisk drops DTMF_BEGIN on an idle channel (no prior audio),
+        causing begin-emulation for the first digit and app_rpt never sees it.
+        Prime the channel with ~200ms of silence frames first so the audio
+        path is active when the DTMF frames arrive.
         """
+        # Prime: send 200ms of silence to activate the audio channel state
+        PRIME_FRAMES = 10  # 10 × 20ms = 200ms
+        for _ in range(PRIME_FRAMES):
+            self._send_voice_frame(self._SILENCE_ULAW)
+            time.sleep(0.02)
+
         TONE_MS = 200
-        # Brief pause lets Asterisk settle before the first DTMF frame; without
-        # it the very first BEGIN (usually '*') arrives before the channel's
-        # DTMF state is ready and gets dropped.
-        time.sleep(0.3)
         for ch in digits:
             self._send_dtmf_frame(self.FRAME_DTMF_BEGIN, ch)
             time.sleep(TONE_MS / 1000)
