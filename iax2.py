@@ -1,4 +1,5 @@
 """Minimal IAX2 client for receiving audio from a local Allstar/Asterisk node."""
+import math
 import socket
 import struct
 import hashlib
@@ -116,23 +117,75 @@ class IAX2Client:
                              args=(digits, inter_digit), daemon=True)
         t.start()
 
+    # ------------------------------------------------------------------ audio TX
+
+    _DTMF_FREQS = {
+        '0': (941, 1336), '1': (697, 1209), '2': (697, 1336), '3': (697, 1477),
+        '4': (770, 1209), '5': (770, 1336), '6': (770, 1477), '7': (852, 1209),
+        '8': (852, 1336), '9': (852, 1477), '*': (941, 1209), '#': (941, 1477),
+        'A': (697, 1633), 'B': (770, 1633), 'C': (852, 1633), 'D': (941, 1633),
+    }
+
+    @staticmethod
+    def _lin2ulaw(s: int) -> int:
+        BIAS, CLIP = 0x84, 32635
+        sign = 0x80 if s < 0 else 0
+        s = min(abs(s), CLIP) + BIAS
+        exp = 7
+        while exp > 0 and s < (1 << (exp + 3)):
+            exp -= 1
+        return (~(sign | (exp << 4) | ((s >> (exp + 3)) & 0x0F))) & 0xFF
+
+    def _dtmf_ulaw(self, digit: str, duration_ms: int = 150) -> bytes:
+        f1, f2 = self._DTMF_FREQS[digit.upper()]
+        n = 8000 * duration_ms // 1000
+        buf = bytearray(n)
+        for i in range(n):
+            t = i / 8000
+            s = math.sin(2 * math.pi * f1 * t) + math.sin(2 * math.pi * f2 * t)
+            buf[i] = self._lin2ulaw(int(s * 16000))
+        return bytes(buf)
+
+    def _send_voice_frame(self, ulaw_data: bytes) -> None:
+        with self._send_lock:
+            seq = self._oseqno
+            src = self._src_call | 0x8000
+            pkt = struct.pack('>HHIBBBB',
+                              src, self._dst_call, self._ts(),
+                              seq, self._iseqno,
+                              self.FRAME_VOICE, 0x82) + ulaw_data
+            self._raw_send(pkt)
+            self._tx_buf[seq] = ulaw_data
+            if len(self._tx_buf) > 128:
+                del self._tx_buf[min(self._tx_buf)]
+            self._oseqno = (self._oseqno + 1) & 0xFF
+
+    _SILENCE_20MS = bytes([0xFF] * 160)
+
     def _dtmf_thread(self, digits: str, inter_digit: float):
-        """Send each digit as a native IAX2 DTMF frame (FRAME_DTMF / DTMF_END)."""
+        """Send DTMF as in-band audio tones in FRAME_VOICE frames.
+
+        app_rpt with the X (iaxRPT) option uses DSP detection on the audio
+        stream — it ignores IAX2 native DTMF frames entirely.
+        """
+        CHUNK = 160  # 20 ms at 8 kHz
+
+        # Prime the voice stream with ~60 ms of silence so Asterisk establishes
+        # the audio path before the first tone arrives.
+        for _ in range(3):
+            self._send_voice_frame(self._SILENCE_20MS)
+            time.sleep(CHUNK / 8000)
+
+        silence_frames = max(1, int(inter_digit * 8000 / CHUNK))
         for ch in digits:
-            with self._send_lock:
-                seq = self._oseqno
-                src = self._src_call | 0x8000
-                pkt = struct.pack('>HHIBBBB',
-                                  src, self._dst_call, self._ts(),
-                                  seq, self._iseqno,
-                                  self.FRAME_DTMF, ord(ch))
-                self._raw_send(pkt)
-                self._tx_buf[seq] = b''   # placeholder for VNAK retransmit
-                if len(self._tx_buf) > 128:
-                    del self._tx_buf[min(self._tx_buf)]
-                self._oseqno = (self._oseqno + 1) & 0xFF
-                log.debug(f'IAX2 -> DTMF {ch!r} oseq={seq}')
-            time.sleep(inter_digit)
+            tone = self._dtmf_ulaw(ch)
+            for i in range(0, len(tone), CHUNK):
+                self._send_voice_frame(tone[i:i + CHUNK].ljust(CHUNK, b'\xff'))
+                time.sleep(CHUNK / 8000)
+            log.debug(f'IAX2 DTMF tone {ch!r} sent')
+            for _ in range(silence_frames):
+                self._send_voice_frame(self._SILENCE_20MS)
+                time.sleep(CHUNK / 8000)
 
     def connect(self):
         if self._running:
