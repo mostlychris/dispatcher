@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request, render_template_string, Response
+from flask_sock import Sock
 import subprocess
 import json
 import os
@@ -9,8 +10,10 @@ import threading
 import time
 import queue
 from datetime import datetime
+from iax2 import IAX2Client
 
-app = Flask(__name__)
+app  = Flask(__name__)
+sock = Sock(app)
 
 @app.after_request
 def add_cache_headers(response):
@@ -23,6 +26,15 @@ try:
     from config import AUDIO_WS_URL
 except ImportError:
     AUDIO_WS_URL = ''
+
+try:
+    from config import ALLSTAR_HOST, ALLSTAR_PORT, ALLSTAR_USER, ALLSTAR_SECRET, ALLSTAR_NODE
+except ImportError:
+    ALLSTAR_HOST   = '127.0.0.1'
+    ALLSTAR_PORT   = 4569
+    ALLSTAR_USER   = 'iaxrpt'
+    ALLSTAR_SECRET = ''
+    ALLSTAR_NODE   = ''
 
 FAVORITES_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
 LAST_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'last_state.json')
@@ -554,6 +566,67 @@ def save_favorites(data):
 
 favorites = load_favorites()
 
+# -------------------------
+# ALLSTAR / IAX2
+# -------------------------
+class AllstarManager:
+    def __init__(self):
+        self.client = None
+        self._ws_qs = []
+        self._lock  = threading.Lock()
+
+    def _on_audio(self, pcm: bytes):
+        with self._lock:
+            dead = []
+            for q in self._ws_qs:
+                try:
+                    q.put_nowait(pcm)
+                except queue.Full:
+                    dead.append(q)
+            for q in dead:
+                self._ws_qs.remove(q)
+
+    def connect(self, node=None):
+        if self.client and self.client.state in ('connecting', 'connected'):
+            return False, 'Already connected'
+        node = str(node or ALLSTAR_NODE).strip()
+        if not node:
+            return False, 'No node number configured'
+        self.client = IAX2Client(
+            ALLSTAR_HOST, ALLSTAR_PORT, ALLSTAR_USER, ALLSTAR_SECRET, node
+        )
+        self.client.on_audio(self._on_audio)
+        self.client.connect()
+        return True, f'Connecting to node {node}...'
+
+    def disconnect(self):
+        if self.client:
+            self.client.disconnect()
+            self.client = None
+
+    @property
+    def status(self):
+        if not self.client:
+            return {'state': 'idle', 'node': '', 'error': ''}
+        return {
+            'state': self.client.state,
+            'node':  self.client.node,
+            'error': self.client.error_msg,
+        }
+
+    def add_listener(self, q):
+        with self._lock:
+            self._ws_qs.append(q)
+
+    def remove_listener(self, q):
+        with self._lock:
+            if q in self._ws_qs:
+                self._ws_qs.remove(q)
+
+
+allstar_mgr = AllstarManager()
+
+
 def tg_refresh_loop():
     while True:
         time.sleep(300)
@@ -992,6 +1065,19 @@ HTML = '''
                 </div>
             </div>
 
+            <!-- ALLSTAR STATUS -->
+            <div class="sidebar-section">
+                <h3>Allstar</h3>
+                <div class="stat-row">
+                    <span class="stat-key">State</span>
+                    <span class="stat-val"><span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span></span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-key">Node</span>
+                    <span class="stat-val" id="asNodeBadge" style="color:#aaa;">--</span>
+                </div>
+            </div>
+
             <!-- AUDIO -->
             <div class="sidebar-section">
                 <h3>Audio</h3>
@@ -1096,6 +1182,41 @@ HTML = '''
                                 <tr><td colspan="6" style="color:#333; padding:8px;">Open to load...</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- ALLSTAR -->
+                <div class="collapse-panel">
+                    <div class="collapse-header" onclick="toggleAllstar()">
+                        <h3>&#9889; ALLSTAR NODE</h3>
+                        <span class="collapse-arrow" id="allstarArrow">&#9660;</span>
+                    </div>
+                    <div class="collapse-body" id="allstarBody">
+                        <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
+                            <input class="tg-input" type="text" id="asNodeInput"
+                                   placeholder="Node #..." style="width:110px;"
+                                   onkeydown="if(event.key==='Enter') allstarConnect()">
+                            <button class="btn-monitor" id="btnAsConnect"   onclick="allstarConnect()">&#9654; Connect</button>
+                            <button class="btn-danger"  id="btnAsDisconnect" onclick="allstarDisconnect()" disabled>&#9632; Disconnect</button>
+                            <button class="btn-monitor" id="btnAsAudio"     onclick="toggleAllstarAudio(this)">&#128264; Audio</button>
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <div class="qt-section-label" style="margin-bottom:5px;">NODE LINKING</div>
+                            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                                <input class="tg-input" type="text" id="asRemoteNode"
+                                       placeholder="Remote node #..." style="width:140px;">
+                                <button class="btn-tune"   onclick="allstarLink('monitor')">&#9654; Monitor</button>
+                                <button class="btn-tune"   onclick="allstarLink('transceive')">&#9654; Xceive</button>
+                                <button class="btn-danger" onclick="allstarUnlink()">&#9632; Unlink</button>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <span class="vol-label" style="white-space:nowrap; flex-shrink:0;">AS Volume</span>
+                            <input type="range" class="vol-slider" id="asVolSlider"
+                                   min="0" max="100" value="100"
+                                   oninput="setAllstarVolume(this.value)" style="flex:1;">
+                            <span class="vol-pct" id="asVolDisplay" style="min-width:35px; text-align:right;">100%</span>
+                        </div>
                     </div>
                 </div>
 
@@ -1586,6 +1707,169 @@ HTML = '''
         }
 
         // -------------------------
+        // ALLSTAR
+        // -------------------------
+        var asPlayer    = null;
+        var allstarOpen = false;
+
+        function toggleAllstar() {
+            allstarOpen = !allstarOpen;
+            document.getElementById('allstarBody').classList.toggle('open', allstarOpen);
+            document.getElementById('allstarArrow').classList.toggle('open', allstarOpen);
+            if (allstarOpen) pollAllstarStatus();
+        }
+
+        function allstarConnect() {
+            const node = document.getElementById('asNodeInput').value.trim();
+            fetch('/api/allstar/connect', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({node})
+            })
+            .then(r => r.json())
+            .then(d => {
+                log(d.message, d.ok ? 'ok' : 'error');
+                setTimeout(pollAllstarStatus, 1500);
+                setTimeout(pollAllstarStatus, 4000);
+            })
+            .catch(e => log('Allstar connect: ' + e, 'error'));
+        }
+
+        function allstarDisconnect() {
+            fetch('/api/allstar/disconnect', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+            })
+            .then(r => r.json())
+            .then(d => {
+                log(d.message, 'warn');
+                if (asPlayer && asPlayer.isPlaying()) {
+                    asPlayer.stop();
+                    document.getElementById('btnAsAudio').classList.remove('active');
+                }
+                pollAllstarStatus();
+            });
+        }
+
+        function allstarLink(mode) {
+            const remote = document.getElementById('asRemoteNode').value.trim();
+            if (!remote) { log('Enter a remote node number', 'error'); return; }
+            fetch('/api/allstar/link', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({node: remote, mode})
+            })
+            .then(r => r.json())
+            .then(d => log(d.message, d.ok ? 'ok' : 'error'))
+            .catch(e => log('Allstar link: ' + e, 'error'));
+        }
+
+        function allstarUnlink() {
+            const remote = document.getElementById('asRemoteNode').value.trim();
+            if (!remote) { log('Enter a remote node number', 'error'); return; }
+            fetch('/api/allstar/unlink', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({node: remote})
+            })
+            .then(r => r.json())
+            .then(d => log(d.message, d.ok ? 'ok' : 'error'))
+            .catch(e => log('Allstar unlink: ' + e, 'error'));
+        }
+
+        function toggleAllstarAudio(btn) {
+            if (!asPlayer) asPlayer = new AllstarPlayer();
+            if (asPlayer.isPlaying()) {
+                asPlayer.stop();
+                btn.classList.remove('active');
+                log('Allstar audio stopped', 'warn');
+            } else {
+                asPlayer.play();
+                btn.classList.add('active');
+                log('Allstar audio started', 'ok');
+            }
+        }
+
+        function setAllstarVolume(val) {
+            val = parseInt(val);
+            document.getElementById('asVolDisplay').textContent = val + '%';
+            document.getElementById('asVolSlider').style.setProperty('--vol-pct', val + '%');
+            if (asPlayer) asPlayer.setVolume(val);
+        }
+
+        async function pollAllstarStatus() {
+            try {
+                const res = await fetch('/api/allstar/status');
+                const d   = await res.json();
+                const badge   = document.getElementById('asStateBadge');
+                const nodeEl  = document.getElementById('asNodeBadge');
+                const sMap = {
+                    idle:       ['OFFLINE',    'conn-offline'],
+                    connecting: ['CONNECTING', 'conn-starting'],
+                    connected:  ['CONNECTED',  'conn-idle'],
+                    error:      ['ERROR',      'conn-offline'],
+                };
+                const [label, cls] = sMap[d.state] || ['--', 'conn-offline'];
+                badge.textContent = d.error || label;
+                badge.className   = 'conn-badge ' + cls;
+                nodeEl.textContent = d.node || '--';
+
+                const btnConn = document.getElementById('btnAsConnect');
+                const btnDisc = document.getElementById('btnAsDisconnect');
+                if (btnConn) btnConn.disabled = (d.state === 'connected' || d.state === 'connecting');
+                if (btnDisc) btnDisc.disabled = (d.state === 'idle' || d.state === 'error');
+
+                if (d.node && !document.getElementById('asNodeInput').value) {
+                    document.getElementById('asNodeInput').value = d.node;
+                }
+            } catch(e) { /* sidebar badge stays stale — non-fatal */ }
+        }
+
+        class AllstarPlayer {
+            constructor() {
+                this.ws      = null;
+                this.player  = null;
+                this.playing = false;
+                this._vol    = 1.0;
+            }
+
+            play() {
+                const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const url   = proto + '//' + location.host + '/ws/allstar-audio';
+                this.player = new PCMPlayer({
+                    encoding:    '16bitInt',
+                    channels:    1,
+                    sampleRate:  8000,
+                    flushingTime: 500,
+                });
+                this.player.volume(this._vol);
+                this.ws = new WebSocket(url);
+                this.ws.binaryType = 'arraybuffer';
+                this.ws.onmessage  = (e) => {
+                    if (this.player) this.player.feed(new Uint8Array(e.data));
+                };
+                this.ws.onclose = () => {
+                    if (this.playing) setTimeout(() => this.play(), 3000);
+                };
+                this.playing = true;
+                this.player.play();
+            }
+
+            stop() {
+                this.playing = false;
+                if (this.ws)     { this.ws.close(); this.ws = null; }
+                if (this.player) { this.player.stop(); this.player = null; }
+            }
+
+            isPlaying() { return this.playing; }
+
+            setVolume(v) {
+                this._vol = v / 100;
+                if (this.player) this.player.volume(this._vol);
+            }
+        }
+
+        // Poll Allstar sidebar status every 10 s
+        pollAllstarStatus();
+        setInterval(pollAllstarStatus, 10000);
+
+        // -------------------------
         // STARTUP
         // -------------------------
         connectSSE();
@@ -1763,6 +2047,69 @@ def debug_abinfo():
         return jsonify({"ok": True, "path": ABINFO_ACTIVE, "data": raw})
     except Exception as e:
         return jsonify({"ok": False, "path": ABINFO_ACTIVE, "error": str(e)})
+
+# -------------------------
+# ALLSTAR ROUTES
+# -------------------------
+@app.route('/api/allstar/status')
+def allstar_status():
+    return jsonify(allstar_mgr.status)
+
+
+@app.route('/api/allstar/connect', methods=['POST'])
+def allstar_connect():
+    data    = request.get_json() or {}
+    node    = str(data.get('node', '')).strip() or ALLSTAR_NODE
+    ok, msg = allstar_mgr.connect(node)
+    return jsonify({'ok': ok, 'message': msg})
+
+
+@app.route('/api/allstar/disconnect', methods=['POST'])
+def allstar_disconnect():
+    allstar_mgr.disconnect()
+    return jsonify({'ok': True, 'message': 'Disconnected from Allstar'})
+
+
+@app.route('/api/allstar/link', methods=['POST'])
+def allstar_link():
+    data   = request.get_json() or {}
+    remote = str(data.get('node', '')).strip()
+    mode   = data.get('mode', 'monitor')
+    local  = allstar_mgr.status.get('node') or ALLSTAR_NODE
+    if not remote.isdigit():
+        return jsonify({'ok': False, 'message': 'Invalid node number'})
+    cmd = '*3' if mode == 'monitor' else '*5'
+    run(f'asterisk -rx "rpt fun {local} {cmd}{remote}"')
+    return jsonify({'ok': True, 'message': f'Linking to {remote} ({mode})...'})
+
+
+@app.route('/api/allstar/unlink', methods=['POST'])
+def allstar_unlink():
+    data   = request.get_json() or {}
+    remote = str(data.get('node', '')).strip()
+    local  = allstar_mgr.status.get('node') or ALLSTAR_NODE
+    if not remote.isdigit():
+        return jsonify({'ok': False, 'message': 'Invalid node number'})
+    run(f'asterisk -rx "rpt fun {local} *1{remote}"')
+    return jsonify({'ok': True, 'message': f'Unlinking {remote}...'})
+
+
+@sock.route('/ws/allstar-audio')
+def allstar_audio_ws(ws):
+    q = queue.Queue(maxsize=100)
+    allstar_mgr.add_listener(q)
+    try:
+        while True:
+            try:
+                pcm = q.get(timeout=5)
+            except queue.Empty:
+                continue
+            ws.send(pcm)
+    except Exception:
+        pass
+    finally:
+        allstar_mgr.remove_listener(q)
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9090, debug=False, threaded=True)
