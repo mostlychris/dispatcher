@@ -108,7 +108,7 @@ class IAX2Client:
         """Register callback(state: str, msg: str) for state transitions."""
         self._state_cbs.append(cb)
 
-    def send_dtmf(self, digits: str, inter_digit: float = 0.15):
+    def send_dtmf(self, digits: str, inter_digit: float = 0.5):
         """Send DTMF digits (non-blocking; fires a daemon thread)."""
         if self.state != 'connected':
             raise RuntimeError('Not connected')
