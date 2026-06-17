@@ -36,6 +36,14 @@ except ImportError:
     ALLSTAR_SECRET = ''
     ALLSTAR_NODE   = ''
 
+# Optional: SSH target for rpt fun commands when Asterisk is on a different machine.
+# Set to 'user@host' (requires passwordless SSH key auth).  Leave empty if Asterisk
+# is local (i.e. ALLSTAR_HOST is 127.0.0.1).
+try:
+    from config import ALLSTAR_SSH
+except ImportError:
+    ALLSTAR_SSH = ''
+
 FAVORITES_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
 LAST_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'last_state.json')
 TG_NAMES_CACHE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tg_names_cache.json')
@@ -347,6 +355,12 @@ def run(cmd):
         return "ERROR: timeout"
     except Exception as e:
         return f"ERROR: {e}"
+
+def run_allstar(asterisk_cmd: str) -> str:
+    """Run an Asterisk CLI command, via SSH if ALLSTAR_SSH is configured."""
+    if ALLSTAR_SSH:
+        return run(f'ssh {ALLSTAR_SSH} asterisk -rx "{asterisk_cmd}"')
+    return run(f'asterisk -rx "{asterisk_cmd}"')
 
 def svc(name):
     result = run(f"systemctl is-active {name}")
@@ -2078,9 +2092,11 @@ def allstar_link():
     local  = allstar_mgr.status.get('node') or ALLSTAR_NODE
     if not remote.isdigit():
         return jsonify({'ok': False, 'message': 'Invalid node number'})
-    cmd = '*3' if mode == 'monitor' else '*5'
-    run(f'asterisk -rx "rpt fun {local} {cmd}{remote}"')
-    return jsonify({'ok': True, 'message': f'Linking to {remote} ({mode})...'})
+    cmd    = '*3' if mode == 'monitor' else '*5'
+    output = run_allstar(f'rpt fun {local} {cmd}{remote}')
+    ok     = 'ERROR' not in output.upper() if output else True
+    msg    = output or f'Linking to {remote} ({mode})...'
+    return jsonify({'ok': ok, 'message': msg})
 
 
 @app.route('/api/allstar/unlink', methods=['POST'])
@@ -2090,8 +2106,10 @@ def allstar_unlink():
     local  = allstar_mgr.status.get('node') or ALLSTAR_NODE
     if not remote.isdigit():
         return jsonify({'ok': False, 'message': 'Invalid node number'})
-    run(f'asterisk -rx "rpt fun {local} *1{remote}"')
-    return jsonify({'ok': True, 'message': f'Unlinking {remote}...'})
+    output = run_allstar(f'rpt fun {local} *1{remote}')
+    ok     = 'ERROR' not in output.upper() if output else True
+    msg    = output or f'Unlinking {remote}...'
+    return jsonify({'ok': ok, 'message': msg})
 
 
 @sock.route('/ws/allstar-audio')

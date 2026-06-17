@@ -10,8 +10,13 @@ AUDIO_WS_URL = 'wss://yourdomain.com/audio-ws/'
 # The app connects to your local Asterisk node as an IAX2 client (like iaxRPT).
 # ALLSTAR_NODE is your own node number — the called number in the IAX2 NEW frame.
 # Add a peer in /etc/asterisk/iax.conf matching ALLSTAR_USER / ALLSTAR_SECRET.
-ALLSTAR_HOST   = '127.0.0.1'   # Asterisk host (almost always localhost)
+ALLSTAR_HOST   = '127.0.0.1'   # Asterisk host — set to remote IP if not on this Pi
 ALLSTAR_PORT   = 4569           # IAX2 UDP port
 ALLSTAR_USER   = 'iaxrpt'       # peer name from iax.conf
 ALLSTAR_SECRET = 'YOUR_SECRET_HERE'
 ALLSTAR_NODE   = '00000'        # your local node number
+
+# If Asterisk is on a different machine, set this to 'user@host' so that
+# node link/unlink commands are sent via SSH (requires passwordless key auth).
+# Leave empty if Asterisk runs on this same Pi.
+ALLSTAR_SSH    = 'pi@192.168.1.x'
