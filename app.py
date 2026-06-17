@@ -10,6 +10,11 @@ import threading
 import time
 import queue
 from datetime import datetime
+import logging
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(name)s %(levelname)s %(message)s')
+logging.getLogger('werkzeug').setLevel(logging.WARNING)  # silence Flask request noise
+
 from iax2 import IAX2Client
 
 app  = Flask(__name__)
@@ -2061,6 +2066,28 @@ def debug_abinfo():
 @app.route('/api/allstar/status')
 def allstar_status():
     return jsonify(allstar_mgr.status)
+
+
+@app.route('/api/allstar/debug')
+def allstar_debug():
+    c = allstar_mgr.client
+    if not c:
+        return jsonify({'client': None})
+    return jsonify({
+        'state':      c.state,
+        'error':      c.error_msg,
+        'node':       c.node,
+        'host':       c.host,
+        'port':       c.port,
+        'username':   c.username,
+        'context':    c.context,
+        'running':    c._running,
+        'src_call':   c._src_call,
+        'dst_call':   c._dst_call,
+        'oseqno':     c._oseqno,
+        'iseqno':     c._iseqno,
+        'call_token': c._call_token is not None,
+    })
 
 
 @app.route('/api/allstar/connect', methods=['POST'])

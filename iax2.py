@@ -200,6 +200,8 @@ class IAX2Client:
         ies += self._ie_int(self.IE_FORMAT,     self.CODEC_ULAW)
         if self._call_token is not None:
             ies += self._ie(self.IE_CALLTOKEN, self._call_token)
+        log.debug(f'IAX2 -> NEW node={self.node} user={self.username} '
+                  f'context={self.context} token={self._call_token is not None}')
         self._send_iax(self.IAX_NEW, ies)
 
     def _parse_ies(self, data):
@@ -279,11 +281,22 @@ class IAX2Client:
 
         ftype, sub, ies = f['type'], f['sub'], f['ies']
 
+        IAX_NAMES = {
+            0x01:'NEW', 0x02:'PING', 0x03:'PONG', 0x04:'ACK',
+            0x05:'HANGUP', 0x06:'REJECT', 0x07:'ACCEPT',
+            0x08:'AUTHREQ', 0x09:'AUTHREP', 0x0A:'INVAL',
+            0x0B:'LAGRQ', 0x0C:'LAGRP', 0x28:'CALLTOKEN',
+        }
+        log.debug(f'IAX2 <- ftype=0x{ftype:02x} sub=0x{sub:02x}'
+                  f'({IAX_NAMES.get(sub,"?") if ftype==self.FRAME_IAX else ""}) '
+                  f'src={f["src"]} dst={f["dst"]}')
+
         if ftype == self.FRAME_IAX:
 
             if sub == self.IAX_CALLTOKEN:
                 # Server wants a call token — reset and retry NEW with the token
                 self._call_token = ies.get(self.IE_CALLTOKEN, b'')
+                log.debug(f'IAX2: got CALLTOKEN len={len(self._call_token)}, retrying NEW')
                 self._dst_call   = 0
                 self._oseqno     = 0
                 self._iseqno     = 0
@@ -292,6 +305,7 @@ class IAX2Client:
 
             elif sub == self.IAX_AUTHREQ:
                 challenge = ies.get(self.IE_CHALLENGE, b'').decode('utf-8', errors='replace')
+                log.debug(f'IAX2: got AUTHREQ challenge={challenge!r}')
                 md5       = hashlib.md5((challenge + self.secret).encode()).hexdigest()
                 self._send_iax(self.IAX_AUTHREP,
                                self._ie(self.IE_MD5_RESULT, md5))
@@ -303,6 +317,7 @@ class IAX2Client:
 
             elif sub == self.IAX_REJECT:
                 cause = ies.get(0x19, b'').decode('utf-8', errors='replace')
+                log.warning(f'IAX2: REJECT cause={cause!r}')
                 self._set_state('error', f'Rejected: {cause or "unknown"}')
                 self._running = False
 
@@ -318,6 +333,7 @@ class IAX2Client:
                 self._send_iax(self.IAX_LAGRP)
 
             elif sub not in (self.IAX_ACK, self.IAX_PONG, self.IAX_INVAL):
+                log.debug(f'IAX2: unhandled IAX sub=0x{sub:02x}, sending ACK')
                 self._send_iax(self.IAX_ACK)
 
         elif ftype == self.FRAME_VOICE:
