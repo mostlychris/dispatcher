@@ -85,6 +85,7 @@ class IAX2Client:
         self._call_token = None
         self._running    = False
         self._thread     = None
+        self._send_lock  = threading.Lock()
 
         self.state     = 'idle'   # idle | connecting | connected | error
         self.error_msg = ''
@@ -102,18 +103,25 @@ class IAX2Client:
         """Register callback(state: str, msg: str) for state transitions."""
         self._state_cbs.append(cb)
 
-    def send_dtmf(self, digits: str, inter_digit: float = 0.1):
-        """Send DTMF digits through the active call (e.g. '*3556980' to link a node)."""
+    def send_dtmf(self, digits: str, inter_digit: float = 0.15):
+        """Send DTMF digits (non-blocking; fires a daemon thread)."""
         if self.state != 'connected':
             raise RuntimeError('Not connected')
+        t = threading.Thread(target=self._dtmf_thread,
+                             args=(digits, inter_digit), daemon=True)
+        t.start()
+
+    def _dtmf_thread(self, digits: str, inter_digit: float):
         for ch in digits:
-            src = self._src_call | 0x8000
-            pkt = struct.pack('>HHIBBBB',
-                              src, self._dst_call, self._ts(),
-                              self._oseqno, self._iseqno,
-                              self.FRAME_DTMF, ord(ch))
-            self._raw_send(pkt)
-            self._oseqno = (self._oseqno + 1) & 0xFF
+            with self._send_lock:
+                src = self._src_call | 0x8000
+                pkt = struct.pack('>HHIBBBB',
+                                  src, self._dst_call, self._ts(),
+                                  self._oseqno, self._iseqno,
+                                  self.FRAME_DTMF, ord(ch))
+                log.debug(f'IAX2 -> DTMF {ch!r} (0x{ord(ch):02x}) oseq={self._oseqno} dst={self._dst_call}')
+                self._raw_send(pkt)
+                self._oseqno = (self._oseqno + 1) & 0xFF
             time.sleep(inter_digit)
 
     def connect(self):
@@ -179,15 +187,16 @@ class IAX2Client:
             self._sock.sendto(data, (self.host, self.port))
 
     def _send_iax(self, subclass, ies=b''):
-        src = self._src_call | 0x8000
-        pkt = struct.pack('>HHIBBBB',
-                          src, self._dst_call, self._ts(),
-                          self._oseqno, self._iseqno,
-                          self.FRAME_IAX, subclass) + ies
-        self._raw_send(pkt)
-        # ACK / PONG / LAGRP must not bump the outbound sequence counter
-        if subclass not in (self.IAX_ACK, self.IAX_PONG, self.IAX_LAGRP):
-            self._oseqno = (self._oseqno + 1) & 0xFF
+        with self._send_lock:
+            src = self._src_call | 0x8000
+            pkt = struct.pack('>HHIBBBB',
+                              src, self._dst_call, self._ts(),
+                              self._oseqno, self._iseqno,
+                              self.FRAME_IAX, subclass) + ies
+            self._raw_send(pkt)
+            # ACK / PONG / LAGRP must not bump the outbound sequence counter
+            if subclass not in (self.IAX_ACK, self.IAX_PONG, self.IAX_LAGRP):
+                self._oseqno = (self._oseqno + 1) & 0xFF
 
     def _send_new(self):
         ies  = self._ie_short(self.IE_VERSION,       2)
