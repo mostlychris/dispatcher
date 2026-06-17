@@ -139,7 +139,11 @@ class IAX2Client:
         the digit is never seen by app_rpt.  Sending an explicit BEGIN first
         gives Asterisk a matched pair and delivers all digits normally.
         """
-        TONE_MS = 100
+        TONE_MS = 200
+        # Brief pause lets Asterisk settle before the first DTMF frame; without
+        # it the very first BEGIN (usually '*') arrives before the channel's
+        # DTMF state is ready and gets dropped.
+        time.sleep(0.3)
         for ch in digits:
             self._send_dtmf_frame(self.FRAME_DTMF_BEGIN, ch)
             time.sleep(TONE_MS / 1000)
