@@ -2155,7 +2155,7 @@ def allstar_link():
     prefix = '*2' if mode == 'monitor' else '*3'
     out = run(f'asterisk -rx "rpt fun {local} {prefix}{remote}"')
     ok  = not out.startswith('ERROR')
-    return jsonify({'ok': ok, 'message': f'Linking to {remote} ({mode})... [{out!r}]'})
+    return jsonify({'ok': ok, 'message': f'Linking to {remote} ({mode})...' if ok else out})
 
 
 @app.route('/api/allstar/unlink', methods=['POST'])
