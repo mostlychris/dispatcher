@@ -163,25 +163,40 @@ class IAX2Client:
 
         app_rpt with the X (iaxRPT) option uses DSP detection on the audio
         stream — it ignores IAX2 native DTMF frames entirely.
+
+        Pre-builds the full sequence then sends with absolute timing so
+        accumulated sleep drift doesn't cause audible jitter.
         """
-        CHUNK = 160  # 20 ms at 8 kHz
+        CHUNK       = 160   # 20 ms at 8 kHz
+        SILENCE_MS  = 200   # silence between digits (ms)
+        TONE_MS     = 250   # tone duration (ms)
+        PRIME_MS    = 200   # leading silence to establish audio path
 
-        # Prime the voice stream with ~60 ms of silence so Asterisk establishes
-        # the audio path before the first tone arrives.
-        for _ in range(3):
-            self._send_voice_frame(self._SILENCE_20MS)
-            time.sleep(CHUNK / 8000)
+        silence_chunk = self._SILENCE_20MS
+        prime_frames  = PRIME_MS  // 20
+        tone_frames   = TONE_MS   // 20
+        gap_frames    = SILENCE_MS // 20
 
-        silence_frames = max(1, int(inter_digit * 8000 / CHUNK))
+        # Build ordered list of (ulaw_chunk) for the whole sequence
+        sequence: list[bytes] = []
+        for _ in range(prime_frames):
+            sequence.append(silence_chunk)
         for ch in digits:
-            tone = self._dtmf_ulaw(ch)
+            tone = self._dtmf_ulaw(ch, duration_ms=TONE_MS)
             for i in range(0, len(tone), CHUNK):
-                self._send_voice_frame(tone[i:i + CHUNK].ljust(CHUNK, b'\xff'))
-                time.sleep(CHUNK / 8000)
-            log.debug(f'IAX2 DTMF tone {ch!r} sent')
-            for _ in range(silence_frames):
-                self._send_voice_frame(self._SILENCE_20MS)
-                time.sleep(CHUNK / 8000)
+                sequence.append(tone[i:i + CHUNK].ljust(CHUNK, b'\xff'))
+            log.debug(f'IAX2 DTMF tone {ch!r} queued')
+            for _ in range(gap_frames):
+                sequence.append(silence_chunk)
+
+        # Send with absolute timing — avoids accumulated sleep drift
+        t0 = time.monotonic()
+        for idx, chunk in enumerate(sequence):
+            self._send_voice_frame(chunk)
+            deadline = t0 + (idx + 1) * (CHUNK / 8000)
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(remaining)
 
     def connect(self):
         if self._running:
