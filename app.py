@@ -638,10 +638,10 @@ class AllstarManager:
             'active': active,
         }
 
-    def send_dtmf(self, digits: str):
+    def send_dtmf(self, digits: str, inter_digit: float = 0.15):
         if not self.client or self.client.state != 'connected':
             raise RuntimeError('Not connected to Allstar')
-        self.client.send_dtmf(digits)
+        self.client.send_dtmf(digits, inter_digit=inter_digit)
 
     def add_listener(self, q):
         with self._lock:
