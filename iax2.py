@@ -33,6 +33,7 @@ class IAX2Client:
     """RX-only IAX2 client.  Connects to a local Asterisk node and emits PCM."""
 
     # Frame types
+    FRAME_DTMF  = 0x01
     FRAME_VOICE = 0x02
     FRAME_IAX   = 0x06
 
@@ -100,6 +101,20 @@ class IAX2Client:
     def on_state_change(self, cb):
         """Register callback(state: str, msg: str) for state transitions."""
         self._state_cbs.append(cb)
+
+    def send_dtmf(self, digits: str, inter_digit: float = 0.1):
+        """Send DTMF digits through the active call (e.g. '*3556980' to link a node)."""
+        if self.state != 'connected':
+            raise RuntimeError('Not connected')
+        for ch in digits:
+            src = self._src_call | 0x8000
+            pkt = struct.pack('>HHIBBBB',
+                              src, self._dst_call, self._ts(),
+                              self._oseqno, self._iseqno,
+                              self.FRAME_DTMF, ord(ch))
+            self._raw_send(pkt)
+            self._oseqno = (self._oseqno + 1) & 0xFF
+            time.sleep(inter_digit)
 
     def connect(self):
         if self._running:

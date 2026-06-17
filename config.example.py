@@ -15,8 +15,3 @@ ALLSTAR_PORT   = 4569           # IAX2 UDP port
 ALLSTAR_USER   = 'iaxrpt'       # peer name from iax.conf
 ALLSTAR_SECRET = 'YOUR_SECRET_HERE'
 ALLSTAR_NODE   = '00000'        # your local node number
-
-# If Asterisk is on a different machine, set this to 'user@host' so that
-# node link/unlink commands are sent via SSH (requires passwordless key auth).
-# Leave empty if Asterisk runs on this same Pi.
-ALLSTAR_SSH    = 'pi@192.168.1.x'
