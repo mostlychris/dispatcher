@@ -58,9 +58,9 @@ class IAX2Client:
     IE_CALLING_NAME   = 0x04
     IE_CALLED_CONTEXT = 0x06
     IE_USERNAME       = 0x07
-    IE_CAPABILITY     = 0x0A
-    IE_FORMAT         = 0x0B
-    IE_VERSION        = 0x0D
+    IE_CAPABILITY     = 0x09
+    IE_FORMAT         = 0x0A
+    IE_VERSION        = 0x0C
     IE_CHALLENGE      = 0x0F
     IE_MD5_RESULT     = 0x10
     IE_CALLTOKEN      = 0x39
