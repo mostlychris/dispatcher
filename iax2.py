@@ -80,6 +80,7 @@ class IAX2Client:
     IAX_INVAL     = 0x0A
     IAX_LAGRQ     = 0x0B
     IAX_LAGRP     = 0x0C
+    IAX_TRANSFER  = 0x12
     IAX_CALLTOKEN = 0x28
 
     # Information elements
@@ -151,7 +152,6 @@ class IAX2Client:
         chunk = 160  # 20ms at 8kHz
         silence_frames = max(1, int(inter_digit * 8000 / chunk))
         for ch in digits:
-            log.debug(f'IAX2 -> DTMF tone {ch!r}')
             tone = _dtmf_ulaw(ch, duration_ms=120)
             for i in range(0, len(tone), chunk):
                 self._send_voice_mini(tone[i:i + chunk])
@@ -332,9 +332,10 @@ class IAX2Client:
             0x08:'AUTHREQ', 0x09:'AUTHREP', 0x0A:'INVAL',
             0x0B:'LAGRQ', 0x0C:'LAGRP', 0x28:'CALLTOKEN',
         }
-        log.debug(f'IAX2 <- ftype=0x{ftype:02x} sub=0x{sub:02x}'
-                  f'({IAX_NAMES.get(sub,"?") if ftype==self.FRAME_IAX else ""}) '
-                  f'src={f["src"]} dst={f["dst"]}')
+        if ftype != self.FRAME_VOICE:
+            log.debug(f'IAX2 <- ftype=0x{ftype:02x} sub=0x{sub:02x}'
+                      f'({IAX_NAMES.get(sub,"?") if ftype==self.FRAME_IAX else ""}) '
+                      f'src={f["src"]} dst={f["dst"]}')
 
         if ftype == self.FRAME_IAX:
 
@@ -380,7 +381,8 @@ class IAX2Client:
             elif sub == self.IAX_LAGRQ:
                 self._send_iax(self.IAX_LAGRP)
 
-            elif sub not in (self.IAX_ACK, self.IAX_PONG, self.IAX_INVAL):
+            elif sub not in (self.IAX_ACK, self.IAX_PONG, self.IAX_INVAL,
+                             self.IAX_TRANSFER):
                 log.debug(f'IAX2: unhandled IAX sub=0x{sub:02x}, sending ACK')
                 self._send_iax(self.IAX_ACK)
 
