@@ -110,7 +110,7 @@ class IAX2Client:
         """Register callback(state: str, msg: str) for state transitions."""
         self._state_cbs.append(cb)
 
-    def send_dtmf(self, digits: str, inter_digit: float = 0.05):
+    def send_dtmf(self, digits: str, inter_digit: float = 0.0):
         """Send DTMF digits (non-blocking; fires a daemon thread)."""
         if self.state != 'connected':
             raise RuntimeError('Not connected')
@@ -118,39 +118,21 @@ class IAX2Client:
                              args=(digits, inter_digit), daemon=True)
         t.start()
 
-    def _send_text_frame(self, text: str, retries: int = 3, timeout: float = 0.3) -> bool:
-        """Send one IAX2 TEXT frame and wait for Asterisk's ACK.
-
-        Retries up to `retries` times if no ACK arrives within `timeout`
-        seconds.  Returns True if ACK received, False if all attempts failed.
-        """
-        payload = text.encode('ascii')
-        for attempt in range(retries):
-            with self._send_lock:
-                seq = self._oseqno
-                src = self._src_call | 0x8000
-                pkt = struct.pack('>HHIBBBB',
+    def _send_text_frame(self, text: str) -> None:
+        """Send one IAX2 TEXT frame (type 0x07) with the given ASCII payload."""
+        with self._send_lock:
+            seq     = self._oseqno
+            src     = self._src_call | 0x8000
+            payload = text.encode('ascii')
+            pkt     = struct.pack('>HHIBBBB',
                                   src, self._dst_call, self._ts(),
                                   seq, self._iseqno,
                                   self.FRAME_TEXT, 0x00) + payload
-                self._raw_send(pkt)
-                self._tx_buf[seq] = payload
-                if len(self._tx_buf) > 128:
-                    del self._tx_buf[min(self._tx_buf)]
-                self._oseqno = (self._oseqno + 1) & 0xFF
-
-            # Wait for the peer to ACK this specific sequence number
-            deadline = time.monotonic() + timeout
-            while time.monotonic() < deadline:
-                with self._send_lock:
-                    if seq not in self._tx_buf:
-                        return True   # ACK removes entry from tx_buf
-                time.sleep(0.01)
-
-            log.debug(f'IAX2 TEXT no ACK for seq={seq}, retry {attempt + 1}/{retries}')
-
-        log.warning(f'IAX2 TEXT {text!r} failed after {retries} attempts')
-        return False
+            self._raw_send(pkt)
+            self._tx_buf[seq] = payload
+            if len(self._tx_buf) > 128:
+                del self._tx_buf[min(self._tx_buf)]
+            self._oseqno = (self._oseqno + 1) & 0xFF
 
     def _dtmf_thread(self, digits: str, inter_digit: float):
         """Send each digit as an IAX2 TEXT frame: 'D <node> 0 1 <digit>'.
@@ -163,7 +145,8 @@ class IAX2Client:
             text = f'D {self.node} 0 1 {ch}'
             self._send_text_frame(text)
             log.debug(f'IAX2 TEXT sent: {text!r}')
-            time.sleep(inter_digit)
+            if inter_digit > 0:
+                time.sleep(inter_digit)
 
     def connect(self):
         if self._running:
