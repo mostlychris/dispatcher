@@ -142,10 +142,16 @@ class IAX2Client:
                              args=(digits, inter_digit), daemon=True)
         t.start()
 
-    def _send_voice_mini(self, ulaw_data: bytes):
-        src = self._src_call & 0x7FFF  # mini frame: F bit clear
-        ts  = self._ts() & 0xFFFF
-        self._raw_send(struct.pack('>HH', src, ts) + ulaw_data)
+    def _send_voice_frame(self, ulaw_data: bytes):
+        # Full FRAME_VOICE; subclass 0x82 = compressed ulaw (C-bit | exponent 2 = 2^2 = 4)
+        with self._send_lock:
+            src = self._src_call | 0x8000
+            pkt = struct.pack('>HHIBBBB',
+                              src, self._dst_call, self._ts(),
+                              self._oseqno, self._iseqno,
+                              self.FRAME_VOICE, 0x82) + ulaw_data
+            self._raw_send(pkt)
+            self._oseqno = (self._oseqno + 1) & 0xFF
 
     def _dtmf_thread(self, digits: str, inter_digit: float):
         """Send each digit as in-band dual-tone audio so app_rpt's DSP detects it."""
@@ -154,10 +160,10 @@ class IAX2Client:
         for ch in digits:
             tone = _dtmf_ulaw(ch, duration_ms=120)
             for i in range(0, len(tone), chunk):
-                self._send_voice_mini(tone[i:i + chunk])
+                self._send_voice_frame(tone[i:i + chunk])
                 time.sleep(chunk / 8000)
             for _ in range(silence_frames):
-                self._send_voice_mini(_SILENCE_20MS)
+                self._send_voice_frame(_SILENCE_20MS)
                 time.sleep(chunk / 8000)
 
     def connect(self):
