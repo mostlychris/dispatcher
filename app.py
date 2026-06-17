@@ -2203,7 +2203,10 @@ def allstar_link():
         return jsonify({'ok': False, 'message': 'Not connected to Allstar'})
     prefix = '*2' if mode == 'monitor' else '*3'
     try:
-        allstar_mgr.send_dtmf(prefix + remote)
+        # Leading '*' always gets begin-emulation (not queued); send an extra
+        # '*' first to prime Asterisk's DTMF state so the real '*' lands in
+        # the queue and app_rpt sees the complete command.
+        allstar_mgr.send_dtmf('*' + prefix + remote)
         return jsonify({'ok': True, 'message': f'Linking to {remote} ({mode})...'})
     except RuntimeError as e:
         return jsonify({'ok': False, 'message': str(e)})
@@ -2218,7 +2221,7 @@ def allstar_unlink():
     if not allstar_mgr.client or allstar_mgr.client.state != 'connected':
         return jsonify({'ok': False, 'message': 'Not connected to Allstar'})
     try:
-        allstar_mgr.send_dtmf('*1' + remote)
+        allstar_mgr.send_dtmf('**1' + remote)
         return jsonify({'ok': True, 'message': f'Unlinking {remote}...'})
     except RuntimeError as e:
         return jsonify({'ok': False, 'message': str(e)})
