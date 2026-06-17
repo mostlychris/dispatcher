@@ -143,7 +143,7 @@ class IAX2Client:
         for i in range(n):
             t = i / 8000
             s = math.sin(2 * math.pi * f1 * t) + math.sin(2 * math.pi * f2 * t)
-            buf[i] = self._lin2ulaw(int(s * 16000))
+            buf[i] = self._lin2ulaw(int(s * 6000))
         return bytes(buf)
 
     def _send_voice_frame(self, ulaw_data: bytes) -> None:
