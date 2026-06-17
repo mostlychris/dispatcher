@@ -37,6 +37,7 @@ class IAX2Client:
     FRAME_DTMF_END   = 0x01
     FRAME_DTMF_BEGIN = 0x0E
     FRAME_VOICE      = 0x02
+    FRAME_TEXT       = 0x07
     FRAME_IAX        = 0x06
 
     # IAX subclasses
@@ -109,7 +110,7 @@ class IAX2Client:
         """Register callback(state: str, msg: str) for state transitions."""
         self._state_cbs.append(cb)
 
-    def send_dtmf(self, digits: str, inter_digit: float = 0.5):
+    def send_dtmf(self, digits: str, inter_digit: float = 0.05):
         """Send DTMF digits (non-blocking; fires a daemon thread)."""
         if self.state != 'connected':
             raise RuntimeError('Not connected')
@@ -117,56 +118,33 @@ class IAX2Client:
                              args=(digits, inter_digit), daemon=True)
         t.start()
 
-    def _send_dtmf_frame(self, ftype: int, digit: str) -> None:
+    def _send_text_frame(self, text: str) -> None:
+        """Send one IAX2 TEXT frame (type 0x07) with the given ASCII payload."""
         with self._send_lock:
-            seq = self._oseqno
-            src = self._src_call | 0x8000
-            pkt = struct.pack('>HHIBBBB',
-                              src, self._dst_call, self._ts(),
-                              seq, self._iseqno,
-                              ftype, ord(digit))
+            seq  = self._oseqno
+            src  = self._src_call | 0x8000
+            payload = text.encode('ascii')
+            pkt  = struct.pack('>HHIBBBB',
+                               src, self._dst_call, self._ts(),
+                               seq, self._iseqno,
+                               self.FRAME_TEXT, 0x00) + payload
             self._raw_send(pkt)
-            self._tx_buf[seq] = b''
-            if len(self._tx_buf) > 128:
-                del self._tx_buf[min(self._tx_buf)]
-            self._oseqno = (self._oseqno + 1) & 0xFF
-
-    _SILENCE_ULAW = bytes([0xFF] * 160)  # 20 ms of ulaw silence
-
-    def _send_voice_frame(self, ulaw_data: bytes) -> None:
-        with self._send_lock:
-            seq = self._oseqno
-            src = self._src_call | 0x8000
-            pkt = struct.pack('>HHIBBBB',
-                              src, self._dst_call, self._ts(),
-                              seq, self._iseqno,
-                              self.FRAME_VOICE, 0x82) + ulaw_data
-            self._raw_send(pkt)
-            self._tx_buf[seq] = ulaw_data
+            self._tx_buf[seq] = payload
             if len(self._tx_buf) > 128:
                 del self._tx_buf[min(self._tx_buf)]
             self._oseqno = (self._oseqno + 1) & 0xFF
 
     def _dtmf_thread(self, digits: str, inter_digit: float):
-        """Send each digit as a matched DTMF_BEGIN + DTMF_END pair.
+        """Send each digit as an IAX2 TEXT frame: 'D <node> 0 1 <digit>'.
 
-        Asterisk drops DTMF_BEGIN on an idle channel (no prior audio),
-        causing begin-emulation for the first digit and app_rpt never sees it.
-        Prime the channel with ~200ms of silence frames first so the audio
-        path is active when the DTMF frames arrive.
+        iaxRPT does not use IAX2 DTMF frames or in-band audio tones.
+        It sends one TEXT frame per digit in this format, which app_rpt
+        processes directly without going through the channel DTMF queue.
         """
-        # Prime: send 200ms of silence to activate the audio channel state
-        PRIME_FRAMES = 10  # 10 × 20ms = 200ms
-        for _ in range(PRIME_FRAMES):
-            self._send_voice_frame(self._SILENCE_ULAW)
-            time.sleep(0.02)
-
-        TONE_MS = 200
         for ch in digits:
-            self._send_dtmf_frame(self.FRAME_DTMF_BEGIN, ch)
-            time.sleep(TONE_MS / 1000)
-            self._send_dtmf_frame(self.FRAME_DTMF_END, ch)
-            log.debug(f'IAX2 DTMF {ch!r} begin+end sent')
+            text = f'D {self.node} 0 1 {ch}'
+            self._send_text_frame(text)
+            log.debug(f'IAX2 TEXT sent: {text!r}')
             time.sleep(inter_digit)
 
     def connect(self):
