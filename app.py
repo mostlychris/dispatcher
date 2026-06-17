@@ -1244,7 +1244,15 @@ HTML = '''
                                 <button class="btn-tune"   onclick="allstarLink('monitor')">&#9654; Monitor</button>
                                 <button class="btn-tune"   onclick="allstarLink('transceive')">&#9654; Xceive</button>
                                 <button class="btn-danger" onclick="allstarUnlink()">&#9632; Unlink</button>
-                                <button class="btn-monitor" onclick="allstarStatus()">&#9432; Status</button>
+                            </div>
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <div class="qt-section-label" style="margin-bottom:5px;">COMMAND</div>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <input class="tg-input" type="text" id="asCommand"
+                                       placeholder="e.g. *70" style="width:120px;"
+                                       onkeydown="if(event.key==='Enter') allstarCommand()">
+                                <button class="btn-tune" onclick="allstarCommand()">&#9654; Send</button>
                             </div>
                         </div>
                         <div style="margin-bottom:10px;">
@@ -1814,11 +1822,16 @@ HTML = '''
             .catch(e => log('Allstar unlink: ' + e, 'error'));
         }
 
-        function allstarStatus() {
-            fetch('/api/allstar/status_cmd', {method: 'POST'})
+        function allstarCommand() {
+            const cmd = document.getElementById('asCommand').value.trim();
+            if (!cmd) { log('Enter a command', 'error'); return; }
+            fetch('/api/allstar/command', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({cmd})
+            })
             .then(r => r.json())
             .then(d => log(d.message, d.ok ? 'ok' : 'error'))
-            .catch(e => log('Allstar status: ' + e, 'error'));
+            .catch(e => log('Allstar command: ' + e, 'error'));
         }
 
         function toggleAllstarAudio(btn) {
@@ -2232,13 +2245,17 @@ def allstar_unlink():
         return jsonify({'ok': False, 'message': str(e)})
 
 
-@app.route('/api/allstar/status_cmd', methods=['POST'])
-def allstar_status_cmd():
+@app.route('/api/allstar/command', methods=['POST'])
+def allstar_command():
+    data = request.get_json() or {}
+    cmd  = str(data.get('cmd', '')).strip()
+    if not cmd:
+        return jsonify({'ok': False, 'message': 'No command'})
     if not allstar_mgr.client or allstar_mgr.client.state != 'connected':
         return jsonify({'ok': False, 'message': 'Not connected to Allstar'})
     try:
-        allstar_mgr.send_dtmf('*70')
-        return jsonify({'ok': True, 'message': 'Status requested (*70)'})
+        allstar_mgr.send_dtmf(cmd)
+        return jsonify({'ok': True, 'message': f'Sent: {cmd}'})
     except RuntimeError as e:
         return jsonify({'ok': False, 'message': str(e)})
 

@@ -141,12 +141,19 @@ class IAX2Client:
         It sends one TEXT frame per digit in this format, which app_rpt
         processes directly without going through the channel DTMF queue.
         """
+        ACK_TIMEOUT = 0.2   # wait up to 200ms for ACK before proceeding
         for ch in digits:
             text = f'D {self.node} 0 1 {ch}'
             self._send_text_frame(text)
             log.debug(f'IAX2 TEXT sent: {text!r}')
-            if inter_digit > 0:
-                time.sleep(inter_digit)
+            # Wait for ACK to pace sends — do NOT retry (would duplicate digits)
+            seq      = (self._oseqno - 1) & 0xFF
+            deadline = time.monotonic() + ACK_TIMEOUT
+            while time.monotonic() < deadline:
+                with self._send_lock:
+                    if seq not in self._tx_buf:
+                        break
+                time.sleep(0.01)
 
     def connect(self):
         if self._running:
