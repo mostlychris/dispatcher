@@ -175,9 +175,6 @@ class IAX2Client:
         self._thread = threading.Thread(
             target=self._recv_loop, daemon=True, name='iax2-recv')
         self._thread.start()
-        self._silence_thread = threading.Thread(
-            target=self._silence_loop, daemon=True, name='iax2-silence')
-        self._silence_thread.start()
 
     def disconnect(self):
         self._running = False
@@ -421,36 +418,3 @@ class IAX2Client:
         # 2B src call, 2B timestamp, rest = ulaw audio
         if len(data) > 4:
             self._emit_audio(data[4:])
-
-    # ---------------------------------------------------------- silence keepalive
-
-    # ulaw silence: 160 bytes of 0xFF = 20 ms of G.711 silence at 8 kHz
-    _SILENCE = bytes([0xFF] * 160)
-
-    def _send_mini(self, payload: bytes) -> None:
-        """Send an IAX2 mini frame (outbound audio, no sequence tracking)."""
-        if self._sock and self._dst_call:
-            ts  = self._ts() & 0xFFFF
-            pkt = struct.pack('>HH', self._dst_call, ts) + payload
-            self._sock.sendto(pkt, (self.host, self.port))
-
-    def _silence_loop(self) -> None:
-        """Send ulaw silence to Asterisk at 20 ms intervals while connected.
-
-        iaxRPT always transmits audio (even silence) so app_rpt keeps the
-        iaxRPT channel in an active state and will accept TEXT-frame commands.
-        Without this, app_rpt silently drops TEXT frames after the TX side
-        goes quiet.
-        """
-        interval = 0.020  # 20 ms — standard G.711 packet interval
-        next_tick = time.monotonic() + interval
-        while self._running:
-            now = time.monotonic()
-            if now < next_tick:
-                time.sleep(next_tick - now)
-            next_tick += interval
-            if self.state == 'connected':
-                try:
-                    self._send_mini(self._SILENCE)
-                except Exception:
-                    pass
