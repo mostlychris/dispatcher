@@ -241,8 +241,10 @@ class IAX2Client:
                               self._oseqno, self._iseqno,
                               self.FRAME_IAX, subclass) + ies
             self._raw_send(pkt)
-            # ACK / PONG / LAGRP must not bump the outbound sequence counter
-            if subclass not in (self.IAX_ACK, self.IAX_PONG, self.IAX_LAGRP):
+            # Only ACK must not bump the outbound sequence counter.
+            # PONG and LAGRP are reliable frames — Asterisk ACKs them and
+            # advances its ISeqno, so they must use a unique oseqno.
+            if subclass != self.IAX_ACK:
                 self._oseqno = (self._oseqno + 1) & 0xFF
 
     def _send_new(self):
