@@ -1297,9 +1297,6 @@ HTML = '''
                     </div>
                     <div class="collapse-body" id="allstarBody">
                         <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
-                            <input class="tg-input" type="text" id="asNodeInput"
-                                   placeholder="Node #..." style="width:110px;"
-                                   onkeydown="if(event.key==='Enter') allstarConnect()">
                             <button class="btn-monitor" id="btnAsConnect"   onclick="allstarConnect()">&#9654; Connect</button>
                             <button class="btn-danger"  id="btnAsDisconnect" onclick="allstarDisconnect()" disabled>&#9632; Disconnect</button>
                             <button class="btn-monitor" id="btnAsAudio"     onclick="toggleAllstarAudio(this)">&#128264; Audio</button>
@@ -1842,10 +1839,9 @@ HTML = '''
         }
 
         function allstarConnect() {
-            const node = document.getElementById('asNodeInput').value.trim();
             fetch('/api/allstar/connect', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({node})
+                body: '{}'
             })
             .then(r => r.json())
             .then(d => {
@@ -1990,10 +1986,6 @@ HTML = '''
                 if (btnConn) btnConn.disabled = (d.state === 'connected' || d.state === 'connecting');
                 if (btnDisc) btnDisc.disabled = (d.state === 'idle' || d.state === 'error');
 
-                if (d.node && !document.getElementById('asNodeInput').value) {
-                    document.getElementById('asNodeInput').value = d.node;
-                }
-
                 // keep polling while connected; stop when offline
                 if (d.state === 'connected' || d.state === 'connecting') {
                     if (!_asPoller) _asPoller = setInterval(pollAllstarStatus, 400);
@@ -2050,8 +2042,6 @@ HTML = '''
             }
         }
 
-        // Poll Allstar sidebar status every 10 s
-        pollAllstarStatus();
         setInterval(pollAllstarStatus, 10000);
 
         // -------------------------
@@ -2063,6 +2053,11 @@ HTML = '''
         applyStoredVolume();
         applyStoredFilters();
         log('Dispatcher ready', 'ok');
+        // Auto-connect to the configured Allstar node
+        pollAllstarStatus().then(() => {
+            const btn = document.getElementById('btnAsConnect');
+            if (btn && !btn.disabled) allstarConnect();
+        });
     </script>
 </body>
 </html>
