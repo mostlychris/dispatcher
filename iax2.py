@@ -149,19 +149,12 @@ class IAX2Client:
         """
         with self._dtmf_lock:   # serialise: only one sequence at a time
             try:
-                ACK_TIMEOUT = 0.2
+                INTER_DIGIT = 0.05  # 50 ms between digits — matches iaxRPT pacing
                 for ch in digits:
                     text = f'D {self.node} 0 1 {ch}'
                     self._send_text_frame(text)
                     log.debug(f'IAX2 TEXT sent: {text!r}')
-                    # Wait for ACK to pace sends — no retry (avoids duplicate digits)
-                    seq      = (self._oseqno - 1) & 0xFF
-                    deadline = time.monotonic() + ACK_TIMEOUT
-                    while time.monotonic() < deadline:
-                        with self._send_lock:
-                            if seq not in self._tx_buf:
-                                break
-                        time.sleep(0.01)
+                    time.sleep(INTER_DIGIT)
             except Exception:
                 log.exception('IAX2 _dtmf_thread error')
 
@@ -226,6 +219,7 @@ class IAX2Client:
     def _raw_send(self, data):
         if self._sock:
             self._sock.sendto(data, (self.host, self.port))
+            log.debug(f'IAX2 sendto {len(data)}B → {self.host}:{self.port}')
 
     def _send_iax(self, subclass, ies=b''):
         with self._send_lock:
@@ -402,10 +396,12 @@ class IAX2Client:
                             self._raw_send(pkt)
 
             elif sub == self.IAX_ACK:
-                # ACK.iseq = next seq expected from us = our_sent_seq + 1
-                acked = (f['iseq'] - 1) & 0xFF
+                # ACK.iseq is cumulative: acknowledges all oseqno < iseqno
+                ack_through = (f['iseq'] - 1) & 0xFF
                 with self._send_lock:
-                    self._tx_buf.pop(acked, None)
+                    for seq in [s for s in self._tx_buf
+                                if ((s - ack_through) & 0xFF) > 128]:
+                        del self._tx_buf[seq]
 
             elif sub not in (self.IAX_PONG, self.IAX_INVAL):
                 log.debug(f'IAX2: unhandled IAX sub=0x{sub:02x}, sending ACK')
