@@ -53,6 +53,45 @@ try:
 except ImportError:
     ALLSTAR_NODE = ''
 
+try:
+    from config import API_KEY
+except ImportError:
+    API_KEY = ''
+
+try:
+    from config import LISTEN_PORT
+except ImportError:
+    LISTEN_PORT = 9090
+
+try:
+    from config import DVSWITCH_SCRIPT
+except ImportError:
+    DVSWITCH_SCRIPT = '/opt/MMDVM_Bridge/dvswitch.sh'
+try:
+    from config import CONNECT_TGIF_SCRIPT
+except ImportError:
+    CONNECT_TGIF_SCRIPT = '/opt/MMDVM_Bridge/connectTGIF.sh'
+try:
+    from config import CONNECT_BM_SCRIPT
+except ImportError:
+    CONNECT_BM_SCRIPT = '/opt/MMDVM_Bridge/connectBM.sh'
+try:
+    from config import STFU_SERVICE
+except ImportError:
+    STFU_SERVICE = 'stfu.service'
+try:
+    from config import ANALOG_BRIDGE_SERVICE
+except ImportError:
+    ANALOG_BRIDGE_SERVICE = 'analog_bridge.service'
+try:
+    from config import MMDVM_SERVICE
+except ImportError:
+    MMDVM_SERVICE = 'mmdvm_bridge.service'
+try:
+    from config import DVSWITCHPLAYER_PORT
+except ImportError:
+    DVSWITCHPLAYER_PORT = 8080
+
 
 FAVORITES_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
 LAST_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'last_state.json')
@@ -365,6 +404,14 @@ def run(cmd):
         return "ERROR: timeout"
     except Exception as e:
         return f"ERROR: {e}"
+
+def require_key():
+    """Return a 403 response if the X-Api-Key header doesn't match API_KEY, else None."""
+    if not API_KEY:
+        return jsonify({'ok': False, 'message': 'API_KEY not configured on server'}), 403
+    if request.headers.get('X-Api-Key') != API_KEY:
+        return jsonify({'ok': False, 'message': 'Unauthorized'}), 403
+    return None
 
 
 def svc(name):
@@ -1458,7 +1505,7 @@ HTML = '''
                 log('RX Monitor stopped', 'warn');
             } else {
                 if (!dvsp) {
-                    dvsp = new DVSwitchPlayer(8080, btn);
+                    dvsp = new DVSwitchPlayer({{ dvswitchplayer_port }}, btn);
                     dvsp.socketURL = '{{ audio_ws_url }}';
                     dvsp.ws = null;
                     applyStoredVolume();
@@ -1589,6 +1636,8 @@ HTML = '''
         // -------------------------
         // CONTROLS
         // -------------------------
+        const API_KEY = '{{ api_key }}';
+
         function setButtons(disabled) {
             ['btnTGIF','btnBM','btnRestart','btnRestartAB','btnRestartMM'].forEach(id => {
                 document.getElementById(id).disabled = disabled;
@@ -1600,7 +1649,9 @@ HTML = '''
             setButtons(true);
             try {
                 const res  = await fetch(endpoint, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-Api-Key': API_KEY},
+                    body: '{}'
                 });
                 const data = await res.json();
                 log(data.message, data.ok ? 'ok' : 'error');
@@ -2019,7 +2070,9 @@ HTML = '''
 
 @app.route('/')
 def index():
-    return render_template_string(HTML, audio_ws_url=AUDIO_WS_URL)
+    return render_template_string(HTML, audio_ws_url=AUDIO_WS_URL,
+                                  dvswitchplayer_port=DVSWITCHPLAYER_PORT,
+                                  api_key=API_KEY)
 
 @app.route('/api/stream')
 def stream():
@@ -2069,7 +2122,7 @@ def get_log(log_key):
 @app.route('/api/tgif', methods=['POST'])
 def tgif():
     subprocess.Popen(
-        ['/bin/bash', '/opt/MMDVM_Bridge/connectTGIF.sh'],
+        ['/bin/bash', CONNECT_TGIF_SCRIPT],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
     last_state["network"] = "TGIF"
@@ -2079,7 +2132,7 @@ def tgif():
 @app.route('/api/bm', methods=['POST'])
 def bm():
     subprocess.Popen(
-        ['/bin/bash', '/opt/MMDVM_Bridge/connectBM.sh'],
+        ['/bin/bash', CONNECT_BM_SCRIPT],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
     last_state["network"] = "BM"
@@ -2088,12 +2141,18 @@ def bm():
 
 @app.route('/api/restart', methods=['POST'])
 def restart():
-    run("sudo systemctl restart stfu.service")
+    err = require_key()
+    if err:
+        return err
+    run(f"sudo systemctl restart {STFU_SERVICE}")
     return jsonify({"ok": True, "message": "STFU service restarted"})
 
 @app.route('/api/restart_ab', methods=['POST'])
 def restart_ab():
-    run("sudo systemctl restart analog_bridge.service")
+    err = require_key()
+    if err:
+        return err
+    run(f"sudo systemctl restart {ANALOG_BRIDGE_SERVICE}")
     def reregister():
         time.sleep(5)
         try:
@@ -2105,7 +2164,10 @@ def restart_ab():
 
 @app.route('/api/restart_mmdvm', methods=['POST'])
 def restart_mmdvm():
-    run("sudo systemctl restart mmdvm_bridge.service")
+    err = require_key()
+    if err:
+        return err
+    run(f"sudo systemctl restart {MMDVM_SERVICE}")
     return jsonify({"ok": True, "message": "MMDVM Bridge restarted"})
 
 @app.route('/api/tune', methods=['POST'])
@@ -2132,7 +2194,7 @@ def tune():
     last_state.update({"tg": tg, "tg_name": tg_name, "network": network, "time": now})
     save_last_state()
 
-    run(f"/opt/MMDVM_Bridge/dvswitch.sh tune {tg}")
+    run(f"{DVSWITCH_SCRIPT} tune {tg}")
     return jsonify({"ok": True, "message": f"Tuned to {tg}"})
 
 @app.route('/api/favorites', methods=['GET'])
@@ -2296,4 +2358,4 @@ def allstar_audio_ws(ws):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=9090, debug=False, threaded=True)
+    app.run(host='0.0.0.0', port=LISTEN_PORT, debug=False, threaded=True)

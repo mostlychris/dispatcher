@@ -15,3 +15,21 @@ ALLSTAR_PORT   = 4569           # IAX2 UDP port
 ALLSTAR_USER   = 'iaxrpt'       # peer name from iax.conf
 ALLSTAR_SECRET = 'YOUR_SECRET_HERE'
 ALLSTAR_NODE   = '00000'        # your local node number
+
+# API key — required in the X-Api-Key header for service-restart endpoints.
+# Set to any random string; keep it secret.
+API_KEY = 'CHANGE_ME'
+
+# Flask listen port.
+LISTEN_PORT = 9090
+
+# DVSwitch / MMDVM_Bridge paths and service names.
+DVSWITCH_SCRIPT      = '/opt/MMDVM_Bridge/dvswitch.sh'
+CONNECT_TGIF_SCRIPT  = '/opt/MMDVM_Bridge/connectTGIF.sh'
+CONNECT_BM_SCRIPT    = '/opt/MMDVM_Bridge/connectBM.sh'
+STFU_SERVICE         = 'stfu.service'
+ANALOG_BRIDGE_SERVICE = 'analog_bridge.service'
+MMDVM_SERVICE        = 'mmdvm_bridge.service'
+
+# Port the DVSwitchPlayer WebSocket listens on (used in the browser UI).
+DVSWITCHPLAYER_PORT = 8080
