@@ -1274,6 +1274,7 @@ HTML = '''
                                        placeholder="e.g. *70" style="width:120px;"
                                        onkeydown="if(event.key==='Enter') allstarCommand()">
                                 <button class="btn-tune" onclick="allstarCommand()">&#9654; Send</button>
+                                <button class="btn-tune" onclick="allstarSendCmd('*70')" title="Node status">&#9432; Status</button>
                             </div>
                         </div>
                         <div style="margin-bottom:10px;">
@@ -1841,6 +1842,16 @@ HTML = '''
             .then(r => r.json())
             .then(d => log(d.message, d.ok ? 'ok' : 'error'))
             .catch(e => log('Allstar unlink: ' + e, 'error'));
+        }
+
+        function allstarSendCmd(cmd) {
+            fetch('/api/allstar/command', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({cmd})
+            })
+            .then(r => r.json())
+            .then(d => log(d.message, d.ok ? 'ok' : 'error'))
+            .catch(e => log('Allstar command: ' + e, 'error'));
         }
 
         function allstarCommand() {
