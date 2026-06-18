@@ -760,6 +760,7 @@ HTML = '''
         .rx-dot.lit  { background:#4f4; box-shadow: 0 0 6px #4f4; animation: rx-pulse 0.6s ease-out; }
         @keyframes rx-pulse { 0%{box-shadow:0 0 10px #4f4;} 100%{box-shadow:0 0 4px #4f4;} }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
+        .sidebar-section.as-rx { background: #0a2010; border-radius: 6px; box-shadow: 0 0 6px #0f0; transition: background 0.3s, box-shadow 0.3s; }
         .conn-idle     { background: #0d1a0d; color: #5c5; }
         .conn-starting { background: #2a2200; color: gold; }
         .conn-offline  { background: #1a1a1a; color: #444; }
@@ -1066,7 +1067,7 @@ HTML = '''
                 <h3><span class="tx-pulse" id="txPulse"></span>ON AIR</h3>
                 <div class="tx-callsign" id="txCallsign">STANDBY</div>
                 <div class="tx-detail"   id="txDetail">&mdash;</div>
-                <div class="tx-detail"   id="txTime"></div>
+                <div class="tx-detail"   id="txTime">&nbsp;</div>
             </div>
 
             <!-- SYSTEM STATUS -->
@@ -1119,7 +1120,7 @@ HTML = '''
             </div>
 
             <!-- ALLSTAR STATUS -->
-            <div class="sidebar-section">
+            <div class="sidebar-section" id="asSidebarSection">
                 <h3>Allstar</h3>
                 <div class="stat-row">
                     <span class="stat-key">State</span>
@@ -1344,7 +1345,7 @@ HTML = '''
                     cs.classList.remove('on');
                     document.getElementById('txDetail').textContent = '—';
                     document.getElementById('txDetail').classList.remove('on');
-                    document.getElementById('txTime').textContent = '';
+                    document.getElementById('txTime').innerHTML = '&nbsp;';
                     if (lastHeardOpen) pollLastHeard();
                 }
             };
@@ -1919,6 +1920,8 @@ HTML = '''
                 }
                 if (dot) dot.className = 'rx-dot' + (d.active ? ' lit' : '');
                 nodeEl.textContent = d.node || '--';
+                const asSec = document.getElementById('asSidebarSection');
+                if (asSec) asSec.classList.toggle('as-rx', !!(d.state === 'connected' && d.active));
 
                 const btnConn = document.getElementById('btnAsConnect');
                 const btnDisc = document.getElementById('btnAsDisconnect');
