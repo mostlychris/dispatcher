@@ -129,7 +129,7 @@ class IAX2Client:
         with self._send_lock:
             seq     = self._oseqno
             src     = self._src_call | 0x8000
-            payload = text.encode('ascii')
+            payload = text.encode('ascii') + b'\x00'
             pkt     = struct.pack('>HHIBBBB',
                                   src, self._dst_call, self._ts(),
                                   seq, self._iseqno,
