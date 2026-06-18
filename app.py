@@ -590,10 +590,11 @@ favorites = load_favorites()
 # -------------------------
 class AllstarManager:
     def __init__(self):
-        self.client     = None
-        self._ws_qs     = []
-        self._lock      = threading.Lock()
+        self.client      = None
+        self._ws_qs      = []
+        self._lock       = threading.Lock()
         self._last_audio = 0.0
+        self.linked_nodes = []   # updated by 'L ' TEXT frames from app_rpt
 
     def _on_audio(self, pcm: bytes):
         self._last_audio = time.time()
@@ -607,16 +608,35 @@ class AllstarManager:
             for q in dead:
                 self._ws_qs.remove(q)
 
+    def _on_text(self, msg: str):
+        # app_rpt sends 'L node1,node2,...' to report currently linked nodes.
+        # An empty list arrives as 'L ' (space only).
+        if msg.startswith('L '):
+            raw = msg[2:].strip()
+            nodes = []
+            if raw:
+                for part in raw.split(','):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    mode   = part[0] if part else '?'
+                    number = part[1:].strip()
+                    if number.isdigit():
+                        nodes.append({'node': number, 'mode': mode})
+            self.linked_nodes = nodes
+
     def connect(self, node=None):
         if self.client and self.client.state in ('connecting', 'connected'):
             return False, 'Already connected'
         node = str(node or ALLSTAR_NODE).strip()
         if not node:
             return False, 'No node number configured'
+        self.linked_nodes = []
         self.client = IAX2Client(
             ALLSTAR_HOST, ALLSTAR_PORT, ALLSTAR_USER, ALLSTAR_SECRET, node
         )
         self.client.on_audio(self._on_audio)
+        self.client.on_text(self._on_text)
         self.client.connect()
         return True, f'Connecting to node {node}...'
 
@@ -2158,23 +2178,7 @@ def allstar_status():
 
 @app.route('/api/allstar/nodes')
 def allstar_nodes():
-    node = allstar_mgr.client.node if allstar_mgr.client else ALLSTAR_NODE
-    out  = run(f'asterisk -rx "rpt nodes {node}"')
-    nodes = []
-    for line in out.splitlines():
-        line = line.strip()
-        if not line or line.startswith('*') or line.startswith('-'):
-            continue
-        # each entry looks like: R556982, Tiaxrpt
-        for part in line.split(','):
-            part = part.strip()
-            if not part:
-                continue
-            mode   = part[0] if part else '?'
-            number = part[1:].strip()
-            if number.isdigit():
-                nodes.append({'node': number, 'mode': mode})
-    return jsonify({'nodes': nodes})
+    return jsonify({'nodes': allstar_mgr.linked_nodes})
 
 
 @app.route('/api/allstar/debug')

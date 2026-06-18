@@ -5,6 +5,7 @@ import hashlib
 import time
 import threading
 import logging
+import random
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +97,7 @@ class IAX2Client:
 
         self._audio_cbs = []
         self._state_cbs = []
+        self._text_cbs  = []
 
         # Retransmit buffer: oseqno -> ulaw payload for VNAK recovery
         self._tx_buf   = {}
@@ -111,6 +113,16 @@ class IAX2Client:
     def on_state_change(self, cb):
         """Register callback(state: str, msg: str) for state transitions."""
         self._state_cbs.append(cb)
+
+    def on_text(self, cb):
+        """Register callback(msg: str) for TEXT frames from app_rpt.
+
+        app_rpt pushes status via TEXT frames:
+          'L node1,node2,...'  — current linked-node list (empty = none)
+          'T node STATUS'      — telemetry/status events
+          'C node ...'         — CTCSS / other control
+        """
+        self._text_cbs.append(cb)
 
     def send_dtmf(self, digits: str, inter_digit: float = 0.0):
         """Send DTMF digits (non-blocking; fires a daemon thread).
@@ -163,7 +175,7 @@ class IAX2Client:
             return
         self._sock       = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.settimeout(1.0)
-        self._src_call   = 1
+        self._src_call   = random.randint(0x1000, 0x7FFF)
         self._dst_call   = 0
         self._oseqno     = 0
         self._iseqno     = 0
@@ -410,6 +422,16 @@ class IAX2Client:
         elif ftype == self.FRAME_VOICE:
             self._send_iax(self.IAX_ACK)
             self._emit_audio(f['payload'])
+
+        elif ftype == self.FRAME_TEXT:
+            self._send_iax(self.IAX_ACK)
+            msg = f['payload'].rstrip(b'\x00').decode('ascii', errors='replace')
+            log.debug(f'IAX2 TEXT rx: {msg!r}')
+            for cb in self._text_cbs:
+                try:
+                    cb(msg)
+                except Exception:
+                    pass
 
         else:
             self._send_iax(self.IAX_ACK)
