@@ -945,7 +945,7 @@ HTML = '''
         .collapse-arrow { color: #444; font-size: 12px; transition: transform 0.2s; }
         .collapse-arrow.open { transform: rotate(180deg); }
         .collapse-body { display: none; padding: 10px; }
-        .collapse-body.open { display: block; }
+        .collapse-body.open { display: block; max-height: 60vh; overflow-y: auto; }
 
         /* ---- LAST HEARD ---- */
         #lastHeardTable { width: 100%; border-collapse: collapse; font-size: 11px; }
