@@ -1197,7 +1197,7 @@ HTML = '''
                     <span class="vol-pct" id="hpfDisplay" style="color:#fa8;">OFF</span>
                 </div>
                 <input type="range" class="hpf-slider" id="hpfSlider"
-                       min="100" max="600" step="10" value="300"
+                       min="100" max="600" step="10" value="350"
                        oninput="setHpFilter(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
                     <span class="vol-label">Presence</span>
@@ -1440,7 +1440,7 @@ HTML = '''
             shelfFilter = player.audioCtx.createBiquadFilter();
             shelfFilter.type = 'lowshelf';
             shelfFilter.frequency.value = 200;
-            shelfFilter.gain.value      = -6;
+            shelfFilter.gain.value      = -9;
 
             // High-pass: removes sub-bass and DC after the shelf
             hpFilter = player.audioCtx.createBiquadFilter();
@@ -1460,7 +1460,7 @@ HTML = '''
             compressor.knee.value      = 6;
             compressor.ratio.value     = 4;
             compressor.attack.value    = 0.003;
-            compressor.release.value   = 0.35;
+            compressor.release.value   = 0.45;
 
             // gainNode → shelfFilter → hpFilter → presFilter → compressor → destination
             player.gainNode.disconnect();
@@ -1496,7 +1496,7 @@ HTML = '''
         }
 
         function applyStoredFilters() {
-            const hpVal   = parseInt(localStorage.getItem('rxHpFilter')  ?? 300);
+            const hpVal   = parseInt(localStorage.getItem('rxHpFilter')  ?? 350);
             const presVal = parseFloat(localStorage.getItem('rxPresence') ?? 0);
             document.getElementById('hpfSlider').value  = hpVal;
             document.getElementById('presSlider').value = presVal;
