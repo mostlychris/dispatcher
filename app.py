@@ -1423,6 +1423,7 @@ HTML = '''
         // DMR AUDIO FILTERS
         // -------------------------
         var shelfFilter = null;
+        var notchFilter = null;
         var hpFilter    = null;
         var presFilter  = null;
         var compressor  = null;
@@ -1435,12 +1436,19 @@ HTML = '''
             // Reduce flush interval: 2000ms chunks cause boundary thumps; 500ms is smooth
             player.option.flushingTime = 500;
 
-            // Low-shelf: −6 dB below 200 Hz — gradual roll-off of AMBE vocoder rumble/mud;
-            // sounds more natural than the hard HP cutoff alone
+            // Low-shelf: −9 dB below 200 Hz — gradual roll-off of AMBE vocoder rumble/mud
             shelfFilter = player.audioCtx.createBiquadFilter();
             shelfFilter.type = 'lowshelf';
             shelfFilter.frequency.value = 200;
             shelfFilter.gain.value      = -9;
+
+            // Narrow cut at 150 Hz: targets the AMBE pitch synthesis fundamental —
+            // the vocoder locks onto voice pitch in this range and can over-emphasize it
+            notchFilter = player.audioCtx.createBiquadFilter();
+            notchFilter.type = 'peaking';
+            notchFilter.frequency.value = 150;
+            notchFilter.Q.value         = 2.0;
+            notchFilter.gain.value      = -6;
 
             // High-pass: removes sub-bass and DC after the shelf
             hpFilter = player.audioCtx.createBiquadFilter();
@@ -1453,8 +1461,7 @@ HTML = '''
             presFilter.frequency.value = 2500;
             presFilter.Q.value = 1.0;
 
-            // Compressor: tames uneven level swings between AMBE codec frames;
-            // 350ms release avoids audible pumping at frame boundaries
+            // Compressor: tames uneven level swings between AMBE codec frames
             compressor = player.audioCtx.createDynamicsCompressor();
             compressor.threshold.value = -24;
             compressor.knee.value      = 6;
@@ -1462,10 +1469,11 @@ HTML = '''
             compressor.attack.value    = 0.003;
             compressor.release.value   = 0.45;
 
-            // gainNode → shelfFilter → hpFilter → presFilter → compressor → destination
+            // gainNode → shelfFilter → notchFilter → hpFilter → presFilter → compressor → destination
             player.gainNode.disconnect();
             player.gainNode.connect(shelfFilter);
-            shelfFilter.connect(hpFilter);
+            shelfFilter.connect(notchFilter);
+            notchFilter.connect(hpFilter);
             hpFilter.connect(presFilter);
             presFilter.connect(compressor);
             compressor.connect(player.audioCtx.destination);
