@@ -1197,7 +1197,7 @@ HTML = '''
                     <span class="vol-pct" id="hpfDisplay" style="color:#fa8;">OFF</span>
                 </div>
                 <input type="range" class="hpf-slider" id="hpfSlider"
-                       min="100" max="400" step="10" value="200"
+                       min="100" max="600" step="10" value="300"
                        oninput="setHpFilter(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
                     <span class="vol-label">Presence</span>
@@ -1422,9 +1422,10 @@ HTML = '''
         // -------------------------
         // DMR AUDIO FILTERS
         // -------------------------
-        var hpFilter   = null;
-        var presFilter = null;
-        var compressor = null;
+        var shelfFilter = null;
+        var hpFilter    = null;
+        var presFilter  = null;
+        var compressor  = null;
 
         function setupAudioFilters() {
             if (!dvsp || !dvsp.player || !dvsp.player.audioCtx) return;
@@ -1434,7 +1435,14 @@ HTML = '''
             // Reduce flush interval: 2000ms chunks cause boundary thumps; 500ms is smooth
             player.option.flushingTime = 500;
 
-            // High-pass: cuts AMBE low-frequency mud (vocoder artifacts below ~200 Hz)
+            // Low-shelf: −6 dB below 200 Hz — gradual roll-off of AMBE vocoder rumble/mud;
+            // sounds more natural than the hard HP cutoff alone
+            shelfFilter = player.audioCtx.createBiquadFilter();
+            shelfFilter.type = 'lowshelf';
+            shelfFilter.frequency.value = 200;
+            shelfFilter.gain.value      = -6;
+
+            // High-pass: removes sub-bass and DC after the shelf
             hpFilter = player.audioCtx.createBiquadFilter();
             hpFilter.type = 'highpass';
             hpFilter.Q.value = 0.7;
@@ -1445,17 +1453,19 @@ HTML = '''
             presFilter.frequency.value = 2500;
             presFilter.Q.value = 1.0;
 
-            // Compressor: tames the uneven level swings typical of DMR codec frames
+            // Compressor: tames uneven level swings between AMBE codec frames;
+            // 350ms release avoids audible pumping at frame boundaries
             compressor = player.audioCtx.createDynamicsCompressor();
-            compressor.threshold.value = -24;  // start compressing at -24 dBFS
-            compressor.knee.value      = 6;    // gentle knee
-            compressor.ratio.value     = 4;    // 4:1 — transparent but effective
+            compressor.threshold.value = -24;
+            compressor.knee.value      = 6;
+            compressor.ratio.value     = 4;
             compressor.attack.value    = 0.003;
-            compressor.release.value   = 0.2;
+            compressor.release.value   = 0.35;
 
-            // gainNode → hpFilter → presFilter → compressor → destination
+            // gainNode → shelfFilter → hpFilter → presFilter → compressor → destination
             player.gainNode.disconnect();
-            player.gainNode.connect(hpFilter);
+            player.gainNode.connect(shelfFilter);
+            shelfFilter.connect(hpFilter);
             hpFilter.connect(presFilter);
             presFilter.connect(compressor);
             compressor.connect(player.audioCtx.destination);
@@ -1469,7 +1479,7 @@ HTML = '''
 
         function setHpFilter(val) {
             val = parseInt(val);
-            const pct = ((val - 100) / 300 * 100).toFixed(1);
+            const pct = ((val - 100) / 500 * 100).toFixed(1);
             document.getElementById('hpfDisplay').textContent = val + ' Hz';
             document.getElementById('hpfSlider').style.setProperty('--hpf-pct', pct + '%');
             if (hpFilter) hpFilter.frequency.value = val;
@@ -1486,7 +1496,7 @@ HTML = '''
         }
 
         function applyStoredFilters() {
-            const hpVal   = parseInt(localStorage.getItem('rxHpFilter')  ?? 200);
+            const hpVal   = parseInt(localStorage.getItem('rxHpFilter')  ?? 300);
             const presVal = parseFloat(localStorage.getItem('rxPresence') ?? 0);
             document.getElementById('hpfSlider').value  = hpVal;
             document.getElementById('presSlider').value = presVal;
