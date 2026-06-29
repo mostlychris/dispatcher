@@ -1433,8 +1433,36 @@ HTML = '''
             if (hpFilter) return;
             const player = dvsp.player;
 
-            // Reduce flush interval: 2000ms chunks cause boundary thumps; 500ms is smooth
-            player.option.flushingTime = 500;
+            // The DVSwitchPlayer constructor hardcodes flushingTime:2000. Changing
+            // player.option.flushingTime after play() has started does nothing because
+            // the setInterval is already running. Clear it and reset to 100ms.
+            // Also replace flush() to remove the console.log it fires on every chunk.
+            clearInterval(player.interval);
+            player.flush = function() {
+                if (!this.samples || !this.samples.length) return;
+                const src = this.audioCtx.createBufferSource();
+                const frameCount = this.samples.length / this.option.channels;
+                const buf = this.audioCtx.createBuffer(this.option.channels, frameCount, this.option.sampleRate);
+                const FADE = 50;
+                for (let ch = 0; ch < this.option.channels; ch++) {
+                    const out = buf.getChannelData(ch);
+                    let si = ch, fadeOut = FADE;
+                    for (let i = 0; i < frameCount; i++) {
+                        out[i] = this.samples[si];
+                        if (i < FADE)            out[i] *= i / FADE;
+                        if (i >= frameCount - FADE) out[i] *= fadeOut-- / FADE;
+                        si += this.option.channels;
+                    }
+                }
+                if (this.startTime < this.audioCtx.currentTime) this.startTime = this.audioCtx.currentTime;
+                src.buffer = buf;
+                src.connect(this.gainNode);
+                src.start(this.startTime);
+                this.startTime += buf.duration;
+                this.samples = new Float32Array();
+            }.bind(player);
+            player.option.flushingTime = 100;
+            player.interval = setInterval(player.flush, 100);
 
             // Low-shelf: −9 dB below 200 Hz — gradual roll-off of AMBE vocoder rumble/mud
             shelfFilter = player.audioCtx.createBiquadFilter();
