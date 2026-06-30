@@ -1497,6 +1497,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         class WorkletPlayer {
             constructor(sampleRate) {
                 this.sampleRate  = sampleRate || 8000;
+                this.option      = { sampleRate: this.sampleRate };  // DVSwitchPlayer reads this
                 this.audioCtx    = null;
                 this.workletNode = null;
                 this.gainNode    = null;
