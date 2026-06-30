@@ -1231,6 +1231,7 @@ HTML = '''
                             <span class="mode-badge badge-unknown" id="modeValue">--</span>
                             <span class="conn-badge conn-offline" id="connState">OFFLINE</span>
                             <span id="tgValue" style="color:lightgreen;font-size:11px;font-weight:bold;"></span>
+                            <span id="tgValueName" style="color:#6c6;font-size:10px;"></span>
                         </span>
                         <span class="collapse-arrow open" id="dmrArrow">&#9660;</span>
                     </div>
@@ -2026,8 +2027,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     d.status_source === 'cached' ? 'conn-cached' : 'conn-' + d.conn_state
                 );
 
-                document.getElementById('tgValue').textContent          = d.tg              || '--';
-                document.getElementById('tgName').textContent           = d.tg_name         || '';
+                document.getElementById('tgValue').textContent     = d.tg              || '--';
+                document.getElementById('tgValueName').textContent = d.tg_name         || '';
+                document.getElementById('tgName').textContent      = d.tg_name         || '';
                 document.getElementById('connectedSince').textContent   = d.connected_since || '--';
                 document.getElementById('headerTime').textContent = timestamp();
                 const dmrBtn = document.getElementById('btnMonitor');
