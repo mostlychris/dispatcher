@@ -1714,7 +1714,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 log('RX Monitor stopped', 'warn');
             } else {
                 if (!dvsp) {
-                    dvsp = new DVSwitchPlayer({{ dvswitchplayer_port }}, btn);
+                    dvsp = new DVSwitchPlayer({{ dvswitchplayer_port }}, null);
                     dvsp.socketURL = '{{ audio_ws_url }}';
                     dvsp.ws = null;
                 }
@@ -2023,7 +2023,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 document.getElementById('tgName').textContent           = d.tg_name         || '';
                 document.getElementById('connectedSince').textContent   = d.connected_since || '--';
                 document.getElementById('headerTime').textContent = timestamp();
-                document.getElementById('btnMonitor').classList.toggle('streaming', d.conn_state === 'rx');
+                const dmrBtn = document.getElementById('btnMonitor');
+                dmrBtn.classList.toggle('streaming', d.conn_state === 'rx' && dmrBtn.classList.contains('active'));
 
                 if (!tgInputPopulated && d.last_tg) {
                     document.getElementById('tgInput').value = d.last_tg;
