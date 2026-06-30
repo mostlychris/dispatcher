@@ -1219,7 +1219,7 @@ HTML = '''
                 <div class="collapse-panel" id="dmrSection">
                     <div class="collapse-header" onclick="toggleDmrSection()">
                         <h3>&#128251; DMR</h3>
-                        <span id="callValue" style="color:orange;font-size:13px;font-weight:bold;margin-left:10px;letter-spacing:1px;"></span>
+                        <span id="dmrActiveCall" style="color:orange;font-size:13px;font-weight:bold;margin-left:10px;letter-spacing:1px;"></span>
                         <span style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px;">
                             <span class="tx-pulse" id="txPulse"></span>
                             <span class="mode-badge badge-unknown" id="modeValue">--</span>
@@ -1397,20 +1397,22 @@ HTML = '''
             es.onmessage = function(e) {
                 const data = JSON.parse(e.data);
                 if (data.event === 'tx_start') {
+                    const cs = data.callsign || data.dmr_id || 'UNKNOWN';
                     document.getElementById('dmrSection').classList.add('active');
                     document.getElementById('txPulse').classList.add('on');
-                    document.getElementById('txCallsign').textContent = data.callsign || data.dmr_id || 'UNKNOWN';
-                    document.getElementById('callValue').textContent  = data.callsign || data.dmr_id || 'UNKNOWN';
-                    document.getElementById('txDetail').textContent   = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
-                    document.getElementById('txTime').textContent     = 'Since ' + data.started;
-                    log('TX: ' + (data.callsign || data.dmr_id) + ' → TG ' + data.tg, 'ok');
+                    document.getElementById('dmrActiveCall').textContent = cs;
+                    document.getElementById('txCallsign').textContent    = cs;
+                    document.getElementById('txDetail').textContent      = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
+                    document.getElementById('txTime').textContent        = 'Since ' + data.started;
+                    log('TX: ' + cs + ' → TG ' + data.tg, 'ok');
                     if (lastHeardOpen) pollLastHeard();
                 } else if (data.event === 'tx_end') {
                     document.getElementById('dmrSection').classList.remove('active');
                     document.getElementById('txPulse').classList.remove('on');
-                    document.getElementById('txCallsign').textContent = 'STANDBY';
-                    document.getElementById('txDetail').textContent   = '—';
-                    document.getElementById('txTime').innerHTML       = '&nbsp;';
+                    document.getElementById('dmrActiveCall').textContent = '';
+                    document.getElementById('txCallsign').textContent    = 'STANDBY';
+                    document.getElementById('txDetail').textContent      = '—';
+                    document.getElementById('txTime').innerHTML          = '&nbsp;';
                     if (lastHeardOpen) pollLastHeard();
                 }
             };
@@ -1714,7 +1716,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 log('RX Monitor stopped', 'warn');
             } else {
                 if (!dvsp) {
-                    dvsp = new DVSwitchPlayer({{ dvswitchplayer_port }}, null);
+                    dvsp = new DVSwitchPlayer({{ dvswitchplayer_port }}, document.createElement('button'));
                     dvsp.socketURL = '{{ audio_ws_url }}';
                     dvsp.ws = null;
                 }
@@ -2018,7 +2020,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     d.status_source === 'cached' ? 'conn-cached' : 'conn-' + d.conn_state
                 );
 
-                document.getElementById('callValue').textContent        = d.call            || '--';
                 document.getElementById('tgValue').textContent          = d.tg              || '--';
                 document.getElementById('tgName').textContent           = d.tg_name         || '';
                 document.getElementById('connectedSince').textContent   = d.connected_since || '--';
