@@ -2054,12 +2054,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         var _asDirectLink = null;
 
-        function _setDirectLink(node) {
-            _asDirectLink = node || null;
+        function _setDirectLink(nodes) {
+            // accepts a single node string, array of node strings, or null/empty
+            const list = Array.isArray(nodes) ? nodes.filter(Boolean) : (nodes ? [nodes] : []);
+            _asDirectLink = list.length ? list : null;
             const badge = document.getElementById('asDirectLinkBadge');
             const nodeEl = document.getElementById('asDirectLinkNode');
             if (_asDirectLink) {
-                nodeEl.textContent = _asDirectLink;
+                nodeEl.textContent = _asDirectLink.join(' · ');
                 badge.style.display = '';
             } else {
                 badge.style.display = 'none';
@@ -2166,6 +2168,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const el  = document.getElementById('asNodeList');
                 if (!d.nodes || d.nodes.length === 0) {
                     el.textContent = '(none)';
+                    _setDirectLink(null);
                     return;
                 }
                 const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
@@ -2175,6 +2178,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                         <span style="color:#666;font-size:10px;">${modeLabel[n.mode] || n.mode}</span>
                     </span>`
                 ).join('');
+                // The L frame from app_rpt lists 556980's direct links only.
+                _setDirectLink(d.nodes.map(n => n.node));
             } catch(e) {}
         }
 
