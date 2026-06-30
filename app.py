@@ -918,7 +918,8 @@ HTML = '''
         button.btn-monitor { background: #1a1a1a; color: #777; border-color: #333; }
         button.btn-monitor:hover { background: #222; color: #aaa; }
         button.btn-monitor.active { background: #006600; color: #fff; border-color: #00aa00; font-weight: bold; }
-        button.btn-monitor.streaming { background: #0055bb; color: #fff; border-color: #0088ff; font-weight: bold; box-shadow: 0 0 8px #0077ee; }
+        button.btn-monitor.streaming,
+        button.btn-monitor.active.streaming { background: #0055cc; color: #fff; border-color: #0055cc; font-weight: bold; box-shadow: 0 0 10px #0077ff; }
         button:disabled { opacity: 0.35; cursor: not-allowed; }
         .btn-sidebar-sm {
             font-size: 10px; padding: 2px 7px;
@@ -930,7 +931,8 @@ HTML = '''
         .btn-sidebar-sm.btn-monitor { background: #1a1a1a; color: #777; border-color: #333; }
         .btn-sidebar-sm.btn-monitor:hover { background: #222; color: #aaa; }
         .btn-sidebar-sm.btn-monitor.active { background: #006600; color: #fff; border-color: #00aa00; font-weight: bold; }
-        .btn-sidebar-sm.btn-monitor.streaming { background: #0055bb; color: #fff; border-color: #0088ff; font-weight: bold; box-shadow: 0 0 8px #0077ee; }
+        .btn-sidebar-sm.btn-monitor.streaming,
+        .btn-sidebar-sm.btn-monitor.active.streaming { background: #0055cc; color: #fff; border-color: #0055cc; font-weight: bold; box-shadow: 0 0 10px #0077ff; }
         .btn-restart-sm {
             font-size: 10px; padding: 2px 7px;
             border-radius: 3px; border: 1px solid #5a2020;
@@ -1217,12 +1219,12 @@ HTML = '''
                 <div class="collapse-panel" id="dmrSection">
                     <div class="collapse-header" onclick="toggleDmrSection()">
                         <h3>&#128251; DMR</h3>
+                        <span id="callValue" style="color:orange;font-size:13px;font-weight:bold;margin-left:10px;letter-spacing:1px;"></span>
                         <span style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px;">
                             <span class="tx-pulse" id="txPulse"></span>
                             <span class="mode-badge badge-unknown" id="modeValue">--</span>
                             <span class="conn-badge conn-offline" id="connState">OFFLINE</span>
-                            <span id="callValue" style="color:orange;font-size:11px;font-weight:bold;"></span>
-                            <span id="tgValue"   style="color:lightgreen;font-size:11px;font-weight:bold;"></span>
+                            <span id="tgValue" style="color:lightgreen;font-size:11px;font-weight:bold;"></span>
                         </span>
                         <span class="collapse-arrow open" id="dmrArrow">&#9660;</span>
                     </div>
