@@ -1221,7 +1221,7 @@ HTML = '''
                     <div class="collapse-body open" id="dmrBody">
                         <div class="status-strip" style="padding:4px 0 2px;">
                             <span class="strip-item">Since <span id="connectedSince" style="color:#aaa;">--</span></span>
-                            <span class="strip-item"><span id="txCallsign" style="color:lime;font-weight:bold;">STANDBY</span></span>
+                            <span class="strip-item"><span id="txCallsign" style="color:lime;font-weight:bold;font-size:20px;letter-spacing:2px;">STANDBY</span></span>
                             <span class="strip-item"><span id="txDetail" style="color:#bbb;">&mdash;</span></span>
                             <span class="strip-item"><span id="tgName" style="color:#6c6;font-size:10px;"></span></span>
                             <span class="strip-item"><span id="txTime" style="color:#999;font-size:10px;">&nbsp;</span></span>
