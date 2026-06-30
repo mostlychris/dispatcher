@@ -938,7 +938,7 @@ HTML = '''
         .log-info  { color: #555; }
 
         /* ---- COLLAPSIBLE PANELS ---- */
-        .collapse-panel { background: #141414; border-radius: 6px; overflow: hidden; border: 1px solid #1f1f1f; }
+        .collapse-panel { background: #141414; border-radius: 6px; overflow: visible; border: 1px solid #1f1f1f; }
         .collapse-header {
             display: flex; align-items: center; justify-content: space-between;
             padding: 8px 12px; cursor: pointer; user-select: none;
@@ -1221,10 +1221,10 @@ HTML = '''
                 <div class="collapse-panel" style="margin-bottom:8px;">
                     <div class="status-strip">
                         <span class="strip-label">SERVICES</span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span><span id="svc_stfu" class="svc-text-off">STFU</span></span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span><span id="svc_mmdvm" class="svc-text-off">MMDVM</span></span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_analog"></span><span id="svc_analog" class="svc-text-off">Analog</span></span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span><span id="svc_usrp" class="svc-text-off">USRP</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span>STFU <span id="svc_stfu" class="svc-text-off">--</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM <span id="svc_mmdvm" class="svc-text-off">--</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>Analog <span id="svc_analog" class="svc-text-off">--</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span>USRP <span id="svc_usrp" class="svc-text-off">--</span></span>
                     </div>
                 </div>
 
@@ -1293,7 +1293,7 @@ HTML = '''
                         <span style="display:flex;align-items:center;gap:5px;margin-left:auto;margin-right:8px;">
                             <span class="rx-dot" id="asRxDot" title="RX activity"></span>
                             <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
-                            <span id="asNodeBadge" style="color:#555;font-size:10px;letter-spacing:0;">--</span>
+                            <span id="asNodeBadge" style="color:#888;font-size:11px;letter-spacing:0;font-weight:bold;">--</span>
                         </span>
                         <span class="collapse-arrow" id="allstarArrow">&#9660;</span>
                     </div>
