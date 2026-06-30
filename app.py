@@ -810,6 +810,7 @@ HTML = '''
             background: #1a1a1a;
             border-radius: 6px;
             padding: 10px;
+            border: 1px solid #2e2e2e;
         }
         .sidebar-section h3 {
             font-size: 9px; color: #888;
@@ -842,7 +843,7 @@ HTML = '''
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
         .sidebar-section.as-rx { background: #0a2010; border-radius: 6px; box-shadow: 0 0 6px #0f0; transition: background 0.3s, box-shadow 0.3s; }
         .collapse-panel.as-rx { box-shadow: 0 0 6px #0f0; transition: box-shadow 0.3s; }
-        .status-strip { display:flex; align-items:center; gap:14px; padding:7px 12px; background:#1a1a1a; flex-wrap:wrap; }
+        .status-strip { display:flex; align-items:center; gap:14px; padding:6px 12px; background:#1a1a1a; flex-wrap:wrap; }
         .strip-label { font-size:9px; color:#888; letter-spacing:1px; text-transform:uppercase; flex-shrink:0; }
         .strip-item { display:flex; align-items:center; gap:4px; font-size:10px; color:#bbb; }
         .conn-idle     { background: #0d1a0d; color: #5c5; }
@@ -916,8 +917,8 @@ HTML = '''
         button.btn-tune:hover { background: #3d3d23; }
         button.btn-monitor { background: #1a1a1a; color: #777; border-color: #333; }
         button.btn-monitor:hover { background: #222; color: #aaa; }
-        button.btn-monitor.active { background: #004400; color: lime; border-color: #006600; }
-        button.btn-monitor.streaming { background: #003a5c; color: #00d4ff; border-color: #0090c0; }
+        button.btn-monitor.active { background: #006600; color: #fff; border-color: #00aa00; font-weight: bold; }
+        button.btn-monitor.streaming { background: #0055bb; color: #fff; border-color: #0088ff; font-weight: bold; box-shadow: 0 0 8px #0077ee; }
         button:disabled { opacity: 0.35; cursor: not-allowed; }
         .btn-sidebar-sm {
             font-size: 10px; padding: 2px 7px;
@@ -928,8 +929,16 @@ HTML = '''
         .btn-sidebar-sm:hover { background: #333; color: #fff; }
         .btn-sidebar-sm.btn-monitor { background: #1a1a1a; color: #777; border-color: #333; }
         .btn-sidebar-sm.btn-monitor:hover { background: #222; color: #aaa; }
-        .btn-sidebar-sm.btn-monitor.active { background: #004400; color: lime; border-color: #006600; }
-        .btn-sidebar-sm.btn-monitor.streaming { background: #003a5c; color: #00d4ff; border-color: #0090c0; }
+        .btn-sidebar-sm.btn-monitor.active { background: #006600; color: #fff; border-color: #00aa00; font-weight: bold; }
+        .btn-sidebar-sm.btn-monitor.streaming { background: #0055bb; color: #fff; border-color: #0088ff; font-weight: bold; box-shadow: 0 0 8px #0077ee; }
+        .btn-restart-sm {
+            font-size: 10px; padding: 2px 7px;
+            border-radius: 3px; border: 1px solid #5a2020;
+            background: #2a1a1a; color: #e88;
+            cursor: pointer; font-family: monospace;
+            width: 100%;
+        }
+        .btn-restart-sm:hover { background: #3d2323; color: #faa; }
 
         .controls-sep { width: 1px; height: 24px; background: #2a2a2a; margin: 0 2px; }
 
@@ -1185,30 +1194,27 @@ HTML = '''
                        min="0" max="100" value="100"
                        oninput="setAllstarVolume(this.value)">
             </div>
+
+            <!-- RESTART BUTTONS -->
+            <div class="sidebar-section">
+                <h3>Services</h3>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <button id="btnRestart"   class="btn-restart-sm" onclick="action('/api/restart',       'Restarting STFU...')">&#8634; Restart STFU</button>
+                    <button id="btnRestartAB" class="btn-restart-sm" onclick="action('/api/restart_ab',    'Restarting Analog Bridge...')">&#8634; Restart Analog</button>
+                    <button id="btnRestartMM" class="btn-restart-sm" onclick="action('/api/restart_mmdvm', 'Restarting MMDVM...')">&#8634; Restart MMDVM</button>
+                </div>
+            </div>
         </div>
 
         <!-- MAIN CONTENT -->
         <div class="content">
 
-            <!-- CONTROLS BAR -->
-            <div class="controls-bar">
-                <button class="btn-tgif"   id="btnTGIF"      onclick="action('/api/tgif',         'Switching to TGIF...')">&#9654; TGIF</button>
-                <button class="btn-bm"     id="btnBM"        onclick="action('/api/bm',            'Switching to BrandMeister...')">&#9654; BM</button>
-                <div class="controls-sep"></div>
-                <button class="btn-danger" id="btnRestart"   onclick="action('/api/restart',       'Restarting STFU...')">&#8634; STFU</button>
-                <button class="btn-danger" id="btnRestartAB" onclick="action('/api/restart_ab',    'Restarting Analog Bridge...')">&#8634; Analog</button>
-                <button class="btn-danger" id="btnRestartMM" onclick="action('/api/restart_mmdvm', 'Restarting MMDVM...')">&#8634; MMDVM</button>
-                <div class="controls-sep"></div>
-                <input  class="tg-input" type="text" id="tgInput" placeholder="Talkgroup...">
-                <button class="btn-tune" onclick="tuneTG()">&#9654; Tune</button>
-                <button class="btn-save-fav" onclick="saveFavorite()" title="Save to favorites for current network">&#9733; Fav</button>
-            </div>
 
             <!-- PANELS -->
             <div class="panels">
 
                 <!-- DMR STATUS -->
-                <div class="collapse-panel" id="dmrSection" style="margin-bottom:8px;">
+                <div class="collapse-panel" id="dmrSection">
                     <div class="collapse-header" onclick="toggleDmrSection()">
                         <h3>&#128251; DMR</h3>
                         <span style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px;">
@@ -1221,18 +1227,26 @@ HTML = '''
                         <span class="collapse-arrow open" id="dmrArrow">&#9660;</span>
                     </div>
                     <div class="collapse-body open" id="dmrBody">
-                        <div class="status-strip" style="padding:4px 0 2px;">
-                            <span class="strip-item">Since <span id="connectedSince" style="color:#aaa;">--</span></span>
+                        <div class="status-strip" style="padding:6px 0 4px; background:transparent;">
                             <span class="strip-item"><span id="txCallsign" style="color:lime;font-weight:bold;font-size:20px;letter-spacing:2px;">STANDBY</span></span>
                             <span class="strip-item"><span id="txDetail" style="color:#bbb;">&mdash;</span></span>
                             <span class="strip-item"><span id="tgName" style="color:#6c6;font-size:10px;"></span></span>
+                            <span class="strip-item">Since <span id="connectedSince" style="color:#aaa;">--</span></span>
                             <span class="strip-item"><span id="txTime" style="color:#999;font-size:10px;">&nbsp;</span></span>
+                        </div>
+                        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding-top:8px; border-top:1px solid #2a2a2a; margin-top:4px;">
+                            <button class="btn-tgif" id="btnTGIF" onclick="action('/api/tgif', 'Switching to TGIF...')">&#9654; TGIF</button>
+                            <button class="btn-bm"   id="btnBM"   onclick="action('/api/bm',   'Switching to BrandMeister...')">&#9654; BM</button>
+                            <div class="controls-sep"></div>
+                            <input class="tg-input" type="text" id="tgInput" placeholder="Talkgroup...">
+                            <button class="btn-tune"     onclick="tuneTG()">&#9654; Tune</button>
+                            <button class="btn-save-fav" onclick="saveFavorite()" title="Save to favorites for current network">&#9733; Fav</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- STATUS STRIP -->
-                <div class="collapse-panel" style="margin-bottom:8px;">
+                <div class="collapse-panel">
                     <div class="status-strip">
                         <span class="strip-label">SERVICES</span>
                         <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span>STFU <span id="svc_stfu" class="svc-text-off">--</span></span>
