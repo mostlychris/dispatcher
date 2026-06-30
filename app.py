@@ -1240,6 +1240,51 @@ HTML = '''
                     </div>
                 </div>
 
+                <!-- ALLSTAR -->
+                <div class="collapse-panel" id="asSidebarSection">
+                    <div class="collapse-header" onclick="toggleAllstar()">
+                        <h3>&#9889; ALLSTAR NODE</h3>
+                        <span style="display:flex;align-items:center;gap:5px;margin-left:auto;margin-right:8px;">
+                            <span class="rx-dot" id="asRxDot" title="RX activity"></span>
+                            <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
+                            <span id="asNodeBadge" style="color:#ccc;font-size:11px;letter-spacing:0;font-weight:bold;">--</span>
+                            <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:11px;font-weight:bold;">&#8594; <span id="asDirectLinkNode"></span></span>
+                        </span>
+                        <span class="collapse-arrow" id="allstarArrow">&#9660;</span>
+                    </div>
+                    <div class="collapse-body" id="allstarBody">
+                        <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
+                            <button class="btn-monitor" id="btnAsConnect"   onclick="allstarConnect()">&#9654; Connect</button>
+                            <button class="btn-danger"  id="btnAsDisconnect" onclick="allstarDisconnect()" disabled>&#9632; Disconnect</button>
+                            <button class="btn-monitor" id="btnAsAudio"     onclick="toggleAllstarAudio(this)">&#128264; Audio</button>
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <div class="qt-section-label" style="margin-bottom:5px;">NODE LINKING</div>
+                            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                                <input class="tg-input" type="text" id="asRemoteNode"
+                                       placeholder="Remote node #..." style="width:140px;">
+                                <button class="btn-tune"   onclick="allstarLink('monitor')">&#9654; Monitor</button>
+                                <button class="btn-tune"   onclick="allstarLink('transceive')">&#9654; Xceive</button>
+                                <button class="btn-danger" onclick="allstarUnlink()">&#9632; Unlink</button>
+                            </div>
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <div class="qt-section-label" style="margin-bottom:5px;">COMMAND</div>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <input class="tg-input" type="text" id="asCommand"
+                                       placeholder="e.g. *70" style="width:120px;"
+                                       onkeydown="if(event.key==='Enter') allstarCommand()">
+                                <button class="btn-tune" onclick="allstarCommand()">&#9654; Send</button>
+                                <button class="btn-tune" onclick="allstarSendCmd('*70')" title="Node status">&#9432; Status</button>
+                            </div>
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <div class="qt-section-label" style="margin-bottom:5px;">CONNECTED NODES</div>
+                            <div id="asNodeList" style="font-size:12px; color:#ddd; min-height:16px;">--</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- DISPATCH LOG -->
                 <div class="collapse-panel">
                     <div class="collapse-header" onclick="toggleDispatchLog()">
@@ -1295,51 +1340,6 @@ HTML = '''
                                 <tr><td colspan="6" style="color:#777; padding:8px;">Open to load...</td></tr>
                             </tbody>
                         </table>
-                    </div>
-                </div>
-
-                <!-- ALLSTAR -->
-                <div class="collapse-panel" id="asSidebarSection">
-                    <div class="collapse-header" onclick="toggleAllstar()">
-                        <h3>&#9889; ALLSTAR NODE</h3>
-                        <span style="display:flex;align-items:center;gap:5px;margin-left:auto;margin-right:8px;">
-                            <span class="rx-dot" id="asRxDot" title="RX activity"></span>
-                            <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
-                            <span id="asNodeBadge" style="color:#ccc;font-size:11px;letter-spacing:0;font-weight:bold;">--</span>
-                            <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:11px;font-weight:bold;">&#8594; <span id="asDirectLinkNode"></span></span>
-                        </span>
-                        <span class="collapse-arrow" id="allstarArrow">&#9660;</span>
-                    </div>
-                    <div class="collapse-body" id="allstarBody">
-                        <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
-                            <button class="btn-monitor" id="btnAsConnect"   onclick="allstarConnect()">&#9654; Connect</button>
-                            <button class="btn-danger"  id="btnAsDisconnect" onclick="allstarDisconnect()" disabled>&#9632; Disconnect</button>
-                            <button class="btn-monitor" id="btnAsAudio"     onclick="toggleAllstarAudio(this)">&#128264; Audio</button>
-                        </div>
-                        <div style="margin-bottom:10px;">
-                            <div class="qt-section-label" style="margin-bottom:5px;">NODE LINKING</div>
-                            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                                <input class="tg-input" type="text" id="asRemoteNode"
-                                       placeholder="Remote node #..." style="width:140px;">
-                                <button class="btn-tune"   onclick="allstarLink('monitor')">&#9654; Monitor</button>
-                                <button class="btn-tune"   onclick="allstarLink('transceive')">&#9654; Xceive</button>
-                                <button class="btn-danger" onclick="allstarUnlink()">&#9632; Unlink</button>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:10px;">
-                            <div class="qt-section-label" style="margin-bottom:5px;">COMMAND</div>
-                            <div style="display:flex; gap:6px; align-items:center;">
-                                <input class="tg-input" type="text" id="asCommand"
-                                       placeholder="e.g. *70" style="width:120px;"
-                                       onkeydown="if(event.key==='Enter') allstarCommand()">
-                                <button class="btn-tune" onclick="allstarCommand()">&#9654; Send</button>
-                                <button class="btn-tune" onclick="allstarSendCmd('*70')" title="Node status">&#9432; Status</button>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:10px;">
-                            <div class="qt-section-label" style="margin-bottom:5px;">CONNECTED NODES</div>
-                            <div id="asNodeList" style="font-size:12px; color:#ddd; min-height:16px;">--</div>
-                        </div>
                     </div>
                 </div>
 
