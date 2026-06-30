@@ -1399,7 +1399,6 @@ HTML = '''
                 if (data.event === 'tx_start') {
                     document.getElementById('dmrSection').classList.add('active');
                     document.getElementById('txPulse').classList.add('on');
-                    document.getElementById('btnMonitor').classList.add('streaming');
                     document.getElementById('txCallsign').textContent = data.callsign || data.dmr_id || 'UNKNOWN';
                     document.getElementById('callValue').textContent  = data.callsign || data.dmr_id || 'UNKNOWN';
                     document.getElementById('txDetail').textContent   = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
@@ -1409,7 +1408,6 @@ HTML = '''
                 } else if (data.event === 'tx_end') {
                     document.getElementById('dmrSection').classList.remove('active');
                     document.getElementById('txPulse').classList.remove('on');
-                    document.getElementById('btnMonitor').classList.remove('streaming');
                     document.getElementById('txCallsign').textContent = 'STANDBY';
                     document.getElementById('txDetail').textContent   = '—';
                     document.getElementById('txTime').innerHTML       = '&nbsp;';
@@ -2025,6 +2023,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 document.getElementById('tgName').textContent           = d.tg_name         || '';
                 document.getElementById('connectedSince').textContent   = d.connected_since || '--';
                 document.getElementById('headerTime').textContent = timestamp();
+                document.getElementById('btnMonitor').classList.toggle('streaming', d.conn_state === 'rx');
 
                 if (!tgInputPopulated && d.last_tg) {
                     document.getElementById('tgInput').value = d.last_tg;
