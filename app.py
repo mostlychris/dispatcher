@@ -1186,12 +1186,23 @@ HTML = '''
             <div class="sidebar-section">
                 <h3>Audio</h3>
                 <div class="vol-row">
-                    <span class="vol-label">RX Volume</span>
+                    <span class="vol-label">DMR Volume</span>
+                    <button id="dmrMuteBtn" onclick="toggleMuteDmr()"
+                            style="font-size:10px; padding:1px 6px; background:#222; border:1px solid #444; color:#aaa; border-radius:3px; cursor:pointer;">Mute</button>
                     <span class="vol-pct" id="volDisplay">100%</span>
                 </div>
                 <input type="range" class="vol-slider" id="volSlider"
                        min="0" max="100" value="100"
                        oninput="setVolume(this.value)">
+                <div class="vol-row" style="margin-top:8px;">
+                    <span class="vol-label">Allstar Volume</span>
+                    <button id="asMuteBtn" onclick="toggleMuteAllstar()"
+                            style="font-size:10px; padding:1px 6px; background:#222; border:1px solid #444; color:#aaa; border-radius:3px; cursor:pointer;">Mute</button>
+                    <span class="vol-pct" id="asVolDisplay">100%</span>
+                </div>
+                <input type="range" class="vol-slider" id="asVolSlider"
+                       min="0" max="100" value="100"
+                       oninput="setAllstarVolume(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
                     <span class="vol-label">High Pass</span>
                     <span class="vol-pct" id="hpfDisplay" style="color:#fa8;">OFF</span>
@@ -1332,13 +1343,6 @@ HTML = '''
                             <div class="qt-section-label" style="margin-bottom:5px;">CONNECTED NODES</div>
                             <div id="asNodeList" style="font-size:12px; color:#aaa; min-height:16px;">--</div>
                         </div>
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <span class="vol-label" style="white-space:nowrap; flex-shrink:0;">AS Volume</span>
-                            <input type="range" class="vol-slider" id="asVolSlider"
-                                   min="0" max="100" value="100"
-                                   oninput="setAllstarVolume(this.value)" style="flex:1;">
-                            <span class="vol-pct" id="asVolDisplay" style="min-width:35px; text-align:right;">100%</span>
-                        </div>
                     </div>
                 </div>
 
@@ -1410,19 +1414,47 @@ HTML = '''
         // -------------------------
         // VOLUME
         // -------------------------
+        var _dmrMuted = false;
+        var _asMuted  = false;
+
         function setVolume(val) {
             val = parseInt(val);
             document.getElementById('volDisplay').textContent = val + '%';
             document.getElementById('volSlider').style.setProperty('--vol-pct', val + '%');
-            if (dvsp && dvsp.player) dvsp.player.volume(val / 100);
+            if (!_dmrMuted && dvsp && dvsp.player) dvsp.player.volume(val / 100);
             localStorage.setItem('rxVolume', val);
         }
 
+        function toggleMuteDmr() {
+            _dmrMuted = !_dmrMuted;
+            const btn = document.getElementById('dmrMuteBtn');
+            btn.textContent = _dmrMuted ? 'Unmute' : 'Mute';
+            btn.style.color = _dmrMuted ? '#f88' : '#aaa';
+            btn.style.borderColor = _dmrMuted ? '#f44' : '#444';
+            const vol = _dmrMuted ? 0 : parseInt(document.getElementById('volSlider').value) / 100;
+            if (dvsp && dvsp.player) dvsp.player.volume(vol);
+        }
+
+        function toggleMuteAllstar() {
+            _asMuted = !_asMuted;
+            const btn = document.getElementById('asMuteBtn');
+            btn.textContent = _asMuted ? 'Unmute' : 'Mute';
+            btn.style.color = _asMuted ? '#f88' : '#aaa';
+            btn.style.borderColor = _asMuted ? '#f44' : '#444';
+            const vol = _asMuted ? 0 : parseInt(document.getElementById('asVolSlider').value);
+            if (asPlayer) asPlayer.setVolume(vol);
+        }
+
         function applyStoredVolume() {
-            const saved = localStorage.getItem('rxVolume');
-            if (saved !== null) {
-                document.getElementById('volSlider').value = saved;
-                setVolume(saved);
+            const dmrVol = localStorage.getItem('rxVolume');
+            if (dmrVol !== null) {
+                document.getElementById('volSlider').value = dmrVol;
+                setVolume(dmrVol);
+            }
+            const asVol = localStorage.getItem('asVolume');
+            if (asVol !== null) {
+                document.getElementById('asVolSlider').value = asVol;
+                setAllstarVolume(asVol);
             }
         }
 
@@ -2113,7 +2145,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             val = parseInt(val);
             document.getElementById('asVolDisplay').textContent = val + '%';
             document.getElementById('asVolSlider').style.setProperty('--vol-pct', val + '%');
-            if (asPlayer) asPlayer.setVolume(val);
+            if (!_asMuted && asPlayer) asPlayer.setVolume(val);
+            localStorage.setItem('asVolume', val);
         }
 
         var _asPoller = null;
