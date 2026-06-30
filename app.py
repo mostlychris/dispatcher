@@ -914,9 +914,10 @@ HTML = '''
         button.btn-danger:hover { background: #3d2323; }
         button.btn-tune { background: #2a2a1a; color: gold; }
         button.btn-tune:hover { background: #3d3d23; }
-        button.btn-monitor { background: #1a2a3a; color: #7af; }
-        button.btn-monitor:hover { background: #1e324a; }
-        button.btn-monitor.active { background: #004400; color: lime; }
+        button.btn-monitor { background: #1a1a1a; color: #777; border-color: #333; }
+        button.btn-monitor:hover { background: #222; color: #aaa; }
+        button.btn-monitor.active { background: #004400; color: lime; border-color: #006600; }
+        button.btn-monitor.streaming { background: #003a5c; color: #00d4ff; border-color: #0090c0; }
         button:disabled { opacity: 0.35; cursor: not-allowed; }
         .btn-sidebar-sm {
             font-size: 10px; padding: 2px 7px;
@@ -925,9 +926,10 @@ HTML = '''
             cursor: pointer; font-family: monospace;
         }
         .btn-sidebar-sm:hover { background: #333; color: #fff; }
-        .btn-sidebar-sm.btn-monitor { background: #1a2a3a; color: #7af; border-color: #2a4a6a; }
-        .btn-sidebar-sm.btn-monitor:hover { background: #1e324a; }
+        .btn-sidebar-sm.btn-monitor { background: #1a1a1a; color: #777; border-color: #333; }
+        .btn-sidebar-sm.btn-monitor:hover { background: #222; color: #aaa; }
         .btn-sidebar-sm.btn-monitor.active { background: #004400; color: lime; border-color: #006600; }
+        .btn-sidebar-sm.btn-monitor.streaming { background: #003a5c; color: #00d4ff; border-color: #0090c0; }
 
         .controls-sep { width: 1px; height: 24px; background: #2a2a2a; margin: 0 2px; }
 
@@ -1381,6 +1383,7 @@ HTML = '''
                 if (data.event === 'tx_start') {
                     document.getElementById('dmrSection').classList.add('active');
                     document.getElementById('txPulse').classList.add('on');
+                    document.getElementById('btnMonitor').classList.add('streaming');
                     document.getElementById('txCallsign').textContent = data.callsign || data.dmr_id || 'UNKNOWN';
                     document.getElementById('callValue').textContent  = data.callsign || data.dmr_id || 'UNKNOWN';
                     document.getElementById('txDetail').textContent   = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
@@ -1390,6 +1393,7 @@ HTML = '''
                 } else if (data.event === 'tx_end') {
                     document.getElementById('dmrSection').classList.remove('active');
                     document.getElementById('txPulse').classList.remove('on');
+                    document.getElementById('btnMonitor').classList.remove('streaming');
                     document.getElementById('txCallsign').textContent = 'STANDBY';
                     document.getElementById('txDetail').textContent   = '—';
                     document.getElementById('txTime').innerHTML       = '&nbsp;';
@@ -2226,6 +2230,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 _setDirectLink(d.direct_links && d.direct_links.length ? d.direct_links : null);
                 const asSec = document.getElementById('asSidebarSection');
                 if (asSec) asSec.classList.toggle('as-rx', !!(d.state === 'connected' && d.active));
+                ['btnAsAudio', 'btnAsAudioSidebar'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.classList.toggle('streaming', !!(d.state === 'connected' && d.active));
+                });
 
                 const btnConn = document.getElementById('btnAsConnect');
                 const btnDisc = document.getElementById('btnAsDisconnect');
