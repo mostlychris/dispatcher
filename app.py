@@ -123,6 +123,7 @@ active_tx = {
     "tg_name":  "",
     "started":  "",
 }
+clear_tx_gen = [0]  # mutable counter; increment to cancel pending clear_tx threads
 
 usrp_state = {
     "connected":     False,
@@ -369,6 +370,7 @@ def usrp_listener():
 
         if frame['ptt'] == 1 and last_ptt != 1:
             last_ptt = 1
+            clear_tx_gen[0] += 1          # cancel any pending clear_tx
             time.sleep(0.2)
             tx_info  = get_current_tx_from_log()
             dmr_id   = tx_info.get('dmr_id', '')
@@ -384,8 +386,12 @@ def usrp_listener():
 
         elif frame['ptt'] == 0 and last_ptt != 0:
             last_ptt = 0
-            def clear_tx():
+            clear_tx_gen[0] += 1
+            my_gen = clear_tx_gen[0]
+            def clear_tx(gen=my_gen):
                 time.sleep(3)
+                if clear_tx_gen[0] != gen:
+                    return          # PTT came back up — don't clear
                 active_tx.update({
                     "active": False, "callsign": "", "dmr_id": "",
                     "tg": "", "tg_name": "", "started": "",
