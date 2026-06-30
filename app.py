@@ -2095,14 +2095,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             .catch(e => log('Allstar command: ' + e, 'error'));
         }
 
-        function toggleAllstarAudio(btn) {
+        async function toggleAllstarAudio(btn) {
             if (!asPlayer) asPlayer = new AllstarPlayer();
             if (asPlayer.isPlaying()) {
                 asPlayer.stop();
                 btn.classList.remove('active');
                 log('Allstar audio stopped', 'warn');
             } else {
-                asPlayer.play();
+                await asPlayer.play();
                 btn.classList.add('active');
                 log('Allstar audio started', 'ok');
             }
@@ -2183,44 +2183,46 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         class AllstarPlayer {
             constructor() {
                 this.ws      = null;
-                this.player  = null;
+                this._wp     = null;
                 this.playing = false;
                 this._vol    = 1.0;
             }
 
-            play() {
+            async play() {
+                this._wp = new WorkletPlayer(8000);
+                try {
+                    await this._wp.init();
+                } catch(e) {
+                    log('Allstar AudioWorklet failed: ' + e, 'error');
+                    this._wp = null;
+                    return;
+                }
+                this._wp.volume(this._vol);
+
                 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const url   = proto + '//' + location.host + '/ws/allstar-audio';
-                this.player = new PCMPlayer({
-                    encoding:    '16bitInt',
-                    channels:    1,
-                    sampleRate:  8000,
-                    flushingTime: 500,
-                });
-                this.player.volume(this._vol);
                 this.ws = new WebSocket(url);
                 this.ws.binaryType = 'arraybuffer';
                 this.ws.onmessage  = (e) => {
-                    if (this.player) this.player.feed(new Uint8Array(e.data));
+                    if (this._wp) this._wp.feed(new Uint8Array(e.data));
                 };
                 this.ws.onclose = () => {
                     if (this.playing) setTimeout(() => this.play(), 3000);
                 };
                 this.playing = true;
-                this.player.play();
             }
 
             stop() {
                 this.playing = false;
-                if (this.ws)     { this.ws.close(); this.ws = null; }
-                if (this.player) { this.player.stop(); this.player = null; }
+                if (this.ws)  { this.ws.close(); this.ws = null; }
+                if (this._wp) { this._wp.stop(); this._wp = null; }
             }
 
             isPlaying() { return this.playing; }
 
             setVolume(v) {
                 this._vol = v / 100;
-                if (this.player) this.player.volume(this._vol);
+                if (this._wp) this._wp.volume(this._vol);
             }
         }
 
