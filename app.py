@@ -862,22 +862,9 @@ HTML = '''
         .svc-text-off { color: #555; font-size: 11px; }
 
         /* ---- ACTIVE TX IN SIDEBAR ---- */
-        .tx-block {
-            background: #1a1a1a;
-            border-radius: 6px;
-            padding: 10px;
-            border: 1px solid #222;
-            transition: border-color 0.3s, background 0.3s;
-        }
-        .tx-block.active {
+        #dmrSection.active {
             background: #0d1f0d;
             border-color: #2a4a2a;
-        }
-        .tx-block h3 {
-            font-size: 9px; color: #555;
-            letter-spacing: 1px; margin-bottom: 8px;
-            text-transform: uppercase;
-            display: flex; align-items: center; gap: 6px;
         }
         .tx-pulse {
             width: 7px; height: 7px; border-radius: 50%;
@@ -893,14 +880,6 @@ HTML = '''
             50%  { box-shadow: 0 0 10px lime; }
             100% { box-shadow: 0 0 3px lime; }
         }
-        .tx-callsign {
-            font-size: 22px; font-weight: bold;
-            color: #333; letter-spacing: 2px;
-            line-height: 1.2; margin-bottom: 4px;
-        }
-        .tx-callsign.on { color: lime; }
-        .tx-detail { font-size: 10px; color: #555; margin-top: 2px; }
-        .tx-detail.on { color: #888; }
 
         /* ---- RIGHT CONTENT ---- */
         .content {
@@ -1146,42 +1125,6 @@ HTML = '''
         <!-- SIDEBAR -->
         <div class="sidebar">
 
-            <!-- ACTIVE TX -->
-            <div class="tx-block" id="txBlock">
-                <h3><span class="tx-pulse" id="txPulse"></span>ON AIR</h3>
-                <div class="tx-callsign" id="txCallsign">STANDBY</div>
-                <div class="tx-detail"   id="txDetail">&mdash;</div>
-                <div class="tx-detail"   id="txTime">&nbsp;</div>
-            </div>
-
-            <!-- SYSTEM STATUS -->
-            <div class="sidebar-section">
-                <h3>Status</h3>
-                <div class="stat-row">
-                    <span class="stat-key">Network</span>
-                    <span class="stat-val"><span class="mode-badge badge-unknown" id="modeValue">--</span></span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-key">State</span>
-                    <span class="stat-val"><span class="conn-badge conn-offline" id="connState">OFFLINE</span></span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-key">Since</span>
-                    <span class="stat-val" id="connectedSince" style="color:#666; font-size:10px;">--</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-key">Callsign</span>
-                    <span class="stat-val" id="callValue" style="color:orange;">--</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-key">Talkgroup</span>
-                    <span class="stat-val" style="text-align:right;">
-                        <span style="color:lightgreen;" id="tgValue">--</span><br>
-                        <span style="color:#4a4; font-size:10px;" id="tgName"></span>
-                    </span>
-                </div>
-            </div>
-
 
             <!-- AUDIO -->
             <div class="sidebar-section">
@@ -1249,6 +1192,30 @@ HTML = '''
 
             <!-- PANELS -->
             <div class="panels">
+
+                <!-- DMR STATUS -->
+                <div class="collapse-panel" id="dmrSection" style="margin-bottom:8px;">
+                    <div class="collapse-header" onclick="toggleDmrSection()">
+                        <h3>&#128251; DMR</h3>
+                        <span style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px;">
+                            <span class="tx-pulse" id="txPulse"></span>
+                            <span class="mode-badge badge-unknown" id="modeValue">--</span>
+                            <span class="conn-badge conn-offline" id="connState">OFFLINE</span>
+                            <span id="callValue" style="color:orange;font-size:11px;font-weight:bold;"></span>
+                            <span id="tgValue"   style="color:lightgreen;font-size:11px;font-weight:bold;"></span>
+                        </span>
+                        <span class="collapse-arrow open" id="dmrArrow">&#9660;</span>
+                    </div>
+                    <div class="collapse-body open" id="dmrBody">
+                        <div class="status-strip" style="padding:4px 0 2px;">
+                            <span class="strip-item">Since <span id="connectedSince" style="color:#666;">--</span></span>
+                            <span class="strip-item"><span id="txCallsign" style="color:lime;font-weight:bold;">STANDBY</span></span>
+                            <span class="strip-item"><span id="txDetail" style="color:#888;">&mdash;</span></span>
+                            <span class="strip-item"><span id="tgName" style="color:#4a4;font-size:10px;"></span></span>
+                            <span class="strip-item"><span id="txTime" style="color:#555;font-size:10px;">&nbsp;</span></span>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- STATUS STRIP -->
                 <div class="collapse-panel" style="margin-bottom:8px;">
@@ -1400,26 +1367,20 @@ HTML = '''
             es.onmessage = function(e) {
                 const data = JSON.parse(e.data);
                 if (data.event === 'tx_start') {
-                    document.getElementById('txBlock').classList.add('active');
+                    document.getElementById('dmrSection').classList.add('active');
                     document.getElementById('txPulse').classList.add('on');
-                    const cs = document.getElementById('txCallsign');
-                    cs.textContent = data.callsign || data.dmr_id || 'UNKNOWN';
-                    cs.classList.add('on');
-                    const det = document.getElementById('txDetail');
-                    det.textContent = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
-                    det.classList.add('on');
-                    document.getElementById('txTime').textContent = 'Since ' + data.started;
+                    document.getElementById('txCallsign').textContent = data.callsign || data.dmr_id || 'UNKNOWN';
+                    document.getElementById('callValue').textContent  = data.callsign || data.dmr_id || 'UNKNOWN';
+                    document.getElementById('txDetail').textContent   = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
+                    document.getElementById('txTime').textContent     = 'Since ' + data.started;
                     log('TX: ' + (data.callsign || data.dmr_id) + ' → TG ' + data.tg, 'ok');
                     if (lastHeardOpen) pollLastHeard();
                 } else if (data.event === 'tx_end') {
-                    document.getElementById('txBlock').classList.remove('active');
+                    document.getElementById('dmrSection').classList.remove('active');
                     document.getElementById('txPulse').classList.remove('on');
-                    const cs = document.getElementById('txCallsign');
-                    cs.textContent = 'STANDBY';
-                    cs.classList.remove('on');
-                    document.getElementById('txDetail').textContent = '—';
-                    document.getElementById('txDetail').classList.remove('on');
-                    document.getElementById('txTime').innerHTML = '&nbsp;';
+                    document.getElementById('txCallsign').textContent = 'STANDBY';
+                    document.getElementById('txDetail').textContent   = '—';
+                    document.getElementById('txTime').innerHTML       = '&nbsp;';
                     if (lastHeardOpen) pollLastHeard();
                 }
             };
@@ -1794,6 +1755,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var logViewerOpen   = false;
         var logPollTimer    = null;
         var dispatchLogOpen = true;
+
+        var dmrSectionOpen = true;
+        function toggleDmrSection() {
+            dmrSectionOpen = !dmrSectionOpen;
+            document.getElementById('dmrBody').classList.toggle('open', dmrSectionOpen);
+            document.getElementById('dmrArrow').classList.toggle('open', dmrSectionOpen);
+        }
 
         function toggleDispatchLog() {
             dispatchLogOpen = !dispatchLogOpen;
