@@ -1197,7 +1197,7 @@ HTML = '''
                     <span class="vol-pct" id="hpfDisplay" style="color:#fa8;">OFF</span>
                 </div>
                 <input type="range" class="hpf-slider" id="hpfSlider"
-                       min="100" max="600" step="10" value="350"
+                       min="100" max="600" step="10" value="220"
                        oninput="setHpFilter(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
                     <span class="vol-label">Presence</span>
@@ -1206,6 +1206,13 @@ HTML = '''
                 <input type="range" class="pres-slider" id="presSlider"
                        min="0" max="12" step="0.5" value="0"
                        oninput="setPresence(this.value)">
+                <div class="vol-row" style="margin-top:8px;">
+                    <span class="vol-label">Noise Gate</span>
+                    <label style="cursor:pointer; color:#aaa; font-size:11px;">
+                        <input type="checkbox" id="gateToggle" onchange="setGate(this.checked)"> Enable
+                    </label>
+                </div>
+                <div id="audioStats" style="font-size:10px; color:#444; margin-top:8px;">Buffer: -- | Underruns: --</div>
             </div>
         </div>
 
@@ -1420,97 +1427,199 @@ HTML = '''
         }
 
         // -------------------------
-        // DMR AUDIO FILTERS
+        // DMR AUDIO — AudioWorklet ring-buffer player
         // -------------------------
+        const WORKLET_CODE = `
+class PCMRingProcessor extends AudioWorkletProcessor {
+    constructor(options) {
+        super();
+        const sr = (options && options.processorOptions && options.processorOptions.sampleRate) || 8000;
+        this._size  = sr * 3;
+        this._buf   = new Float32Array(this._size);
+        this._w     = 0;
+        this._r     = 0;
+        this._underruns  = 0;
+        this._frame      = 0;
+        this._reportEvery = Math.round(sr / 4);
+        this._gateEnabled = false;
+        this._gateOpen    = false;
+        this._gateGain    = 0;
+        this.port.onmessage = ({ data }) => {
+            if (!data) return;
+            if (data.pcm) {
+                const pcm = data.pcm;
+                for (let i = 0; i < pcm.length; i++) {
+                    this._buf[this._w] = pcm[i];
+                    this._w = (this._w + 1) % this._size;
+                }
+            }
+            if (data.gate !== undefined) this._gateEnabled = data.gate;
+        };
+    }
+    get _avail() { return (this._w - this._r + this._size) % this._size; }
+    process(inputs, outputs) {
+        const out   = outputs[0][0];
+        const n     = out.length;
+        const avail = this._avail;
+        if (avail < n) {
+            out.fill(0);
+            this._underruns++;
+            this.port.postMessage({ underrun: true, buffered: avail, underruns: this._underruns });
+        } else {
+            for (let i = 0; i < n; i++) {
+                out[i]  = this._buf[this._r];
+                this._r = (this._r + 1) % this._size;
+            }
+            if (this._gateEnabled) {
+                let sumSq = 0;
+                for (let i = 0; i < n; i++) sumSq += out[i] * out[i];
+                const rms = Math.sqrt(sumSq / n);
+                if (rms > 0.008) this._gateOpen = true;
+                if (rms < 0.003) this._gateOpen = false;
+                const target = this._gateOpen ? 1.0 : 0.0;
+                for (let i = 0; i < n; i++) {
+                    if (this._gateGain < target) this._gateGain = Math.min(target, this._gateGain + 0.05);
+                    else this._gateGain = Math.max(target, this._gateGain - 0.002);
+                    out[i] *= this._gateGain;
+                }
+            }
+        }
+        this._frame += n;
+        if (this._frame % this._reportEvery < n) {
+            this.port.postMessage({ stats: { buffered: this._avail, underruns: this._underruns } });
+        }
+        return true;
+    }
+}
+registerProcessor('pcm-ring-processor', PCMRingProcessor);
+`;
+
+        class WorkletPlayer {
+            constructor(sampleRate) {
+                this.sampleRate  = sampleRate || 8000;
+                this.audioCtx    = null;
+                this.workletNode = null;
+                this.gainNode    = null;
+                this._ready      = false;
+                this._queue      = [];
+            }
+            async init() {
+                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate:  this.sampleRate,
+                    latencyHint: 'interactive',
+                });
+                this.gainNode = this.audioCtx.createGain();
+                this.gainNode.gain.value = 1;
+                this.gainNode.connect(this.audioCtx.destination);
+
+                const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' });
+                const url  = URL.createObjectURL(blob);
+                await this.audioCtx.audioWorklet.addModule(url);
+                URL.revokeObjectURL(url);
+
+                this.workletNode = new AudioWorkletNode(this.audioCtx, 'pcm-ring-processor', {
+                    processorOptions:   { sampleRate: this.sampleRate },
+                    numberOfInputs:     0,
+                    numberOfOutputs:    1,
+                    outputChannelCount: [1],
+                });
+                this.workletNode.port.onmessage = ({ data }) => {
+                    if (data && data.stats) updateAudioStats(data.stats);
+                };
+                this.workletNode.connect(this.gainNode);
+
+                this._ready = true;
+                for (const chunk of this._queue) this._post(chunk);
+                this._queue = [];
+            }
+            feed(uint8) {
+                const int16   = new Int16Array(uint8.buffer, uint8.byteOffset, uint8.byteLength >> 1);
+                const float32 = new Float32Array(int16.length);
+                for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+                if (this._ready) this._post(float32);
+                else             this._queue.push(float32);
+            }
+            _post(f32) {
+                this.workletNode.port.postMessage({ pcm: f32 }, [f32.buffer]);
+            }
+            volume(v) { if (this.gainNode) this.gainNode.gain.value = v; }
+            play()    { /* audio is continuous via worklet process() */ }
+            stop()    {
+                this._ready = false;
+                this._queue = [];
+                if (this.audioCtx) { this.audioCtx.close(); this.audioCtx = null; }
+                this.workletNode = null;
+                this.gainNode    = null;
+            }
+        }
+
+        var _workletPlayer = null;  // reference held so gate/stats can reach it
+
+        function updateAudioStats(stats) {
+            const el = document.getElementById('audioStats');
+            if (!el) return;
+            const ms = Math.round((stats.buffered || 0) / 8000 * 1000);
+            el.textContent = 'Buffer: ' + ms + 'ms | Underruns: ' + (stats.underruns || 0);
+            el.style.color = stats.underruns > 0 ? '#f80' : '#444';
+        }
+
+        function setGate(enabled) {
+            if (_workletPlayer && _workletPlayer.workletNode)
+                _workletPlayer.workletNode.port.postMessage({ gate: enabled });
+            localStorage.setItem('rxGate', enabled ? '1' : '0');
+        }
+
         var shelfFilter = null;
         var notchFilter = null;
         var hpFilter    = null;
         var presFilter  = null;
         var compressor  = null;
 
-        function setupAudioFilters() {
-            if (!dvsp || !dvsp.player || !dvsp.player.audioCtx) return;
+        function setupAudioFilters(player) {
+            if (!player || !player.audioCtx) return;
             if (hpFilter) return;
-            const player = dvsp.player;
+            const ctx = player.audioCtx;
 
-            // The DVSwitchPlayer constructor hardcodes flushingTime:2000. Changing
-            // player.option.flushingTime after play() has started does nothing because
-            // the setInterval is already running. Clear it and reset to 100ms.
-            // Also replace flush() to remove the console.log it fires on every chunk.
-            clearInterval(player.interval);
-            player.flush = function() {
-                if (!this.samples || !this.samples.length) return;
-                const src = this.audioCtx.createBufferSource();
-                const frameCount = this.samples.length / this.option.channels;
-                const buf = this.audioCtx.createBuffer(this.option.channels, frameCount, this.option.sampleRate);
-                const FADE = 50;
-                for (let ch = 0; ch < this.option.channels; ch++) {
-                    const out = buf.getChannelData(ch);
-                    let si = ch, fadeOut = FADE;
-                    for (let i = 0; i < frameCount; i++) {
-                        out[i] = this.samples[si];
-                        if (i < FADE)            out[i] *= i / FADE;
-                        if (i >= frameCount - FADE) out[i] *= fadeOut-- / FADE;
-                        si += this.option.channels;
-                    }
-                }
-                if (this.startTime < this.audioCtx.currentTime) this.startTime = this.audioCtx.currentTime;
-                src.buffer = buf;
-                src.connect(this.gainNode);
-                src.start(this.startTime);
-                this.startTime += buf.duration;
-                this.samples = new Float32Array();
-            }.bind(player);
-            player.option.flushingTime = 100;
-            player.interval = setInterval(player.flush, 100);
-
-            // Low-shelf: −9 dB below 200 Hz — gradual roll-off of AMBE vocoder rumble/mud
-            shelfFilter = player.audioCtx.createBiquadFilter();
+            shelfFilter = ctx.createBiquadFilter();
             shelfFilter.type = 'lowshelf';
             shelfFilter.frequency.value = 200;
             shelfFilter.gain.value      = -9;
 
-            // Narrow cut at 150 Hz: targets the AMBE pitch synthesis fundamental —
-            // the vocoder locks onto voice pitch in this range and can over-emphasize it
-            notchFilter = player.audioCtx.createBiquadFilter();
+            notchFilter = ctx.createBiquadFilter();
             notchFilter.type = 'peaking';
             notchFilter.frequency.value = 150;
             notchFilter.Q.value         = 2.0;
             notchFilter.gain.value      = -6;
 
-            // High-pass: removes sub-bass and DC after the shelf
-            hpFilter = player.audioCtx.createBiquadFilter();
-            hpFilter.type = 'highpass';
+            hpFilter = ctx.createBiquadFilter();
+            hpFilter.type    = 'highpass';
             hpFilter.Q.value = 0.7;
 
-            // Peaking EQ: restores presence the AMBE vocoder rolls off
-            presFilter = player.audioCtx.createBiquadFilter();
+            // Wider presence (Q 0.7 vs 1.0) for more natural speech restoration
+            presFilter = ctx.createBiquadFilter();
             presFilter.type = 'peaking';
             presFilter.frequency.value = 2500;
-            presFilter.Q.value = 1.0;
+            presFilter.Q.value         = 0.7;
 
-            // Compressor: tames uneven level swings between AMBE codec frames
-            compressor = player.audioCtx.createDynamicsCompressor();
-            compressor.threshold.value = -24;
-            compressor.knee.value      = 6;
-            compressor.ratio.value     = 4;
+            // Lighter compression: 3:1 ratio, -20 dBFS threshold, softer knee
+            compressor = ctx.createDynamicsCompressor();
+            compressor.threshold.value = -20;
+            compressor.knee.value      = 8;
+            compressor.ratio.value     = 3;
             compressor.attack.value    = 0.003;
             compressor.release.value   = 0.45;
 
-            // gainNode → shelfFilter → notchFilter → hpFilter → presFilter → compressor → destination
+            // gainNode → shelf → notch → hp → presence → compressor → destination
             player.gainNode.disconnect();
             player.gainNode.connect(shelfFilter);
             shelfFilter.connect(notchFilter);
             notchFilter.connect(hpFilter);
             hpFilter.connect(presFilter);
             presFilter.connect(compressor);
-            compressor.connect(player.audioCtx.destination);
+            compressor.connect(ctx.destination);
 
-            // Apply whatever values the sliders already have
-            const hpVal   = parseInt(document.getElementById('hpfSlider').value);
-            const presVal = parseFloat(document.getElementById('presSlider').value);
-            hpFilter.frequency.value = hpVal;
-            presFilter.gain.value    = presVal;
+            hpFilter.frequency.value = parseInt(document.getElementById('hpfSlider').value);
+            presFilter.gain.value    = parseFloat(document.getElementById('presSlider').value);
         }
 
         function setHpFilter(val) {
@@ -1532,18 +1641,23 @@ HTML = '''
         }
 
         function applyStoredFilters() {
-            const hpVal   = parseInt(localStorage.getItem('rxHpFilter')  ?? 350);
+            const hpVal   = parseInt(localStorage.getItem('rxHpFilter')  ?? 220);
             const presVal = parseFloat(localStorage.getItem('rxPresence') ?? 0);
+            const gateOn  = localStorage.getItem('rxGate') === '1';
             document.getElementById('hpfSlider').value  = hpVal;
             document.getElementById('presSlider').value = presVal;
+            if (document.getElementById('gateToggle')) document.getElementById('gateToggle').checked = gateOn;
             setHpFilter(hpVal);
             setPresence(presVal);
         }
 
         var dvsp = null;
-        function toggleMonitor(btn) {
+        async function toggleMonitor(btn) {
             if (dvsp && dvsp.isPlaying()) {
                 dvsp.stop();
+                // WorkletPlayer.stop() closes the AudioContext; reset filter refs
+                // so setupAudioFilters() will rewire them on next play.
+                hpFilter = shelfFilter = notchFilter = presFilter = compressor = null;
                 btn.classList.remove('active');
                 log('RX Monitor stopped', 'warn');
             } else {
@@ -1551,9 +1665,21 @@ HTML = '''
                     dvsp = new DVSwitchPlayer({{ dvswitchplayer_port }}, btn);
                     dvsp.socketURL = '{{ audio_ws_url }}';
                     dvsp.ws = null;
-                    applyStoredVolume();
-                    setupAudioFilters();
                 }
+                // (Re-)create the WorkletPlayer each time so the AudioContext is fresh.
+                _workletPlayer = new WorkletPlayer(dvsp.sampleRate);
+                try {
+                    await _workletPlayer.init();
+                    dvsp.player = _workletPlayer;
+                    setupAudioFilters(_workletPlayer);
+                    // Restore gate state
+                    const gateOn = localStorage.getItem('rxGate') === '1';
+                    if (gateOn) setGate(true);
+                } catch(e) {
+                    log('AudioWorklet init failed: ' + e, 'error');
+                    _workletPlayer = null;
+                }
+                applyStoredVolume();
                 dvsp.play();
                 btn.classList.add('active');
                 log('RX Monitor started', 'ok');
