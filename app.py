@@ -918,6 +918,16 @@ HTML = '''
         button.btn-monitor:hover { background: #1e324a; }
         button.btn-monitor.active { background: #004400; color: lime; }
         button:disabled { opacity: 0.35; cursor: not-allowed; }
+        .btn-sidebar-sm {
+            font-size: 10px; padding: 2px 7px;
+            border-radius: 3px; border: 1px solid #444;
+            background: #222; color: #aaa;
+            cursor: pointer; font-family: monospace;
+        }
+        .btn-sidebar-sm:hover { background: #333; color: #fff; }
+        .btn-sidebar-sm.btn-monitor { background: #1a2a3a; color: #7af; border-color: #2a4a6a; }
+        .btn-sidebar-sm.btn-monitor:hover { background: #1e324a; }
+        .btn-sidebar-sm.btn-monitor.active { background: #004400; color: lime; border-color: #006600; }
 
         .controls-sep { width: 1px; height: 24px; background: #2a2a2a; margin: 0 2px; }
 
@@ -1125,27 +1135,18 @@ HTML = '''
         <div class="sidebar">
 
 
-            <!-- AUDIO -->
+            <!-- DMR AUDIO -->
             <div class="sidebar-section">
-                <h3>Audio</h3>
+                <h3>DMR Audio</h3>
                 <div class="vol-row">
-                    <span class="vol-label">DMR Volume</span>
-                    <button id="dmrMuteBtn" onclick="toggleMuteDmr()"
-                            style="font-size:10px; padding:1px 6px; background:#222; border:1px solid #444; color:#aaa; border-radius:3px; cursor:pointer;">Mute</button>
+                    <span class="vol-label">Volume</span>
+                    <button id="dmrMuteBtn" onclick="toggleMuteDmr()" class="btn-sidebar-sm">Mute</button>
+                    <button id="btnMonitor" onclick="toggleMonitor(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
                     <span class="vol-pct" id="volDisplay">100%</span>
                 </div>
                 <input type="range" class="vol-slider" id="volSlider"
                        min="0" max="100" value="100"
                        oninput="setVolume(this.value)">
-                <div class="vol-row" style="margin-top:8px;">
-                    <span class="vol-label">Allstar Volume</span>
-                    <button id="asMuteBtn" onclick="toggleMuteAllstar()"
-                            style="font-size:10px; padding:1px 6px; background:#222; border:1px solid #444; color:#aaa; border-radius:3px; cursor:pointer;">Mute</button>
-                    <span class="vol-pct" id="asVolDisplay">100%</span>
-                </div>
-                <input type="range" class="vol-slider" id="asVolSlider"
-                       min="0" max="100" value="100"
-                       oninput="setAllstarVolume(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
                     <span class="vol-label">High Pass</span>
                     <span class="vol-pct" id="hpfDisplay" style="color:#fa8;">OFF</span>
@@ -1168,6 +1169,20 @@ HTML = '''
                 </div>
                 <div id="audioStats" style="font-size:10px; color:#999; margin-top:8px;">Buffer: -- | Underruns: --</div>
             </div>
+
+            <!-- ALLSTAR AUDIO -->
+            <div class="sidebar-section">
+                <h3>Allstar Audio</h3>
+                <div class="vol-row">
+                    <span class="vol-label">Volume</span>
+                    <button id="asMuteBtn" onclick="toggleMuteAllstar()" class="btn-sidebar-sm">Mute</button>
+                    <button id="btnAsAudioSidebar" onclick="toggleAllstarAudio(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
+                    <span class="vol-pct" id="asVolDisplay">100%</span>
+                </div>
+                <input type="range" class="vol-slider" id="asVolSlider"
+                       min="0" max="100" value="100"
+                       oninput="setAllstarVolume(this.value)">
+            </div>
         </div>
 
         <!-- MAIN CONTENT -->
@@ -1185,8 +1200,6 @@ HTML = '''
                 <input  class="tg-input" type="text" id="tgInput" placeholder="Talkgroup...">
                 <button class="btn-tune" onclick="tuneTG()">&#9654; Tune</button>
                 <button class="btn-save-fav" onclick="saveFavorite()" title="Save to favorites for current network">&#9733; Fav</button>
-                <div class="controls-sep"></div>
-                <button class="btn-monitor" id="btnMonitor" onclick="toggleMonitor(this)">&#128264; AUDIO</button>
             </div>
 
             <!-- PANELS -->
@@ -2079,7 +2092,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 _setDirectLink(null);
                 if (asPlayer && asPlayer.isPlaying()) {
                     asPlayer.stop();
-                    document.getElementById('btnAsAudio').classList.remove('active');
+                    _syncAsAudioBtns(false);
                 }
                 pollAllstarStatus();
             });
@@ -2137,15 +2150,22 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             .catch(e => log('Allstar command: ' + e, 'error'));
         }
 
+        function _syncAsAudioBtns(active) {
+            ['btnAsAudio', 'btnAsAudioSidebar'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('active', active);
+            });
+        }
+
         async function toggleAllstarAudio(btn) {
             if (!asPlayer) asPlayer = new AllstarPlayer();
             if (asPlayer.isPlaying()) {
                 asPlayer.stop();
-                btn.classList.remove('active');
+                _syncAsAudioBtns(false);
                 log('Allstar audio stopped', 'warn');
             } else {
                 await asPlayer.play();
-                btn.classList.add('active');
+                _syncAsAudioBtns(true);
                 log('Allstar audio started', 'ok');
             }
         }
