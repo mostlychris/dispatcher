@@ -1294,6 +1294,7 @@ HTML = '''
                             <span class="rx-dot" id="asRxDot" title="RX activity"></span>
                             <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
                             <span id="asNodeBadge" style="color:#888;font-size:11px;letter-spacing:0;font-weight:bold;">--</span>
+                            <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:11px;font-weight:bold;">&#8594; <span id="asDirectLinkNode"></span></span>
                         </span>
                         <span class="collapse-arrow" id="allstarArrow">&#9660;</span>
                     </div>
@@ -2051,6 +2052,21 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             .catch(e => log('Allstar connect: ' + e, 'error'));
         }
 
+        var _asDirectLink = null;
+
+        function _setDirectLink(node) {
+            _asDirectLink = node || null;
+            const badge = document.getElementById('asDirectLinkBadge');
+            const nodeEl = document.getElementById('asDirectLinkNode');
+            if (_asDirectLink) {
+                nodeEl.textContent = _asDirectLink;
+                badge.style.display = '';
+            } else {
+                badge.style.display = 'none';
+                nodeEl.textContent = '';
+            }
+        }
+
         function allstarDisconnect() {
             fetch('/api/allstar/disconnect', {
                 method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
@@ -2058,6 +2074,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             .then(r => r.json())
             .then(d => {
                 log(d.message, 'warn');
+                _setDirectLink(null);
                 if (asPlayer && asPlayer.isPlaying()) {
                     asPlayer.stop();
                     document.getElementById('btnAsAudio').classList.remove('active');
@@ -2074,7 +2091,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 body: JSON.stringify({node: remote, mode})
             })
             .then(r => r.json())
-            .then(d => log(d.message, d.ok ? 'ok' : 'error'))
+            .then(d => {
+                log(d.message, d.ok ? 'ok' : 'error');
+                if (d.ok) _setDirectLink(remote);
+            })
             .catch(e => log('Allstar link: ' + e, 'error'));
         }
 
@@ -2086,7 +2106,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 body: JSON.stringify({node: remote})
             })
             .then(r => r.json())
-            .then(d => log(d.message, d.ok ? 'ok' : 'error'))
+            .then(d => {
+                log(d.message, d.ok ? 'ok' : 'error');
+                if (d.ok) _setDirectLink(null);
+            })
             .catch(e => log('Allstar unlink: ' + e, 'error'));
         }
 
