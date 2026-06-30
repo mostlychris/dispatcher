@@ -635,13 +635,31 @@ favorites = load_favorites()
 # -------------------------
 # ALLSTAR / IAX2
 # -------------------------
+ALLSTAR_STATE_FILE = os.path.join(os.path.dirname(__file__), 'allstar_state.json')
+
+def _load_allstar_state():
+    try:
+        with open(ALLSTAR_STATE_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_allstar_state(data):
+    try:
+        with open(ALLSTAR_STATE_FILE, 'w') as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Warning: could not save allstar state: {e}")
+
 class AllstarManager:
     def __init__(self):
-        self.client      = None
-        self._ws_qs      = []
-        self._lock       = threading.Lock()
-        self._last_audio = 0.0
+        self.client       = None
+        self._ws_qs       = []
+        self._lock        = threading.Lock()
+        self._last_audio  = 0.0
         self.linked_nodes = []   # updated by 'L ' TEXT frames from app_rpt
+        _st = _load_allstar_state()
+        self.direct_links = _st.get('direct_links', [])  # persisted direct-link nodes
 
     def _on_audio(self, pcm: bytes):
         self._last_audio = time.time()
@@ -691,18 +709,33 @@ class AllstarManager:
         if self.client:
             self.client.disconnect()
             self.client = None
+        self._set_direct_links([])
+
+    def add_direct_link(self, node: str):
+        if node not in self.direct_links:
+            self.direct_links.append(node)
+        _save_allstar_state({'direct_links': self.direct_links})
+
+    def remove_direct_link(self, node: str):
+        self.direct_links = [n for n in self.direct_links if n != node]
+        _save_allstar_state({'direct_links': self.direct_links})
+
+    def _set_direct_links(self, nodes: list):
+        self.direct_links = nodes
+        _save_allstar_state({'direct_links': self.direct_links})
 
     @property
     def status(self):
         if not self.client:
-            return {'state': 'idle', 'node': '', 'error': '', 'active': False}
+            return {'state': 'idle', 'node': '', 'error': '', 'active': False, 'direct_links': self.direct_links}
         active = (self.client.state == 'connected' and
                   time.time() - self._last_audio < 0.6)
         return {
-            'state':  self.client.state,
-            'node':   self.client.node,
-            'error':  self.client.error_msg,
-            'active': active,
+            'state':        self.client.state,
+            'node':         self.client.node,
+            'error':        self.client.error_msg,
+            'active':       active,
+            'direct_links': self.direct_links,
         }
 
     def send_dtmf(self, digits: str, inter_digit: float = 0.0):
@@ -2168,7 +2201,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const el  = document.getElementById('asNodeList');
                 if (!d.nodes || d.nodes.length === 0) {
                     el.textContent = '(none)';
-                    _setDirectLink(null);
                     return;
                 }
                 const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
@@ -2178,8 +2210,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                         <span style="color:#666;font-size:10px;">${modeLabel[n.mode] || n.mode}</span>
                     </span>`
                 ).join('');
-                // The L frame from app_rpt lists 556980's direct links only.
-                _setDirectLink(d.nodes.map(n => n.node));
             } catch(e) {}
         }
 
@@ -2206,6 +2236,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 }
                 if (dot) dot.className = 'rx-dot' + (d.active ? ' lit' : '');
                 nodeEl.textContent = d.node || '--';
+                _setDirectLink(d.direct_links && d.direct_links.length ? d.direct_links : null);
                 const asSec = document.getElementById('asSidebarSection');
                 if (asSec) asSec.classList.toggle('as-rx', !!(d.state === 'connected' && d.active));
 
@@ -2514,7 +2545,7 @@ def allstar_connect():
 
 @app.route('/api/allstar/disconnect', methods=['POST'])
 def allstar_disconnect():
-    allstar_mgr.disconnect()
+    allstar_mgr.disconnect()  # also clears direct_links
     return jsonify({'ok': True, 'message': 'Disconnected from Allstar'})
 
 
@@ -2530,6 +2561,7 @@ def allstar_link():
     prefix = '*2' if mode == 'monitor' else '*3'
     try:
         allstar_mgr.send_dtmf(prefix + remote)
+        allstar_mgr.add_direct_link(remote)
         return jsonify({'ok': True, 'message': f'Linking to {remote} ({mode})...'})
     except RuntimeError as e:
         return jsonify({'ok': False, 'message': str(e)})
@@ -2545,6 +2577,7 @@ def allstar_unlink():
         return jsonify({'ok': False, 'message': 'Not connected to Allstar'})
     try:
         allstar_mgr.send_dtmf('*1' + remote)
+        allstar_mgr.remove_direct_link(remote)
         return jsonify({'ok': True, 'message': f'Unlinking {remote}...'})
     except RuntimeError as e:
         return jsonify({'ok': False, 'message': str(e)})
