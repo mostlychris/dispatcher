@@ -789,8 +789,8 @@ HTML = '''
             align-items: center;
             justify-content: space-between;
         }
-        .header-bar h1 { font-size: 14px; letter-spacing: 2px; color: #aaa; }
-        .header-time   { font-size: 11px; color: #555; }
+        .header-bar h1 { font-size: 14px; letter-spacing: 2px; color: #ddd; }
+        .header-time   { font-size: 11px; color: #888; }
 
         /* ---- MAIN LAYOUT ---- */
         .app-body { display: grid; grid-template-columns: 220px 1fr; gap: 0; height: calc(100vh - 37px); }
@@ -812,7 +812,7 @@ HTML = '''
             padding: 10px;
         }
         .sidebar-section h3 {
-            font-size: 9px; color: #555;
+            font-size: 9px; color: #888;
             letter-spacing: 1px; margin-bottom: 8px;
             text-transform: uppercase;
         }
@@ -823,8 +823,8 @@ HTML = '''
             border-bottom: 1px solid #1f1f1f;
         }
         .stat-row:last-child { border-bottom: none; }
-        .stat-key   { font-size: 10px; color: #555; }
-        .stat-val   { font-size: 12px; color: #ccc; text-align: right; }
+        .stat-key   { font-size: 10px; color: #999; }
+        .stat-val   { font-size: 12px; color: #eee; text-align: right; }
 
         .mode-badge {
             display: inline-block; padding: 1px 7px;
@@ -843,8 +843,8 @@ HTML = '''
         .sidebar-section.as-rx { background: #0a2010; border-radius: 6px; box-shadow: 0 0 6px #0f0; transition: background 0.3s, box-shadow 0.3s; }
         .collapse-panel.as-rx { box-shadow: 0 0 6px #0f0; transition: box-shadow 0.3s; }
         .status-strip { display:flex; align-items:center; gap:14px; padding:7px 12px; background:#1a1a1a; flex-wrap:wrap; }
-        .strip-label { font-size:9px; color:#444; letter-spacing:1px; text-transform:uppercase; flex-shrink:0; }
-        .strip-item { display:flex; align-items:center; gap:4px; font-size:10px; color:#555; }
+        .strip-label { font-size:9px; color:#888; letter-spacing:1px; text-transform:uppercase; flex-shrink:0; }
+        .strip-item { display:flex; align-items:center; gap:4px; font-size:10px; color:#bbb; }
         .conn-idle     { background: #0d1a0d; color: #5c5; }
         .conn-starting { background: #2a2200; color: gold; }
         .conn-offline  { background: #1a1a1a; color: #444; }
@@ -859,7 +859,7 @@ HTML = '''
         .dot-off { background: #444; }
 
         .svc-text-on  { color: lime; font-size: 11px; }
-        .svc-text-off { color: #555; font-size: 11px; }
+        .svc-text-off { color: #999; font-size: 11px; }
 
         /* ---- ACTIVE TX IN SIDEBAR ---- */
         #dmrSection.active {
@@ -947,7 +947,7 @@ HTML = '''
         .log-ok    { color: lime; }
         .log-error { color: tomato; }
         .log-warn  { color: gold; }
-        .log-info  { color: #555; }
+        .log-info  { color: #aaa; }
 
         /* ---- COLLAPSIBLE PANELS ---- */
         .collapse-panel { background: #141414; border-radius: 6px; overflow: visible; border: 1px solid #1f1f1f; }
@@ -957,8 +957,8 @@ HTML = '''
             background: #1a1a1a;
         }
         .collapse-header:hover { background: #1f1f1f; }
-        .collapse-header h3 { font-size: 10px; color: #666; letter-spacing: 1px; margin: 0; }
-        .collapse-arrow { color: #444; font-size: 12px; transition: transform 0.2s; }
+        .collapse-header h3 { font-size: 10px; color: #bbb; letter-spacing: 1px; margin: 0; }
+        .collapse-arrow { color: #888; font-size: 12px; transition: transform 0.2s; }
         .collapse-arrow.open { transform: rotate(180deg); }
         .collapse-body { display: none; padding: 10px; }
         .collapse-body.open { display: block; max-height: 60vh; overflow-y: auto; }
@@ -966,17 +966,17 @@ HTML = '''
         /* ---- LAST HEARD ---- */
         #lastHeardTable { width: 100%; border-collapse: collapse; font-size: 11px; }
         #lastHeardTable th {
-            text-align: left; color: #444; padding: 3px 8px;
-            border-bottom: 1px solid #222;
+            text-align: left; color: #888; padding: 3px 8px;
+            border-bottom: 1px solid #2a2a2a;
             font-weight: normal; font-size: 10px; letter-spacing: 1px;
         }
-        #lastHeardTable td { padding: 4px 8px; border-bottom: 1px solid #1a1a1a; }
+        #lastHeardTable td { padding: 4px 8px; border-bottom: 1px solid #222; }
         #lastHeardTable tr:hover td { background: #1f1f1f; }
-        .lh-time     { color: #444; }
+        .lh-time     { color: #999; }
         .lh-callsign { color: orange; font-weight: bold; }
-        .lh-dmrid    { color: #444; font-size: 10px; }
+        .lh-dmrid    { color: #888; font-size: 10px; }
         .lh-tg       { color: lightgreen; }
-        .lh-tgname   { color: #555; }
+        .lh-tgname   { color: #aaa; }
         .lh-tgif     { color: lime; font-size: 10px; }
         .lh-bm       { color: cyan; font-size: 10px; }
 
@@ -985,8 +985,8 @@ HTML = '''
             display: flex; justify-content: space-between;
             align-items: center; margin-bottom: 6px;
         }
-        .vol-label { font-size: 10px; color: #555; }
-        .vol-pct   { font-size: 11px; color: #aaa; }
+        .vol-label { font-size: 10px; color: #aaa; }
+        .vol-pct   { font-size: 11px; color: #ddd; }
         .vol-slider {
             width: 100%; cursor: pointer; outline: none;
             -webkit-appearance: none; appearance: none;
@@ -1037,17 +1037,17 @@ HTML = '''
         /* ---- LOG VIEWER ---- */
         .log-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
         .log-tab {
-            padding: 3px 10px; border-radius: 3px; background: #1f1f1f; color: #666;
+            padding: 3px 10px; border-radius: 3px; background: #1f1f1f; color: #aaa;
             cursor: pointer; font-size: 11px; border: 1px solid #2a2a2a; font-family: monospace;
         }
-        .log-tab:hover { background: #252525; color: #aaa; }
-        .log-tab.active { background: #252525; color: #aaa; border-color: #444; }
+        .log-tab:hover { background: #252525; color: #ddd; }
+        .log-tab.active { background: #252525; color: #ddd; border-color: #555; }
         .log-tab.tab-mmdvm.active  { border-color: #7af; color: #7af; }
         .log-tab.tab-analog.active { border-color: lime; color: lime; }
         .log-tab.tab-stfu.active   { border-color: cyan; color: cyan; }
 
         .log-controls { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
-        .log-controls label { font-size: 10px; color: #555; }
+        .log-controls label { font-size: 10px; color: #aaa; }
         .log-controls input[type=number] {
             width: 50px; padding: 3px 5px; background: #1f1f1f;
             border: 1px solid #333; color: #fff; font-family: monospace;
@@ -1058,16 +1058,15 @@ HTML = '''
 
         #logFileContent {
             background: #000; border-radius: 4px; padding: 8px;
-            color: #fff;
             height: 220px; overflow-y: auto;
-            font-size: 10px; line-height: 1.5; color: #666;
+            font-size: 10px; line-height: 1.5; color: #bbb;
             white-space: pre-wrap; word-break: break-all;
         }
         .log-line-error { color: tomato; }
         .log-line-warn  { color: gold; }
-        .log-line-info  { color: #aaa; }
-        .log-line-debug { color: #888; }
-        .log-file-label { font-size: 9px; color: #555; margin-bottom: 4px; }
+        .log-line-info  { color: #ccc; }
+        .log-line-debug { color: #aaa; }
+        .log-file-label { font-size: 9px; color: #999; margin-bottom: 4px; }
 
         /* ---- QUICK TUNE ---- */
         .qt-grid {
@@ -1077,7 +1076,7 @@ HTML = '''
             margin-bottom: 10px;
         }
         .qt-section-label {
-            font-size: 9px; color: #555;
+            font-size: 9px; color: #999;
             letter-spacing: 1px; margin-bottom: 5px;
             text-transform: uppercase;
         }
@@ -1093,17 +1092,17 @@ HTML = '''
         }
         .btn-fav-tune:hover { background: #3d3d23; }
         .btn-fav-del {
-            background: #1f1515; color: #553333;
+            background: #1f1515; color: #a06060;
             padding: 4px 7px; font-size: 10px; flex-shrink: 0;
             border: none; border-radius: 4px; cursor: pointer;
             font-family: monospace;
         }
-        .btn-fav-del:hover { background: #3d2323; color: #c66; }
+        .btn-fav-del:hover { background: #3d2323; color: #e88; }
         .btn-save-fav { background: #2a2a1a; color: gold; }
         .btn-save-fav:hover { background: #3d3d23; }
-        .qt-empty { color: #333; font-size: 10px; padding: 2px 0; }
+        .qt-empty { color: #777; font-size: 10px; padding: 2px 0; }
         .qt-hist-net {
-            font-size: 9px; color: #555;
+            font-size: 9px; color: #999;
             margin-right: 5px; letter-spacing: 0.5px;
         }
 
@@ -1163,11 +1162,11 @@ HTML = '''
                        oninput="setPresence(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
                     <span class="vol-label">Noise Gate</span>
-                    <label style="cursor:pointer; color:#aaa; font-size:11px;">
+                    <label style="cursor:pointer; color:#ddd; font-size:11px;">
                         <input type="checkbox" id="gateToggle" onchange="setGate(this.checked)"> Enable
                     </label>
                 </div>
-                <div id="audioStats" style="font-size:10px; color:#444; margin-top:8px;">Buffer: -- | Underruns: --</div>
+                <div id="audioStats" style="font-size:10px; color:#999; margin-top:8px;">Buffer: -- | Underruns: --</div>
             </div>
         </div>
 
@@ -1208,11 +1207,11 @@ HTML = '''
                     </div>
                     <div class="collapse-body open" id="dmrBody">
                         <div class="status-strip" style="padding:4px 0 2px;">
-                            <span class="strip-item">Since <span id="connectedSince" style="color:#666;">--</span></span>
+                            <span class="strip-item">Since <span id="connectedSince" style="color:#aaa;">--</span></span>
                             <span class="strip-item"><span id="txCallsign" style="color:lime;font-weight:bold;">STANDBY</span></span>
-                            <span class="strip-item"><span id="txDetail" style="color:#888;">&mdash;</span></span>
-                            <span class="strip-item"><span id="tgName" style="color:#4a4;font-size:10px;"></span></span>
-                            <span class="strip-item"><span id="txTime" style="color:#555;font-size:10px;">&nbsp;</span></span>
+                            <span class="strip-item"><span id="txDetail" style="color:#bbb;">&mdash;</span></span>
+                            <span class="strip-item"><span id="tgName" style="color:#6c6;font-size:10px;"></span></span>
+                            <span class="strip-item"><span id="txTime" style="color:#999;font-size:10px;">&nbsp;</span></span>
                         </div>
                     </div>
                 </div>
@@ -1280,7 +1279,7 @@ HTML = '''
                                 </tr>
                             </thead>
                             <tbody id="lastHeardBody">
-                                <tr><td colspan="6" style="color:#333; padding:8px;">Open to load...</td></tr>
+                                <tr><td colspan="6" style="color:#777; padding:8px;">Open to load...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1293,7 +1292,7 @@ HTML = '''
                         <span style="display:flex;align-items:center;gap:5px;margin-left:auto;margin-right:8px;">
                             <span class="rx-dot" id="asRxDot" title="RX activity"></span>
                             <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
-                            <span id="asNodeBadge" style="color:#888;font-size:11px;letter-spacing:0;font-weight:bold;">--</span>
+                            <span id="asNodeBadge" style="color:#ccc;font-size:11px;letter-spacing:0;font-weight:bold;">--</span>
                             <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:11px;font-weight:bold;">&#8594; <span id="asDirectLinkNode"></span></span>
                         </span>
                         <span class="collapse-arrow" id="allstarArrow">&#9660;</span>
@@ -1326,7 +1325,7 @@ HTML = '''
                         </div>
                         <div style="margin-bottom:10px;">
                             <div class="qt-section-label" style="margin-bottom:5px;">CONNECTED NODES</div>
-                            <div id="asNodeList" style="font-size:12px; color:#aaa; min-height:16px;">--</div>
+                            <div id="asNodeList" style="font-size:12px; color:#ddd; min-height:16px;">--</div>
                         </div>
                     </div>
                 </div>
@@ -1732,7 +1731,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const rows = await res.json();
                 const body = document.getElementById('lastHeardBody');
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="6" style="color:#333; padding:6px;">No activity yet today</td></tr>';
+                    body.innerHTML = '<tr><td colspan="6" style="color:#777; padding:6px;">No activity yet today</td></tr>';
                     return;
                 }
                 body.innerHTML = rows.map(r => `
@@ -2174,8 +2173,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
                 el.innerHTML = d.nodes.map(n =>
                     `<span style="display:inline-block;margin-right:10px;">
-                        <span style="color:#5c5;">${n.node}</span>
-                        <span style="color:#666;font-size:10px;">${modeLabel[n.mode] || n.mode}</span>
+                        <span style="color:#7e7;">${n.node}</span>
+                        <span style="color:#aaa;font-size:10px;">${modeLabel[n.mode] || n.mode}</span>
                     </span>`
                 ).join('');
             } catch(e) {}
