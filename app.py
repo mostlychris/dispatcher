@@ -808,6 +808,10 @@ HTML = '''
         @keyframes rx-pulse { 0%{box-shadow:0 0 10px #4f4;} 100%{box-shadow:0 0 4px #4f4;} }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
         .sidebar-section.as-rx { background: #0a2010; border-radius: 6px; box-shadow: 0 0 6px #0f0; transition: background 0.3s, box-shadow 0.3s; }
+        .collapse-panel.as-rx { box-shadow: 0 0 6px #0f0; transition: box-shadow 0.3s; }
+        .status-strip { display:flex; align-items:center; gap:14px; padding:7px 12px; background:#1a1a1a; flex-wrap:wrap; }
+        .strip-label { font-size:9px; color:#444; letter-spacing:1px; text-transform:uppercase; flex-shrink:0; }
+        .strip-item { display:flex; align-items:center; gap:4px; font-size:10px; color:#555; }
         .conn-idle     { background: #0d1a0d; color: #5c5; }
         .conn-starting { background: #2a2200; color: gold; }
         .conn-offline  { background: #1a1a1a; color: #444; }
@@ -1145,42 +1149,6 @@ HTML = '''
                 </div>
             </div>
 
-            <!-- SERVICES -->
-            <div class="sidebar-section">
-                <h3>Services</h3>
-                <div class="stat-row">
-                    <span class="stat-key"><span class="svc-dot" id="dot_stfu"></span>STFU/BM</span>
-                    <span class="stat-val svc-text-off" id="svc_stfu">--</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-key"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM</span>
-                    <span class="stat-val svc-text-off" id="svc_mmdvm">--</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-key"><span class="svc-dot" id="dot_analog"></span>Analog</span>
-                    <span class="stat-val svc-text-off" id="svc_analog">--</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-key"><span class="svc-dot" id="dot_usrp"></span>USRP</span>
-                    <span class="stat-val svc-text-off" id="svc_usrp">--</span>
-                </div>
-            </div>
-
-            <!-- ALLSTAR STATUS -->
-            <div class="sidebar-section" id="asSidebarSection">
-                <h3>Allstar</h3>
-                <div class="stat-row">
-                    <span class="stat-key">State</span>
-                    <span class="stat-val">
-                        <span class="rx-dot" id="asRxDot" title="RX activity"></span>
-                        <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
-                    </span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-key">Node</span>
-                    <span class="stat-val" id="asNodeBadge" style="color:#aaa;">--</span>
-                </div>
-            </div>
 
             <!-- AUDIO -->
             <div class="sidebar-section">
@@ -1249,6 +1217,17 @@ HTML = '''
             <!-- PANELS -->
             <div class="panels">
 
+                <!-- STATUS STRIP -->
+                <div class="collapse-panel" style="margin-bottom:8px;">
+                    <div class="status-strip">
+                        <span class="strip-label">SERVICES</span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span><span id="svc_stfu" class="svc-text-off">STFU</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span><span id="svc_mmdvm" class="svc-text-off">MMDVM</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_analog"></span><span id="svc_analog" class="svc-text-off">Analog</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span><span id="svc_usrp" class="svc-text-off">USRP</span></span>
+                    </div>
+                </div>
+
                 <!-- DISPATCH LOG -->
                 <div class="collapse-panel">
                     <div class="collapse-header" onclick="toggleDispatchLog()">
@@ -1308,9 +1287,14 @@ HTML = '''
                 </div>
 
                 <!-- ALLSTAR -->
-                <div class="collapse-panel">
+                <div class="collapse-panel" id="asSidebarSection">
                     <div class="collapse-header" onclick="toggleAllstar()">
                         <h3>&#9889; ALLSTAR NODE</h3>
+                        <span style="display:flex;align-items:center;gap:5px;margin-left:auto;margin-right:8px;">
+                            <span class="rx-dot" id="asRxDot" title="RX activity"></span>
+                            <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
+                            <span id="asNodeBadge" style="color:#555;font-size:10px;letter-spacing:0;">--</span>
+                        </span>
                         <span class="collapse-arrow" id="allstarArrow">&#9660;</span>
                     </div>
                     <div class="collapse-body" id="allstarBody">
