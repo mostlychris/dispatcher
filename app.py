@@ -1438,12 +1438,17 @@ class PCMRingProcessor extends AudioWorkletProcessor {
         this._buf   = new Float32Array(this._size);
         this._w     = 0;
         this._r     = 0;
-        this._underruns  = 0;
-        this._frame      = 0;
+        this._underruns   = 0;
+        this._frame       = 0;
         this._reportEvery = Math.round(sr / 4);
         this._gateEnabled = false;
         this._gateOpen    = false;
         this._gateGain    = 0;
+        // Track when audio last arrived so underruns during silence are ignored.
+        // _silenceFrames counts consecutive silent render cycles; underruns only
+        // count when this is below the threshold (i.e. signal was recently active).
+        this._silenceFrames   = 0;
+        this._silenceThreshold = Math.round(sr * 0.5);  // 500ms of silence = inactive
         this.port.onmessage = ({ data }) => {
             if (!data) return;
             if (data.pcm) {
@@ -1452,6 +1457,7 @@ class PCMRingProcessor extends AudioWorkletProcessor {
                     this._buf[this._w] = pcm[i];
                     this._w = (this._w + 1) % this._size;
                 }
+                this._silenceFrames = 0;  // reset silence counter on new data
             }
             if (data.gate !== undefined) this._gateEnabled = data.gate;
         };
@@ -1463,8 +1469,11 @@ class PCMRingProcessor extends AudioWorkletProcessor {
         const avail = this._avail;
         if (avail < n) {
             out.fill(0);
-            this._underruns++;
-            this.port.postMessage({ underrun: true, buffered: avail, underruns: this._underruns });
+            this._silenceFrames += n;
+            if (this._silenceFrames <= this._silenceThreshold) {
+                this._underruns++;
+                this.port.postMessage({ underrun: true, buffered: avail, underruns: this._underruns });
+            }
         } else {
             for (let i = 0; i < n; i++) {
                 out[i]  = this._buf[this._r];
