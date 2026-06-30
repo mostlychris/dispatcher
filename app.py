@@ -1504,9 +1504,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 `;
 
         class WorkletPlayer {
-            constructor(sampleRate) {
+            constructor(sampleRate, onStats) {
                 this.sampleRate  = sampleRate || 8000;
                 this.option      = { sampleRate: this.sampleRate };  // DVSwitchPlayer reads this
+                this._onStats    = onStats || null;
                 this.audioCtx    = null;
                 this.workletNode = null;
                 this.gainNode    = null;
@@ -1534,7 +1535,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     outputChannelCount: [1],
                 });
                 this.workletNode.port.onmessage = ({ data }) => {
-                    if (data && data.stats) updateAudioStats(data.stats);
+                    if (data && data.stats && this._onStats) this._onStats(data.stats);
                 };
                 this.workletNode.connect(this.gainNode);
 
@@ -1677,7 +1678,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     dvsp.ws = null;
                 }
                 // (Re-)create the WorkletPlayer each time so the AudioContext is fresh.
-                _workletPlayer = new WorkletPlayer(dvsp.sampleRate);
+                _workletPlayer = new WorkletPlayer(dvsp.sampleRate, updateAudioStats);
                 try {
                     await _workletPlayer.init();
                     dvsp.player = _workletPlayer;
