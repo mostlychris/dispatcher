@@ -2442,6 +2442,27 @@ registerProcessor('mic-decimator', MicDecimator);
             _micDeviceId = document.getElementById('micDeviceSelect').value || null;
         }
 
+        // Retry getUserMedia up to 3 times for Bluetooth HFP devices that need time
+        // to switch profiles or release an exclusive Windows audio lock.
+        const _BT_RETRYABLE = new Set(['OverconstrainedError', 'NotFoundError', 'NotReadableError']);
+        async function _getMicWithRetry(audioConstraints, label) {
+            const maxTries = 4, delayMs = 1500;
+            for (let attempt = 1; attempt <= maxTries; attempt++) {
+                try {
+                    return await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+                } catch(e) {
+                    const retryable = _BT_RETRYABLE.has(e.name) && audioConstraints.deviceId;
+                    if (retryable && attempt < maxTries) {
+                        log(label + ': device not ready (' + e.name + ') — attempt ' + attempt + '/' + maxTries + ', retrying in ' + (delayMs/1000) + 's...', 'warn');
+                        await new Promise(r => setTimeout(r, delayMs));
+                    } else {
+                        if (retryable) log(label + ': could not open device after ' + maxTries + ' attempts. Check that no other app (Teams, Discord, Windows voice features) has the mic open exclusively.', 'error');
+                        throw e;
+                    }
+                }
+            }
+        }
+
         // One-shot mic test: open mic for 3 seconds, show level, then release device
         async function testMic() {
             if (_pttActive) { log('Release PTT before testing mic', 'warn'); return; }
@@ -2449,22 +2470,11 @@ registerProcessor('mic-decimator', MicDecimator);
             if (btn) btn.disabled = true;
             let stream, ctx;
             try {
-                // Use exact so we fail loudly if the selected device can't be opened
-                // rather than silently falling back to the default mic.
-                // For BT devices that need HFP profile switch: retry once after a delay.
                 const baseAudio = { echoCancellation: false, noiseSuppression: false };
                 const audioConstraints = _micDeviceId
                     ? { ...baseAudio, deviceId: { exact: _micDeviceId } }
                     : baseAudio;
-                try {
-                    stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
-                } catch(e) {
-                    if (_micDeviceId && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError' || e.name === 'NotReadableError')) {
-                        log('Mic test: device not ready (' + e.name + '), retrying in 1s...', 'warn');
-                        await new Promise(r => setTimeout(r, 1000));
-                        stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
-                    } else { throw e; }
-                }
+                stream = await _getMicWithRetry(audioConstraints, 'Mic test');
                 await populateMicDevices();  // grant → labels now available
                 const track = stream.getAudioTracks()[0];
                 log('Mic test: ' + (track ? track.label : 'no track') + ' | ready=' + (track && track.readyState) + ' muted=' + (track && track.muted), 'ok');
@@ -2520,20 +2530,10 @@ registerProcessor('mic-decimator', MicDecimator);
 
             try {
                 // Open mic first; BT devices may switch HFP profile here.
-                // Use exact so we always get the selected device, not a silent fallback.
-                // Retry once after a delay for BT devices that need HFP profile time.
                 const pttAudio = _micDeviceId
                     ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
                     : { echoCancellation: true, noiseSuppression: true };
-                try {
-                    _pttStream = await navigator.mediaDevices.getUserMedia({ audio: pttAudio });
-                } catch(e) {
-                    if (_micDeviceId && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError' || e.name === 'NotReadableError')) {
-                        log('PTT: device not ready (' + e.name + '), retrying in 1s...', 'warn');
-                        await new Promise(r => setTimeout(r, 1000));
-                        _pttStream = await navigator.mediaDevices.getUserMedia({ audio: pttAudio });
-                    } else { throw e; }
-                }
+                _pttStream = await _getMicWithRetry(pttAudio, 'PTT');
 
                 // Give Bluetooth HFP profile time to fully initialize before reading audio
                 await new Promise(r => setTimeout(r, 600));
