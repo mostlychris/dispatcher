@@ -826,7 +826,7 @@ HTML = '''
             border: 1px solid #2e2e2e;
         }
         .sidebar-section h3 {
-            font-size: 9px; color: #888;
+            font-size: 13px; color: #bbb;
             letter-spacing: 1px; margin-bottom: 8px;
             text-transform: uppercase;
         }
