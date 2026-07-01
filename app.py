@@ -806,7 +806,7 @@ HTML = '''
         .header-time   { font-size: 11px; color: #888; }
 
         /* ---- MAIN LAYOUT ---- */
-        .app-body { display: grid; grid-template-columns: 220px 1fr; gap: 0; height: calc(100vh - 37px); }
+        .app-body { display: grid; grid-template-columns: 260px 1fr; gap: 0; height: calc(100vh - 37px); }
 
         /* ---- LEFT SIDEBAR ---- */
         .sidebar {
@@ -946,6 +946,7 @@ HTML = '''
         button:disabled { opacity: 0.35; cursor: not-allowed; }
         .btn-sidebar-sm {
             font-size: 10px; padding: 2px 7px;
+            white-space: nowrap;
             border-radius: 3px; border: 1px solid #444;
             background: #222; color: #aaa;
             cursor: pointer; font-family: monospace;
