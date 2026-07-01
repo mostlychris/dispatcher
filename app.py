@@ -2450,17 +2450,23 @@ registerProcessor('mic-decimator', MicDecimator);
             let stream, ctx;
             try {
                 const constraints = { audio: _micDeviceId
-                    ? { deviceId: { exact: _micDeviceId }, echoCancellation: false, noiseSuppression: false }
+                    ? { deviceId: { ideal: _micDeviceId }, echoCancellation: false, noiseSuppression: false }
                     : { echoCancellation: false, noiseSuppression: false } };
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 await populateMicDevices();  // grant → labels now available
+                const track = stream.getAudioTracks()[0];
+                log('Mic test: ' + (track ? track.label : 'no track') + ' | ready=' + (track && track.readyState) + ' muted=' + (track && track.muted), 'ok');
+                // Give Bluetooth HFP profile time to fully initialize before reading audio
+                await new Promise(r => setTimeout(r, 600));
                 ctx = new AudioContext();
+                await ctx.resume();
+                log('Mic test: AudioContext rate=' + ctx.sampleRate + ' state=' + ctx.state, 'ok');
                 const analyser = ctx.createAnalyser();
                 analyser.fftSize = 256;
                 ctx.createMediaStreamSource(stream).connect(analyser);
                 const buf = new Uint8Array(analyser.frequencyBinCount);
                 const bar = document.getElementById('micMeterBar');
-                const end = Date.now() + 3000;
+                const end = Date.now() + 5000;
                 await new Promise(resolve => {
                     (function tick() {
                         _micTestRaf = requestAnimationFrame(() => {
@@ -2514,11 +2520,15 @@ registerProcessor('mic-decimator', MicDecimator);
                     } else { throw e; }
                 }
 
+                // Give Bluetooth HFP profile time to fully initialize before reading audio
+                await new Promise(r => setTimeout(r, 600));
+
                 // Fresh AudioContext on every PTT press — prevents zombie nodes from
                 // previous presses accumulating in the graph and avoids any stale
                 // worklet scope state that causes ratio=1 (no decimation) on TX2+.
                 if (_pttCtx) { try { await _pttCtx.close(); } catch(e) {} }
                 _pttCtx = new AudioContext();
+                await _pttCtx.resume();
                 // Cache blob URL so addModule has a live URL to load each time.
                 if (!_pttWorkletUrl) {
                     const blob = new Blob([PTT_WORKLET_CODE], { type: 'application/javascript' });
