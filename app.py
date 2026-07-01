@@ -1209,6 +1209,18 @@ HTML = '''
                 <input type="range" class="vol-slider" id="asVolSlider"
                        min="0" max="100" value="100"
                        oninput="setAllstarVolume(this.value)">
+                <div class="vol-row" style="margin-top:6px;">
+                    <span class="vol-label" style="flex-shrink:0;">Mic</span>
+                    <select id="micDeviceSelect" style="flex:1;background:#1a1a1a;color:#ccc;border:1px solid #333;border-radius:4px;font-size:11px;padding:2px 4px;" onchange="onMicDeviceChange()">
+                        <option value="">-- select mic --</option>
+                    </select>
+                </div>
+                <div style="margin-top:5px;display:flex;align-items:center;gap:6px;">
+                    <span class="vol-label" style="flex-shrink:0;">Level</span>
+                    <div id="micMeter" style="flex:1;height:8px;background:#111;border:1px solid #333;border-radius:4px;overflow:hidden;">
+                        <div id="micMeterBar" style="height:100%;width:0%;background:#00cc44;border-radius:4px;transition:width 0.05s;"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- RESTART BUTTONS -->
@@ -2344,19 +2356,20 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         // PTT HOLD-TO-TALK
         // -------------------------
         let _pttCtx = null, _pttStream = null, _pttWs = null, _pttNode = null, _pttActive = false;
+        let _micDeviceId = null;   // selected deviceId or null = default
+        let _micMonCtx = null, _micMonStream = null, _micMonAnalyser = null, _micMonRaf = null;
 
         const PTT_WORKLET_CODE = `
 class MicDownsampler extends AudioWorkletProcessor {
     constructor(options) {
         super();
-        this._ratio  = options.processorOptions.ratio;  // e.g. 6 for 48k→8k
-        this._buf    = [];
+        this._ratio = options.processorOptions.ratio;
+        this._buf   = [];
     }
     process(inputs) {
         const ch = inputs[0][0];
         if (!ch) return true;
         for (let i = 0; i < ch.length; i += this._ratio) {
-            // average ratio samples for simple downsampling
             let s = 0, n = 0;
             for (let j = 0; j < this._ratio && (i+j) < ch.length; j++, n++) s += ch[i+j];
             this._buf.push(Math.max(-1, Math.min(1, s / n)));
@@ -2373,11 +2386,90 @@ class MicDownsampler extends AudioWorkletProcessor {
 registerProcessor('mic-downsampler', MicDownsampler);
 `;
 
+        // Populate mic device list (called once on page load and after getUserMedia grants permission)
+        async function populateMicDevices() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const sel = document.getElementById('micDeviceSelect');
+                const prev = sel.value;
+                // Remove all options except the placeholder
+                while (sel.options.length > 1) sel.remove(1);
+                let found = false;
+                devices.filter(d => d.kind === 'audioinput').forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.deviceId;
+                    opt.textContent = d.label || ('Mic ' + d.deviceId.slice(0, 8));
+                    sel.appendChild(opt);
+                    if (d.deviceId === prev) { opt.selected = true; found = true; }
+                });
+                if (!found && sel.options.length > 1) {
+                    // auto-select default
+                    sel.selectedIndex = 1;
+                    _micDeviceId = sel.value;
+                }
+                // Restart level meter with new device if not currently in PTT
+                if (!_pttActive) startMicMeter();
+            } catch(e) { console.warn('enumerateDevices failed:', e); }
+        }
+
+        function onMicDeviceChange() {
+            const sel = document.getElementById('micDeviceSelect');
+            _micDeviceId = sel.value || null;
+            if (!_pttActive) { stopMicMeter(); startMicMeter(); }
+        }
+
+        // Always-on mic level meter (separate from PTT stream)
+        async function startMicMeter() {
+            stopMicMeter();
+            if (!_micDeviceId && document.getElementById('micDeviceSelect').options.length <= 1) return;
+            try {
+                const constraints = { audio: _micDeviceId
+                    ? { deviceId: { exact: _micDeviceId } }
+                    : { echoCancellation: false, noiseSuppression: false } };
+                _micMonStream = await navigator.mediaDevices.getUserMedia(constraints);
+                // After first grant, repopulate with labelled devices
+                await populateMicDevices();
+                _micMonCtx    = new AudioContext();
+                _micMonAnalyser = _micMonCtx.createAnalyser();
+                _micMonAnalyser.fftSize = 256;
+                const src = _micMonCtx.createMediaStreamSource(_micMonStream);
+                src.connect(_micMonAnalyser);
+                const buf = new Uint8Array(_micMonAnalyser.frequencyBinCount);
+                const bar = document.getElementById('micMeterBar');
+                function tick() {
+                    _micMonRaf = requestAnimationFrame(tick);
+                    _micMonAnalyser.getByteTimeDomainData(buf);
+                    let peak = 0;
+                    for (let i = 0; i < buf.length; i++) {
+                        const v = Math.abs(buf[i] - 128) / 128;
+                        if (v > peak) peak = v;
+                    }
+                    const pct = Math.min(100, peak * 200);
+                    bar.style.width = pct + '%';
+                    bar.style.background = pct > 80 ? '#ff4400' : pct > 50 ? '#ffaa00' : '#00cc44';
+                }
+                tick();
+            } catch(e) {
+                console.warn('Mic meter failed:', e);
+            }
+        }
+
+        function stopMicMeter() {
+            if (_micMonRaf)    { cancelAnimationFrame(_micMonRaf); _micMonRaf = null; }
+            if (_micMonAnalyser) { _micMonAnalyser = null; }
+            if (_micMonStream) { _micMonStream.getTracks().forEach(t => t.stop()); _micMonStream = null; }
+            if (_micMonCtx)    { try { _micMonCtx.close(); } catch(e) {} _micMonCtx = null; }
+            const bar = document.getElementById('micMeterBar');
+            if (bar) bar.style.width = '0%';
+        }
+
         async function pttStart() {
             const btn = document.getElementById('btnPTT');
             if (!btn || btn.disabled || _pttActive) return;
             _pttActive = true;
             btn.classList.add('keyed');
+            // Stop the monitor stream — PTT will open its own
+            stopMicMeter();
 
             try {
                 if (!_pttCtx) {
@@ -2389,11 +2481,10 @@ registerProcessor('mic-downsampler', MicDownsampler);
                 }
                 if (_pttCtx.state === 'suspended') await _pttCtx.resume();
 
-                _pttStream = await navigator.mediaDevices.getUserMedia({ audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    sampleRate: 48000
-                }});
+                const audioConstraints = _micDeviceId
+                    ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
+                    : { echoCancellation: true, noiseSuppression: true };
+                _pttStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
 
                 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
                 _pttWs = new WebSocket(proto + '//' + location.host + '/ws/allstar-tx');
@@ -2407,6 +2498,29 @@ registerProcessor('mic-downsampler', MicDownsampler);
                 _pttNode = new AudioWorkletNode(_pttCtx, 'mic-downsampler', {
                     processorOptions: { ratio }
                 });
+
+                // Drive the meter bar from the PTT stream while keyed
+                const pttAnalyser = _pttCtx.createAnalyser();
+                pttAnalyser.fftSize = 256;
+                const pttBuf = new Uint8Array(pttAnalyser.frequencyBinCount);
+                const bar = document.getElementById('micMeterBar');
+                let rafId;
+                function meterTick() {
+                    rafId = requestAnimationFrame(meterTick);
+                    pttAnalyser.getByteTimeDomainData(pttBuf);
+                    let peak = 0;
+                    for (let i = 0; i < pttBuf.length; i++) {
+                        const v = Math.abs(pttBuf[i] - 128) / 128;
+                        if (v > peak) peak = v;
+                    }
+                    const pct = Math.min(100, peak * 200);
+                    if (bar) { bar.style.width = pct + '%'; bar.style.background = pct > 80 ? '#ff4400' : pct > 50 ? '#ffaa00' : '#00cc44'; }
+                }
+                meterTick();
+                // Store rafId so pttStop can cancel it
+                _pttNode._meterRaf = rafId;
+                _pttNode._meterRafFn = () => cancelAnimationFrame(rafId);
+
                 _pttNode.port.onmessage = (e) => {
                     if (_pttWs && _pttWs.readyState === WebSocket.OPEN) {
                         _pttWs.send(e.data);
@@ -2414,8 +2528,9 @@ registerProcessor('mic-downsampler', MicDownsampler);
                 };
 
                 const src = _pttCtx.createMediaStreamSource(_pttStream);
+                src.connect(pttAnalyser);
                 src.connect(_pttNode);
-                _pttNode.connect(_pttCtx.destination);  // silent sink — needed to keep worklet alive
+                _pttNode.connect(_pttCtx.destination);
 
             } catch(err) {
                 console.error('PTT start failed:', err);
@@ -2428,9 +2543,15 @@ registerProcessor('mic-downsampler', MicDownsampler);
             _pttActive = false;
             const btn = document.getElementById('btnPTT');
             if (btn) btn.classList.remove('keyed');
-            if (_pttNode)   { try { _pttNode.disconnect(); } catch(e) {} _pttNode = null; }
+            if (_pttNode) {
+                if (_pttNode._meterRafFn) _pttNode._meterRafFn();
+                try { _pttNode.disconnect(); } catch(e) {}
+                _pttNode = null;
+            }
             if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
             if (_pttWs)     { try { _pttWs.close(); } catch(e) {} _pttWs = null; }
+            // Resume the always-on level meter
+            startMicMeter();
         }
 
         // -------------------------
@@ -2442,6 +2563,11 @@ registerProcessor('mic-downsampler', MicDownsampler);
         applyStoredVolume();
         applyStoredFilters();
         log('Dispatcher ready', 'ok');
+        // Enumerate mic devices (labels only available after permission granted via startMicMeter)
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+            const inputs = devices.filter(d => d.kind === 'audioinput');
+            if (inputs.length) populateMicDevices().then(() => startMicMeter());
+        }).catch(() => {});
         // Auto-connect to the configured Allstar node
         pollAllstarStatus().then(() => {
             const btn = document.getElementById('btnAsConnect');
