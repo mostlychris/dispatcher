@@ -2365,31 +2365,38 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         let _micDeviceId = null;   // selected deviceId or null = default
         let _micMonCtx = null, _micMonStream = null, _micMonAnalyser = null, _micMonRaf = null;
 
+        // AudioContext is created at 8000 Hz so the browser's own high-quality
+        // resampler converts from the device's native rate. The worklet just
+        // accumulates 160 samples (= 20 ms at 8 kHz) and ships them as Int16.
         const PTT_WORKLET_CODE = `
-class MicDownsampler extends AudioWorkletProcessor {
-    constructor(options) {
+class MicPacker extends AudioWorkletProcessor {
+    constructor() {
         super();
-        this._ratio = options.processorOptions.ratio;
-        this._buf   = [];
+        this._buf = new Float32Array(160);
+        this._pos = 0;
     }
     process(inputs) {
         const ch = inputs[0][0];
         if (!ch) return true;
-        for (let i = 0; i < ch.length; i += this._ratio) {
-            let s = 0, n = 0;
-            for (let j = 0; j < this._ratio && (i+j) < ch.length; j++, n++) s += ch[i+j];
-            this._buf.push(Math.max(-1, Math.min(1, s / n)));
-            if (this._buf.length >= 160) {
+        let i = 0;
+        while (i < ch.length) {
+            const space = 160 - this._pos;
+            const take  = Math.min(space, ch.length - i);
+            this._buf.set(ch.subarray(i, i + take), this._pos);
+            this._pos += take;
+            i         += take;
+            if (this._pos === 160) {
                 const out = new Int16Array(160);
-                for (let k = 0; k < 160; k++) out[k] = Math.round(this._buf[k] * 32767);
+                for (let k = 0; k < 160; k++)
+                    out[k] = Math.max(-32768, Math.min(32767, this._buf[k] * 32767 | 0));
                 this.port.postMessage(out.buffer, [out.buffer]);
-                this._buf = [];
+                this._pos = 0;
             }
         }
         return true;
     }
 }
-registerProcessor('mic-downsampler', MicDownsampler);
+registerProcessor('mic-packer', MicPacker);
 `;
 
         // Populate mic device list (called once on page load and after getUserMedia grants permission)
@@ -2486,22 +2493,17 @@ registerProcessor('mic-downsampler', MicDownsampler);
             stopMicMeter();
 
             try {
-                // Open the mic stream first so the browser completes any
-                // Bluetooth HFP profile switch before we create the AudioContext.
-                // Creating AudioContext with a hardcoded 48000 while HFP locks
-                // the device to 8/16kHz causes an immediate stream error.
+                // Open mic first; BT devices may switch HFP profile here.
                 const audioConstraints = _micDeviceId
                     ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
                     : { echoCancellation: true, noiseSuppression: true };
                 _pttStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
 
-                // Use device's actual sample rate — BT HFP is 8k or 16k, not 48k
-                const trackSettings = _pttStream.getAudioTracks()[0].getSettings();
-                const deviceRate = trackSettings.sampleRate || 48000;
-
-                if (!_pttCtx || _pttCtx.sampleRate !== deviceRate) {
-                    if (_pttCtx) { try { _pttCtx.close(); } catch(e) {} }
-                    _pttCtx = new AudioContext({ sampleRate: deviceRate });
+                // Create AudioContext at 8000 Hz — the browser resamples from the
+                // device's native rate using its own high-quality resampler.
+                // This avoids the aliasing from our old naive strided averager.
+                if (!_pttCtx) {
+                    _pttCtx = new AudioContext({ sampleRate: 8000 });
                     const blob = new Blob([PTT_WORKLET_CODE], { type: 'application/javascript' });
                     const url  = URL.createObjectURL(blob);
                     await _pttCtx.audioWorklet.addModule(url);
@@ -2517,10 +2519,7 @@ registerProcessor('mic-downsampler', MicDownsampler);
                     _pttWs.onerror = rej;
                 });
 
-                const ratio = Math.round(_pttCtx.sampleRate / 8000);
-                _pttNode = new AudioWorkletNode(_pttCtx, 'mic-downsampler', {
-                    processorOptions: { ratio }
-                });
+                _pttNode = new AudioWorkletNode(_pttCtx, 'mic-packer');
 
                 const pttAnalyser = _pttCtx.createAnalyser();
                 pttAnalyser.fftSize = 256;
