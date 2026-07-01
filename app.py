@@ -664,8 +664,7 @@ class AllstarManager:
         self._lock        = threading.Lock()
         self._last_audio  = 0.0
         self.linked_nodes = []   # updated by 'L ' TEXT frames from app_rpt
-        _st = _load_allstar_state()
-        self.direct_links = _st.get('direct_links', [])  # persisted direct-link nodes
+        self.direct_links = []   # cleared on startup; restored only after a live connect+link
 
     def _on_audio(self, pcm: bytes):
         self._last_audio = time.time()
@@ -2252,7 +2251,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 }
                 if (dot) dot.className = 'rx-dot' + (d.active ? ' lit' : '');
                 nodeEl.textContent = d.node || '--';
-                _setDirectLink(d.direct_links && d.direct_links.length ? d.direct_links : null);
+                _setDirectLink(d.state === 'connected' && d.direct_links && d.direct_links.length ? d.direct_links : null);
                 const asSec = document.getElementById('asSidebarSection');
                 if (asSec) asSec.classList.toggle('as-rx', !!(d.state === 'connected' && d.active));
                 ['btnAsAudio', 'btnAsAudioSidebar'].forEach(id => {
