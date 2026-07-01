@@ -2503,9 +2503,16 @@ registerProcessor('mic-decimator', MicDecimator);
             try {
                 // Open mic first; BT devices may switch HFP profile here.
                 const audioConstraints = _micDeviceId
-                    ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
+                    ? { deviceId: { ideal: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
                     : { echoCancellation: true, noiseSuppression: true };
-                _pttStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+                try {
+                    _pttStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+                } catch(e) {
+                    if (_micDeviceId) {
+                        log('PTT: mic device unavailable (' + e.name + '), retrying without device constraint', 'warn');
+                        _pttStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+                    } else { throw e; }
+                }
 
                 // Fresh AudioContext on every PTT press — prevents zombie nodes from
                 // previous presses accumulating in the graph and avoids any stale
@@ -2562,7 +2569,7 @@ registerProcessor('mic-decimator', MicDecimator);
 
             } catch(err) {
                 console.error('PTT start failed:', err);
-                log('PTT error: ' + err.message, 'error');
+                log('PTT error [' + err.name + ']: ' + err.message, 'error');
                 pttStop();
             }
         }
