@@ -1209,15 +1209,13 @@ HTML = '''
                 <input type="range" class="vol-slider" id="asVolSlider"
                        min="0" max="100" value="100"
                        oninput="setAllstarVolume(this.value)">
-                <div class="vol-row" style="margin-top:6px;">
-                    <span class="vol-label" style="flex-shrink:0;">Mic</span>
-                    <select id="micDeviceSelect" style="flex:1;background:#1a1a1a;color:#ccc;border:1px solid #333;border-radius:4px;font-size:11px;padding:2px 4px;" onchange="onMicDeviceChange()">
-                        <option value="">-- select mic --</option>
-                    </select>
+                <div style="margin-top:8px;">
+                    <button class="btn-ptt" id="btnPTTSidebar" disabled
+                            style="width:100%;padding:10px 0;font-size:14px;">&#127908; PTT — Hold to Talk</button>
                 </div>
-                <div style="margin-top:5px;display:flex;align-items:center;gap:6px;">
+                <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
                     <span class="vol-label" style="flex-shrink:0;">Level</span>
-                    <div id="micMeter" style="flex:1;height:8px;background:#111;border:1px solid #333;border-radius:4px;overflow:hidden;">
+                    <div style="flex:1;height:8px;background:#111;border:1px solid #333;border-radius:4px;overflow:hidden;">
                         <div id="micMeterBar" style="height:100%;width:0%;background:#00cc44;border-radius:4px;transition:width 0.05s;"></div>
                     </div>
                 </div>
@@ -1302,10 +1300,15 @@ HTML = '''
                             <button class="btn-monitor" id="btnAsConnect"   onclick="allstarConnect()">&#9654; Connect</button>
                             <button class="btn-danger"  id="btnAsDisconnect" onclick="allstarDisconnect()" disabled>&#9632; Disconnect</button>
                             <button class="btn-monitor" id="btnAsAudio"     onclick="toggleAllstarAudio(this)">&#128264; Audio</button>
-                            <button class="btn-ptt" id="btnPTT" disabled
-                                    onmousedown="pttStart()" onmouseup="pttStop()"
-                                    ontouchstart="pttStart()" ontouchend="pttStop()"
-                                    onmouseleave="pttStop()">&#127908; PTT</button>
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <div class="qt-section-label" style="margin-bottom:5px;">TRANSMIT</div>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <select id="micDeviceSelect" style="flex:1;min-width:120px;background:#1a1a1a;color:#ccc;border:1px solid #333;border-radius:4px;font-size:11px;padding:3px 5px;" onchange="onMicDeviceChange()">
+                                    <option value="">-- select mic --</option>
+                                </select>
+                                <button class="btn-ptt" id="btnPTT" disabled>&#127908; PTT — Hold to Talk</button>
+                            </div>
                         </div>
                         <div style="margin-bottom:10px;">
                             <div class="qt-section-label" style="margin-bottom:5px;">NODE LINKING</div>
@@ -2286,11 +2289,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
                 const btnConn = document.getElementById('btnAsConnect');
                 const btnDisc = document.getElementById('btnAsDisconnect');
-                const btnPTT  = document.getElementById('btnPTT');
+                const connected = (d.state === 'connected');
                 if (btnConn) btnConn.disabled = (d.state === 'connected' || d.state === 'connecting');
                 if (btnDisc) btnDisc.disabled = (d.state === 'idle' || d.state === 'error');
-                if (btnPTT)  btnPTT.disabled  = (d.state !== 'connected');
-                if (d.state !== 'connected') pttStop();
+                ['btnPTT', 'btnPTTSidebar'].forEach(id => {
+                    const b = document.getElementById(id);
+                    if (b) b.disabled = !connected;
+                });
+                if (!connected) pttStop();
 
                 // keep polling while connected; stop when offline
                 if (d.state === 'connected' || d.state === 'connecting') {
@@ -2463,12 +2469,20 @@ registerProcessor('mic-downsampler', MicDownsampler);
             if (bar) bar.style.width = '0%';
         }
 
+        function _setPTTKeyed(keyed) {
+            ['btnPTT', 'btnPTTSidebar'].forEach(id => {
+                const b = document.getElementById(id);
+                if (b) b.classList.toggle('keyed', keyed);
+            });
+        }
+
         async function pttStart() {
-            const btn = document.getElementById('btnPTT');
-            if (!btn || btn.disabled || _pttActive) return;
+            if (_pttActive) return;
+            // Check either button is enabled (connected)
+            const btnMain = document.getElementById('btnPTT');
+            if (btnMain && btnMain.disabled) return;
             _pttActive = true;
-            btn.classList.add('keyed');
-            // Stop the monitor stream — PTT will open its own
+            _setPTTKeyed(true);
             stopMicMeter();
 
             try {
@@ -2499,13 +2513,12 @@ registerProcessor('mic-downsampler', MicDownsampler);
                     processorOptions: { ratio }
                 });
 
-                // Drive the meter bar from the PTT stream while keyed
                 const pttAnalyser = _pttCtx.createAnalyser();
                 pttAnalyser.fftSize = 256;
                 const pttBuf = new Uint8Array(pttAnalyser.frequencyBinCount);
                 const bar = document.getElementById('micMeterBar');
                 let rafId;
-                function meterTick() {
+                (function meterTick() {
                     rafId = requestAnimationFrame(meterTick);
                     pttAnalyser.getByteTimeDomainData(pttBuf);
                     let peak = 0;
@@ -2515,16 +2528,11 @@ registerProcessor('mic-downsampler', MicDownsampler);
                     }
                     const pct = Math.min(100, peak * 200);
                     if (bar) { bar.style.width = pct + '%'; bar.style.background = pct > 80 ? '#ff4400' : pct > 50 ? '#ffaa00' : '#00cc44'; }
-                }
-                meterTick();
-                // Store rafId so pttStop can cancel it
-                _pttNode._meterRaf = rafId;
-                _pttNode._meterRafFn = () => cancelAnimationFrame(rafId);
+                })();
+                _pttNode._stopMeter = () => cancelAnimationFrame(rafId);
 
                 _pttNode.port.onmessage = (e) => {
-                    if (_pttWs && _pttWs.readyState === WebSocket.OPEN) {
-                        _pttWs.send(e.data);
-                    }
+                    if (_pttWs && _pttWs.readyState === WebSocket.OPEN) _pttWs.send(e.data);
                 };
 
                 const src = _pttCtx.createMediaStreamSource(_pttStream);
@@ -2540,18 +2548,31 @@ registerProcessor('mic-downsampler', MicDownsampler);
         }
 
         function pttStop() {
+            if (!_pttActive) return;
             _pttActive = false;
-            const btn = document.getElementById('btnPTT');
-            if (btn) btn.classList.remove('keyed');
+            _setPTTKeyed(false);
             if (_pttNode) {
-                if (_pttNode._meterRafFn) _pttNode._meterRafFn();
+                if (_pttNode._stopMeter) _pttNode._stopMeter();
                 try { _pttNode.disconnect(); } catch(e) {}
                 _pttNode = null;
             }
             if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
             if (_pttWs)     { try { _pttWs.close(); } catch(e) {} _pttWs = null; }
-            // Resume the always-on level meter
             startMicMeter();
+        }
+
+        // Wire PTT buttons with pointer capture so release is always detected
+        // even if the pointer leaves the button element
+        function _wirePTTButton(id) {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.addEventListener('pointerdown', (e) => {
+                if (btn.disabled) return;
+                btn.setPointerCapture(e.pointerId);
+                pttStart();
+            });
+            btn.addEventListener('pointerup',     () => pttStop());
+            btn.addEventListener('pointercancel', () => pttStop());
         }
 
         // -------------------------
@@ -2568,6 +2589,8 @@ registerProcessor('mic-downsampler', MicDownsampler);
             const inputs = devices.filter(d => d.kind === 'audioinput');
             if (inputs.length) populateMicDevices().then(() => startMicMeter());
         }).catch(() => {});
+        _wirePTTButton('btnPTT');
+        _wirePTTButton('btnPTTSidebar');
         // Auto-connect to the configured Allstar node
         pollAllstarStatus().then(() => {
             const btn = document.getElementById('btnAsConnect');
