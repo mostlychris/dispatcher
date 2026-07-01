@@ -1278,17 +1278,6 @@ HTML = '''
                     </div>
                 </div>
 
-                <!-- STATUS STRIP -->
-                <div class="collapse-panel">
-                    <div class="status-strip">
-                        <span class="strip-label">SERVICES</span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span>STFU <span id="svc_stfu" class="svc-text-off">--</span></span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM <span id="svc_mmdvm" class="svc-text-off">--</span></span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>Analog <span id="svc_analog" class="svc-text-off">--</span></span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span>USRP <span id="svc_usrp" class="svc-text-off">--</span></span>
-                    </div>
-                </div>
-
                 <!-- ALLSTAR -->
                 <div class="collapse-panel" id="asSidebarSection">
                     <div class="collapse-header" onclick="toggleAllstar()">
@@ -1340,6 +1329,17 @@ HTML = '''
                             <div class="qt-section-label" style="margin-bottom:5px;">CONNECTED NODES</div>
                             <div id="asNodeList" style="font-size:12px; color:#ddd; min-height:16px;">--</div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- STATUS STRIP -->
+                <div class="collapse-panel">
+                    <div class="status-strip">
+                        <span class="strip-label">SERVICES</span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span>STFU <span id="svc_stfu" class="svc-text-off">--</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM <span id="svc_mmdvm" class="svc-text-off">--</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>Analog <span id="svc_analog" class="svc-text-off">--</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span>USRP <span id="svc_usrp" class="svc-text-off">--</span></span>
                     </div>
                 </div>
 
