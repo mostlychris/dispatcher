@@ -13,8 +13,10 @@ try:
     import audioop
     def _ulaw2pcm(data: bytes) -> bytes:
         return audioop.ulaw2lin(data, 2)
+    def _pcm2ulaw(data: bytes) -> bytes:
+        return audioop.lin2ulaw(data, 2)
 except ImportError:
-    # audioop removed in Python 3.13 — pure-Python fallback
+    # audioop removed in Python 3.13 — pure-Python fallbacks
     def _ulaw2pcm(data: bytes) -> bytes:
         out = bytearray(len(data) * 2)
         for i, b in enumerate(data):
@@ -27,6 +29,28 @@ except ImportError:
                 s = -s
             s = max(-32768, min(32767, s))
             struct.pack_into('<h', out, i * 2, s)
+        return bytes(out)
+
+    _ULAW_EXP_TABLE = [0,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
+                       6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
+                       7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+                       7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7]
+    def _pcm2ulaw(data: bytes) -> bytes:
+        n = len(data) // 2
+        out = bytearray(n)
+        for i in range(n):
+            s = struct.unpack_from('<h', data, i * 2)[0]
+            sign = 0
+            if s < 0:
+                sign = 0x80
+                s = -s
+            s = min(s, 32767)
+            s += 0x84
+            if s > 0x7FFF:
+                s = 0x7FFF
+            exp = _ULAW_EXP_TABLE[s >> 8]
+            mant = (s >> (exp + 3)) & 0x0F
+            out[i] = ~(sign | (exp << 4) | mant) & 0xFF
         return bytes(out)
 
 
@@ -151,6 +175,22 @@ class IAX2Client:
             if len(self._tx_buf) > 128:
                 del self._tx_buf[min(self._tx_buf)]
             self._oseqno = (self._oseqno + 1) & 0xFF
+
+    def send_voice(self, pcm_bytes: bytes) -> None:
+        """Send 16-bit 8kHz PCM as IAX2 mini voice frames (160 samples = 20ms each)."""
+        if self.state != 'connected':
+            return
+        ulaw = _pcm2ulaw(pcm_bytes)
+        chunk_size = 160  # 20ms at 8kHz
+        with self._send_lock:
+            for offset in range(0, len(ulaw), chunk_size):
+                chunk = ulaw[offset:offset + chunk_size]
+                if not chunk:
+                    break
+                # Mini frame: 2B src_call (no 0x8000 high bit), 2B ts_low16, payload
+                ts = self._ts() & 0xFFFF
+                pkt = struct.pack('>HH', self._src_call, ts) + chunk
+                self._raw_send(pkt)
 
     def _dtmf_thread(self, digits: str, inter_digit: float):
         """Send each digit as an IAX2 TEXT frame: 'D <node> 0 1 <digit>'.

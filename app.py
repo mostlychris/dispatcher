@@ -716,6 +716,10 @@ class AllstarManager:
             self.client = None
         self._set_direct_links([])
 
+    def send_voice(self, pcm_bytes: bytes):
+        if self.client and self.client.state == 'connected':
+            self.client.send_voice(pcm_bytes)
+
     def add_direct_link(self, node: str):
         if node not in self.direct_links:
             self.direct_links.append(node)
@@ -918,6 +922,11 @@ HTML = '''
         button.btn-bm:hover { background: #23234d; }
         button.btn-danger { background: #2a1a1a; color: #c66; }
         button.btn-danger:hover { background: #3d2323; }
+        button.btn-ptt { background: #1a1a1a; color: #888; border-color: #444; font-weight: bold; letter-spacing: 1px; }
+        button.btn-ptt:hover:not(:disabled) { background: #2a1a1a; color: #c66; }
+        button.btn-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; animation: ptt-pulse 0.6s infinite alternate; }
+        button.btn-ptt:disabled { opacity: 0.35; cursor: not-allowed; }
+        @keyframes ptt-pulse { from { box-shadow: 0 0 8px #ff4400; } to { box-shadow: 0 0 20px #ff6600; } }
         button.btn-tune { background: #2a2a1a; color: gold; }
         button.btn-tune:hover { background: #3d3d23; }
         button.btn-monitor { background: #1a1a1a; color: #777; border-color: #333; }
@@ -1281,6 +1290,10 @@ HTML = '''
                             <button class="btn-monitor" id="btnAsConnect"   onclick="allstarConnect()">&#9654; Connect</button>
                             <button class="btn-danger"  id="btnAsDisconnect" onclick="allstarDisconnect()" disabled>&#9632; Disconnect</button>
                             <button class="btn-monitor" id="btnAsAudio"     onclick="toggleAllstarAudio(this)">&#128264; Audio</button>
+                            <button class="btn-ptt" id="btnPTT" disabled
+                                    onmousedown="pttStart()" onmouseup="pttStop()"
+                                    ontouchstart="pttStart()" ontouchend="pttStop()"
+                                    onmouseleave="pttStop()">&#127908; PTT</button>
                         </div>
                         <div style="margin-bottom:10px;">
                             <div class="qt-section-label" style="margin-bottom:5px;">NODE LINKING</div>
@@ -2261,8 +2274,11 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
                 const btnConn = document.getElementById('btnAsConnect');
                 const btnDisc = document.getElementById('btnAsDisconnect');
+                const btnPTT  = document.getElementById('btnPTT');
                 if (btnConn) btnConn.disabled = (d.state === 'connected' || d.state === 'connecting');
                 if (btnDisc) btnDisc.disabled = (d.state === 'idle' || d.state === 'error');
+                if (btnPTT)  btnPTT.disabled  = (d.state !== 'connected');
+                if (d.state !== 'connected') pttStop();
 
                 // keep polling while connected; stop when offline
                 if (d.state === 'connected' || d.state === 'connecting') {
@@ -2323,6 +2339,99 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         setInterval(pollAllstarStatus, 10000);
+
+        // -------------------------
+        // PTT HOLD-TO-TALK
+        // -------------------------
+        let _pttCtx = null, _pttStream = null, _pttWs = null, _pttNode = null, _pttActive = false;
+
+        const PTT_WORKLET_CODE = `
+class MicDownsampler extends AudioWorkletProcessor {
+    constructor(options) {
+        super();
+        this._ratio  = options.processorOptions.ratio;  // e.g. 6 for 48k→8k
+        this._buf    = [];
+    }
+    process(inputs) {
+        const ch = inputs[0][0];
+        if (!ch) return true;
+        for (let i = 0; i < ch.length; i += this._ratio) {
+            // average ratio samples for simple downsampling
+            let s = 0, n = 0;
+            for (let j = 0; j < this._ratio && (i+j) < ch.length; j++, n++) s += ch[i+j];
+            this._buf.push(Math.max(-1, Math.min(1, s / n)));
+            if (this._buf.length >= 160) {
+                const out = new Int16Array(160);
+                for (let k = 0; k < 160; k++) out[k] = Math.round(this._buf[k] * 32767);
+                this.port.postMessage(out.buffer, [out.buffer]);
+                this._buf = [];
+            }
+        }
+        return true;
+    }
+}
+registerProcessor('mic-downsampler', MicDownsampler);
+`;
+
+        async function pttStart() {
+            const btn = document.getElementById('btnPTT');
+            if (!btn || btn.disabled || _pttActive) return;
+            _pttActive = true;
+            btn.classList.add('keyed');
+
+            try {
+                if (!_pttCtx) {
+                    _pttCtx = new AudioContext({ sampleRate: 48000 });
+                    const blob = new Blob([PTT_WORKLET_CODE], { type: 'application/javascript' });
+                    const url  = URL.createObjectURL(blob);
+                    await _pttCtx.audioWorklet.addModule(url);
+                    URL.revokeObjectURL(url);
+                }
+                if (_pttCtx.state === 'suspended') await _pttCtx.resume();
+
+                _pttStream = await navigator.mediaDevices.getUserMedia({ audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 48000
+                }});
+
+                const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                _pttWs = new WebSocket(proto + '//' + location.host + '/ws/allstar-tx');
+                _pttWs.binaryType = 'arraybuffer';
+                await new Promise((res, rej) => {
+                    _pttWs.onopen  = res;
+                    _pttWs.onerror = rej;
+                });
+
+                const ratio = Math.round(_pttCtx.sampleRate / 8000);
+                _pttNode = new AudioWorkletNode(_pttCtx, 'mic-downsampler', {
+                    processorOptions: { ratio }
+                });
+                _pttNode.port.onmessage = (e) => {
+                    if (_pttWs && _pttWs.readyState === WebSocket.OPEN) {
+                        _pttWs.send(e.data);
+                    }
+                };
+
+                const src = _pttCtx.createMediaStreamSource(_pttStream);
+                src.connect(_pttNode);
+                _pttNode.connect(_pttCtx.destination);  // silent sink — needed to keep worklet alive
+
+            } catch(err) {
+                console.error('PTT start failed:', err);
+                log('PTT error: ' + err.message, 'error');
+                pttStop();
+            }
+        }
+
+        function pttStop() {
+            _pttActive = false;
+            const btn = document.getElementById('btnPTT');
+            if (btn) btn.classList.remove('keyed');
+            if (_pttNode)   { try { _pttNode.disconnect(); } catch(e) {} _pttNode = null; }
+            if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
+            if (_pttWs)     { try { _pttWs.close(); } catch(e) {} _pttWs = null; }
+        }
 
         // -------------------------
         // STARTUP
@@ -2632,6 +2741,20 @@ def allstar_audio_ws(ws):
         pass
     finally:
         allstar_mgr.remove_listener(q)
+
+
+@sock.route('/ws/allstar-tx')
+def allstar_tx_ws(ws):
+    """Receive Int16 PCM from the browser and send it up the IAX2 stack."""
+    try:
+        while True:
+            data = ws.receive()
+            if data is None:
+                break
+            if isinstance(data, bytes) and len(data) >= 2:
+                allstar_mgr.send_voice(data)
+    except Exception:
+        pass
 
 
 if __name__ == '__main__':
