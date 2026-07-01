@@ -2478,8 +2478,6 @@ registerProcessor('mic-decimator', MicDecimator);
                 await populateMicDevices();  // grant → labels now available
                 const track = stream.getAudioTracks()[0];
                 log('Mic test: ' + (track ? track.label : 'no track') + ' | ready=' + (track && track.readyState) + ' muted=' + (track && track.muted), 'ok');
-                // Give Bluetooth HFP profile time to fully initialize before reading audio
-                await new Promise(r => setTimeout(r, 600));
                 ctx = new AudioContext();
                 await ctx.resume();
                 log('Mic test: AudioContext rate=' + ctx.sampleRate + ' state=' + ctx.state, 'ok');
@@ -2534,9 +2532,6 @@ registerProcessor('mic-decimator', MicDecimator);
                     ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
                     : { echoCancellation: true, noiseSuppression: true };
                 _pttStream = await _getMicWithRetry(pttAudio, 'PTT');
-
-                // Give Bluetooth HFP profile time to fully initialize before reading audio
-                await new Promise(r => setTimeout(r, 600));
 
                 // Fresh AudioContext on every PTT press — prevents zombie nodes from
                 // previous presses accumulating in the graph and avoids any stale
