@@ -2368,7 +2368,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         // -------------------------
         let _pttCtx = null, _pttStream = null, _pttWs = null, _pttNode = null, _pttActive = false;
         let _micDeviceId = null;
-        let _micTestRaf = null;  // RAF id for the test-mic meter animation
+        let _micTestRaf = null;
+        let _pttWorkletUrl = null;  // cached blob URL for worklet module
 
         // Worklet runs at whatever rate the AudioContext actually uses (device native,
         // typically 48000 Hz). It decimates to 8000 Hz using a box-filter FIR
@@ -2500,17 +2501,17 @@ registerProcessor('mic-decimator', MicDecimator);
                     : { echoCancellation: true, noiseSuppression: true };
                 _pttStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
 
-                // Use default AudioContext rate (device native, typically 48000).
-                // Don't force 8000 — browsers may ignore or mishandle it.
-                // The worklet decimates to 8000 Hz internally.
-                if (!_pttCtx) {
-                    _pttCtx = new AudioContext();
+                // Fresh AudioContext on every PTT press — prevents zombie nodes from
+                // previous presses accumulating in the graph and avoids any stale
+                // worklet scope state that causes ratio=1 (no decimation) on TX2+.
+                if (_pttCtx) { try { await _pttCtx.close(); } catch(e) {} }
+                _pttCtx = new AudioContext();
+                // Cache blob URL so addModule has a live URL to load each time.
+                if (!_pttWorkletUrl) {
                     const blob = new Blob([PTT_WORKLET_CODE], { type: 'application/javascript' });
-                    const url  = URL.createObjectURL(blob);
-                    await _pttCtx.audioWorklet.addModule(url);
-                    URL.revokeObjectURL(url);
+                    _pttWorkletUrl = URL.createObjectURL(blob);
                 }
-                if (_pttCtx.state === 'suspended') await _pttCtx.resume();
+                await _pttCtx.audioWorklet.addModule(_pttWorkletUrl);
 
                 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
                 _pttWs = new WebSocket(proto + '//' + location.host + '/ws/allstar-tx');
