@@ -2449,10 +2449,22 @@ registerProcessor('mic-decimator', MicDecimator);
             if (btn) btn.disabled = true;
             let stream, ctx;
             try {
-                const constraints = { audio: _micDeviceId
-                    ? { deviceId: { ideal: _micDeviceId }, echoCancellation: false, noiseSuppression: false }
-                    : { echoCancellation: false, noiseSuppression: false } };
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                // Use exact so we fail loudly if the selected device can't be opened
+                // rather than silently falling back to the default mic.
+                // For BT devices that need HFP profile switch: retry once after a delay.
+                const baseAudio = { echoCancellation: false, noiseSuppression: false };
+                const audioConstraints = _micDeviceId
+                    ? { ...baseAudio, deviceId: { exact: _micDeviceId } }
+                    : baseAudio;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+                } catch(e) {
+                    if (_micDeviceId && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError' || e.name === 'NotReadableError')) {
+                        log('Mic test: device not ready (' + e.name + '), retrying in 1s...', 'warn');
+                        await new Promise(r => setTimeout(r, 1000));
+                        stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+                    } else { throw e; }
+                }
                 await populateMicDevices();  // grant → labels now available
                 const track = stream.getAudioTracks()[0];
                 log('Mic test: ' + (track ? track.label : 'no track') + ' | ready=' + (track && track.readyState) + ' muted=' + (track && track.muted), 'ok');
@@ -2508,15 +2520,18 @@ registerProcessor('mic-decimator', MicDecimator);
 
             try {
                 // Open mic first; BT devices may switch HFP profile here.
-                const audioConstraints = _micDeviceId
-                    ? { deviceId: { ideal: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
+                // Use exact so we always get the selected device, not a silent fallback.
+                // Retry once after a delay for BT devices that need HFP profile time.
+                const pttAudio = _micDeviceId
+                    ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
                     : { echoCancellation: true, noiseSuppression: true };
                 try {
-                    _pttStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+                    _pttStream = await navigator.mediaDevices.getUserMedia({ audio: pttAudio });
                 } catch(e) {
-                    if (_micDeviceId) {
-                        log('PTT: mic device unavailable (' + e.name + '), retrying without device constraint', 'warn');
-                        _pttStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+                    if (_micDeviceId && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError' || e.name === 'NotReadableError')) {
+                        log('PTT: device not ready (' + e.name + '), retrying in 1s...', 'warn');
+                        await new Promise(r => setTimeout(r, 1000));
+                        _pttStream = await navigator.mediaDevices.getUserMedia({ audio: pttAudio });
                     } else { throw e; }
                 }
 
