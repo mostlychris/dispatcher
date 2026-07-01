@@ -716,6 +716,10 @@ class AllstarManager:
             self.client = None
         self._set_direct_links([])
 
+    def reset_voice_ts(self):
+        if self.client:
+            self.client.reset_voice_ts()
+
     def send_voice(self, pcm_bytes: bytes):
         if self.client and self.client.state == 'connected':
             self.client.send_voice(pcm_bytes)
@@ -2912,6 +2916,7 @@ def allstar_audio_ws(ws):
 @sock.route('/ws/allstar-tx')
 def allstar_tx_ws(ws):
     """Receive Int16 PCM from the browser and send it up the IAX2 stack."""
+    allstar_mgr.reset_voice_ts()  # seed fresh timestamp sequence for this PTT press
     try:
         while True:
             data = ws.receive()

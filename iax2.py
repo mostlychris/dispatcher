@@ -125,6 +125,10 @@ class IAX2Client:
 
         # Retransmit buffer: oseqno -> ulaw payload for VNAK recovery
         self._tx_buf   = {}
+        # Voice timestamp counter: increments by exactly 20ms per frame so
+        # Asterisk's jitter buffer sees a steady stream regardless of wall-clock jitter.
+        # Reset to None before each PTT press; first frame seeds it from _ts().
+        self._voice_ts = None
         # Serialise DTMF sends — only one sequence at a time
         self._dtmf_lock = threading.Lock()
 
@@ -176,17 +180,23 @@ class IAX2Client:
                 del self._tx_buf[min(self._tx_buf)]
             self._oseqno = (self._oseqno + 1) & 0xFF
 
+    def reset_voice_ts(self):
+        """Call before each PTT press to seed a fresh voice timestamp sequence."""
+        self._voice_ts = None
+
     def send_voice(self, pcm_bytes: bytes) -> None:
         """Send 16-bit 8kHz PCM as IAX2 full VOICE frames (160 samples = 20ms each).
 
-        Must use full frames (not mini frames) so that oseqno advances and
-        Asterisk/app_rpt accepts the stream and keys the TX.
+        Timestamps increment by exactly 20ms per frame so Asterisk's jitter
+        buffer sees a steady cadence regardless of Python/GIL delivery jitter.
         """
         if self.state != 'connected':
             return
         ulaw = _pcm2ulaw(pcm_bytes)
         chunk_size = 160  # 20ms at 8kHz ulaw
         with self._send_lock:
+            if self._voice_ts is None:
+                self._voice_ts = self._ts()
             for offset in range(0, len(ulaw), chunk_size):
                 chunk = ulaw[offset:offset + chunk_size]
                 if not chunk:
@@ -194,7 +204,7 @@ class IAX2Client:
                 seq = self._oseqno
                 src = self._src_call | 0x8000
                 pkt = struct.pack('>HHIBBBB',
-                                  src, self._dst_call, self._ts(),
+                                  src, self._dst_call, self._voice_ts,
                                   seq, self._iseqno,
                                   self.FRAME_VOICE, 0x82) + chunk
                 self._raw_send(pkt)
@@ -202,6 +212,7 @@ class IAX2Client:
                 if len(self._tx_buf) > 256:
                     del self._tx_buf[min(self._tx_buf)]
                 self._oseqno = (self._oseqno + 1) & 0xFF
+                self._voice_ts = (self._voice_ts + 20) & 0xFFFFFFFF
 
     def _dtmf_thread(self, digits: str, inter_digit: float):
         """Send each digit as an IAX2 TEXT frame: 'D <node> 0 1 <digit>'.
