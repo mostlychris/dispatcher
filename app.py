@@ -2486,19 +2486,28 @@ registerProcessor('mic-downsampler', MicDownsampler);
             stopMicMeter();
 
             try {
-                if (!_pttCtx) {
-                    _pttCtx = new AudioContext({ sampleRate: 48000 });
+                // Open the mic stream first so the browser completes any
+                // Bluetooth HFP profile switch before we create the AudioContext.
+                // Creating AudioContext with a hardcoded 48000 while HFP locks
+                // the device to 8/16kHz causes an immediate stream error.
+                const audioConstraints = _micDeviceId
+                    ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
+                    : { echoCancellation: true, noiseSuppression: true };
+                _pttStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+
+                // Use device's actual sample rate — BT HFP is 8k or 16k, not 48k
+                const trackSettings = _pttStream.getAudioTracks()[0].getSettings();
+                const deviceRate = trackSettings.sampleRate || 48000;
+
+                if (!_pttCtx || _pttCtx.sampleRate !== deviceRate) {
+                    if (_pttCtx) { try { _pttCtx.close(); } catch(e) {} }
+                    _pttCtx = new AudioContext({ sampleRate: deviceRate });
                     const blob = new Blob([PTT_WORKLET_CODE], { type: 'application/javascript' });
                     const url  = URL.createObjectURL(blob);
                     await _pttCtx.audioWorklet.addModule(url);
                     URL.revokeObjectURL(url);
                 }
                 if (_pttCtx.state === 'suspended') await _pttCtx.resume();
-
-                const audioConstraints = _micDeviceId
-                    ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
-                    : { echoCancellation: true, noiseSuppression: true };
-                _pttStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
 
                 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
                 _pttWs = new WebSocket(proto + '//' + location.host + '/ws/allstar-tx');
