@@ -854,8 +854,8 @@ HTML = '''
         .rx-dot.lit  { background:#4f4; box-shadow: 0 0 6px #4f4; animation: rx-pulse 0.6s ease-out; }
         @keyframes rx-pulse { 0%{box-shadow:0 0 10px #4f4;} 100%{box-shadow:0 0 4px #4f4;} }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
-        .sidebar-section.as-rx { background: #0a2010; border-radius: 6px; box-shadow: 0 0 6px #0f0; transition: background 0.3s, box-shadow 0.3s; }
-        .collapse-panel.as-rx { box-shadow: 0 0 6px #0f0; transition: box-shadow 0.3s; }
+        .sidebar-section.as-rx { background: #001833; border-radius: 6px; box-shadow: 0 0 10px #0077ff; transition: background 0.3s, box-shadow 0.3s; }
+        .collapse-panel.as-rx { box-shadow: 0 0 10px #0077ff; transition: box-shadow 0.3s; }
         .status-strip { display:flex; align-items:center; gap:14px; padding:6px 12px; background:#1a1a1a; flex-wrap:wrap; }
         .strip-label { font-size:9px; color:#888; letter-spacing:1px; text-transform:uppercase; flex-shrink:0; }
         .strip-item { display:flex; align-items:center; gap:4px; font-size:10px; color:#bbb; }
@@ -877,8 +877,9 @@ HTML = '''
 
         /* ---- ACTIVE TX IN SIDEBAR ---- */
         #dmrSection.active {
-            background: #0d1f0d;
-            border-color: #2a4a2a;
+            background: #001833;
+            border-color: #004488;
+            box-shadow: 0 0 10px #0077ff;
         }
         .tx-pulse {
             width: 7px; height: 7px; border-radius: 50%;
