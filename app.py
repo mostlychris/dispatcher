@@ -2369,38 +2369,44 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         let _micDeviceId = null;   // selected deviceId or null = default
         let _micMonCtx = null, _micMonStream = null, _micMonAnalyser = null, _micMonRaf = null;
 
-        // AudioContext is created at 8000 Hz so the browser's own high-quality
-        // resampler converts from the device's native rate. The worklet just
-        // accumulates 160 samples (= 20 ms at 8 kHz) and ships them as Int16.
+        // Worklet runs at whatever rate the AudioContext actually uses (device native,
+        // typically 48000 Hz). It decimates to 8000 Hz using a box-filter FIR
+        // (simple averaging over `ratio` input samples per output sample — adequate
+        // for voice) and emits 160-sample (20 ms) Int16 frames.
         const PTT_WORKLET_CODE = `
-class MicPacker extends AudioWorkletProcessor {
-    constructor() {
+class MicDecimator extends AudioWorkletProcessor {
+    constructor(options) {
         super();
-        this._buf = new Float32Array(160);
-        this._pos = 0;
+        this._ratio   = options.processorOptions.ratio; // e.g. 6 for 48k→8k
+        this._acc     = 0.0;
+        this._accN    = 0;
+        this._outBuf  = new Float32Array(160);
+        this._outPos  = 0;
     }
     process(inputs) {
         const ch = inputs[0][0];
         if (!ch) return true;
-        let i = 0;
-        while (i < ch.length) {
-            const space = 160 - this._pos;
-            const take  = Math.min(space, ch.length - i);
-            this._buf.set(ch.subarray(i, i + take), this._pos);
-            this._pos += take;
-            i         += take;
-            if (this._pos === 160) {
-                const out = new Int16Array(160);
-                for (let k = 0; k < 160; k++)
-                    out[k] = Math.max(-32768, Math.min(32767, this._buf[k] * 32767 | 0));
-                this.port.postMessage(out.buffer, [out.buffer]);
-                this._pos = 0;
+        for (let i = 0; i < ch.length; i++) {
+            this._acc += ch[i];
+            this._accN++;
+            if (this._accN === this._ratio) {
+                const s = this._acc / this._ratio;
+                this._outBuf[this._outPos++] = s;
+                this._acc  = 0.0;
+                this._accN = 0;
+                if (this._outPos === 160) {
+                    const out = new Int16Array(160);
+                    for (let k = 0; k < 160; k++)
+                        out[k] = Math.max(-32768, Math.min(32767, this._outBuf[k] * 32767 | 0));
+                    this.port.postMessage(out.buffer, [out.buffer]);
+                    this._outPos = 0;
+                }
             }
         }
         return true;
     }
 }
-registerProcessor('mic-packer', MicPacker);
+registerProcessor('mic-decimator', MicDecimator);
 `;
 
         // Populate mic device list (called once on page load and after getUserMedia grants permission)
@@ -2503,11 +2509,11 @@ registerProcessor('mic-packer', MicPacker);
                     : { echoCancellation: true, noiseSuppression: true };
                 _pttStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
 
-                // Create AudioContext at 8000 Hz — the browser resamples from the
-                // device's native rate using its own high-quality resampler.
-                // This avoids the aliasing from our old naive strided averager.
+                // Use default AudioContext rate (device native, typically 48000).
+                // Don't force 8000 — browsers may ignore or mishandle it.
+                // The worklet decimates to 8000 Hz internally.
                 if (!_pttCtx) {
-                    _pttCtx = new AudioContext({ sampleRate: 8000 });
+                    _pttCtx = new AudioContext();
                     const blob = new Blob([PTT_WORKLET_CODE], { type: 'application/javascript' });
                     const url  = URL.createObjectURL(blob);
                     await _pttCtx.audioWorklet.addModule(url);
@@ -2523,7 +2529,11 @@ registerProcessor('mic-packer', MicPacker);
                     _pttWs.onerror = rej;
                 });
 
-                _pttNode = new AudioWorkletNode(_pttCtx, 'mic-packer');
+                const ratio = Math.max(1, Math.round(_pttCtx.sampleRate / 8000));
+                log('PTT: ctx rate=' + _pttCtx.sampleRate + ' ratio=' + ratio, 'ok');
+                _pttNode = new AudioWorkletNode(_pttCtx, 'mic-decimator', {
+                    processorOptions: { ratio }
+                });
 
                 const pttAnalyser = _pttCtx.createAnalyser();
                 pttAnalyser.fftSize = 256;
