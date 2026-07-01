@@ -1211,7 +1211,7 @@ HTML = '''
                        oninput="setAllstarVolume(this.value)">
                 <div style="margin-top:8px;">
                     <button class="btn-ptt" id="btnPTTSidebar" disabled
-                            style="width:100%;padding:10px 0;font-size:14px;">&#127908; PTT — Hold to Talk</button>
+                            style="width:100%;font-size:11px;">&#127908; PTT — Hold to Talk</button>
                 </div>
                 <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
                     <span class="vol-label" style="flex-shrink:0;">Level</span>
@@ -2561,19 +2561,28 @@ registerProcessor('mic-downsampler', MicDownsampler);
             startMicMeter();
         }
 
-        // Wire PTT buttons with pointer capture so release is always detected
-        // even if the pointer leaves the button element
+        // Wire PTT buttons — start on the button, stop on document so release
+        // is always caught even if the cursor/finger leaves the element.
+        // Avoid pointercancel: it fires when the keyed CSS animation shifts layout.
         function _wirePTTButton(id) {
             const btn = document.getElementById(id);
             if (!btn) return;
-            btn.addEventListener('pointerdown', (e) => {
-                if (btn.disabled) return;
-                btn.setPointerCapture(e.pointerId);
+            btn.addEventListener('mousedown', (e) => {
+                if (e.button !== 0 || btn.disabled) return;
+                e.preventDefault();
                 pttStart();
             });
-            btn.addEventListener('pointerup',     () => pttStop());
-            btn.addEventListener('pointercancel', () => pttStop());
+            btn.addEventListener('touchstart', (e) => {
+                if (btn.disabled) return;
+                e.preventDefault();  // prevent ghost mousedown after touch
+                pttStart();
+            }, { passive: false });
         }
+        // Single document-level release handlers — always fires regardless of where
+        // the pointer ends up, avoiding any element-level event-capture issues.
+        document.addEventListener('mouseup',     () => pttStop());
+        document.addEventListener('touchend',    () => pttStop());
+        document.addEventListener('touchcancel', () => pttStop());
 
         // -------------------------
         // STARTUP
