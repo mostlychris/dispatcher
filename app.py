@@ -1185,6 +1185,8 @@ HTML = '''
             margin-right: 5px; letter-spacing: 0.5px;
         }
 
+        .mobile-action-bar { display: none; }
+
         @media (max-width: 600px) {
             /* Layout: single column, sidebar hidden */
             .app-body, .app-body.sidebar-collapsed { grid-template-columns: 1fr !important; }
@@ -1216,6 +1218,43 @@ HTML = '''
 
             /* PTT button: full-width easy tap target */
             .btn-ptt { width: 100% !important; font-size: 14px !important; padding: 10px !important; }
+
+            /* Bottom action bar — always visible on mobile */
+            .mobile-action-bar {
+                display: flex !important;  /* overrides desktop display:none */
+                position: fixed;
+                bottom: 0; left: 0; right: 0;
+                height: 56px;
+                background: #111;
+                border-top: 1px solid #333;
+                z-index: 200;
+                gap: 8px;
+                padding: 6px 8px;
+                align-items: stretch;
+            }
+            .mobile-action-bar .mob-btn {
+                flex: 1;
+                font-size: 12px;
+                font-weight: bold;
+                border-radius: 6px;
+                border: 1px solid #444;
+                background: #1a1a1a;
+                color: #aaa;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 5px;
+                white-space: nowrap;
+                -webkit-tap-highlight-color: transparent;
+            }
+            .mobile-action-bar .mob-btn.active   { background: #006600; color: #fff; border-color: #00aa00; }
+            .mobile-action-bar .mob-btn.streaming { background: #0055cc; color: #fff; border-color: #0077ff; box-shadow: 0 0 8px #0077ff; }
+            .mobile-action-bar .mob-btn.mob-ptt  { background: #1a1a1a; color: #888; border-color: #444; font-weight: bold; letter-spacing: 1px; }
+            .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
+            .mobile-action-bar .mob-btn:disabled { opacity: 0.35; }
+            /* Push panel content up so it isn't hidden behind the bar */
+            .content { padding-bottom: 64px; }
         }
     </style>
 </head>
@@ -2390,7 +2429,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const connected = (d.state === 'connected');
                 if (btnConn) btnConn.disabled = (d.state === 'connected' || d.state === 'connecting');
                 if (btnDisc) btnDisc.disabled = (d.state === 'idle' || d.state === 'error');
-                ['btnPTT', 'btnPTTSidebar'].forEach(id => {
+                ['btnPTT', 'btnPTTSidebar', 'mobBtnPTT'].forEach(id => {
                     const b = document.getElementById(id);
                     if (b) b.disabled = !connected;
                 });
@@ -2599,10 +2638,22 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         function _setPTTKeyed(keyed) {
-            ['btnPTT', 'btnPTTSidebar'].forEach(id => {
+            ['btnPTT', 'btnPTTSidebar', 'mobBtnPTT'].forEach(id => {
                 const b = document.getElementById(id);
                 if (b) b.classList.toggle('keyed', keyed);
             });
+        }
+
+        // Keep mobile monitor buttons in sync with sidebar state
+        function syncMobMonitor() {
+            const src = document.getElementById('btnMonitor');
+            const mob = document.getElementById('mobBtnDmrMonitor');
+            if (src && mob) { mob.className = 'mob-btn ' + src.className.replace('btn-sidebar-sm ', ''); }
+        }
+        function syncMobAsMonitor() {
+            const src = document.getElementById('btnAsAudioSidebar');
+            const mob = document.getElementById('mobBtnAsMonitor');
+            if (src && mob) { mob.className = 'mob-btn ' + src.className.replace('btn-sidebar-sm ', ''); }
         }
 
         async function pttStart() {
@@ -2744,12 +2795,22 @@ registerProcessor('mic-decimator', MicDecimator);
         populateMicDevices().catch(() => {});
         _wirePTTButton('btnPTT');
         _wirePTTButton('btnPTTSidebar');
+        _wirePTTButton('mobBtnPTT');
         // Auto-connect to the configured Allstar node
         pollAllstarStatus().then(() => {
             const btn = document.getElementById('btnAsConnect');
             if (btn && !btn.disabled) allstarConnect();
         });
     </script>
+
+    <!-- MOBILE BOTTOM ACTION BAR -->
+    <div class="mobile-action-bar">
+        <button class="mob-btn btn-monitor" id="mobBtnDmrMonitor"
+                onclick="toggleMonitor(this); syncMobMonitor()">&#128264; DMR</button>
+        <button class="mob-btn btn-monitor" id="mobBtnAsMonitor"
+                onclick="toggleAllstarAudio(this); syncMobAsMonitor()">&#128264; Allstar</button>
+        <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled>&#127908; PTT</button>
+    </div>
 </body>
 </html>
 '''
