@@ -806,18 +806,45 @@ HTML = '''
         .header-time   { font-size: 11px; color: #888; }
 
         /* ---- MAIN LAYOUT ---- */
-        .app-body { display: grid; grid-template-columns: 260px 1fr; gap: 0; height: calc(100vh - 37px); }
+        .app-body { display: grid; grid-template-columns: 260px 1fr; gap: 0; height: calc(100vh - 37px); transition: grid-template-columns 0.25s ease; }
+        .app-body.sidebar-collapsed { grid-template-columns: 0px 1fr; }
 
         /* ---- LEFT SIDEBAR ---- */
         .sidebar {
             background: #141414;
             border-right: 1px solid #222;
             padding: 10px;
-            overflow-y: auto;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             gap: 6px;
+            position: relative;
+            min-width: 0;
+            transition: padding 0.25s ease;
         }
+        .app-body.sidebar-collapsed .sidebar { padding: 0; border-right: none; }
+        .sidebar-toggle {
+            position: fixed;
+            top: 50%;
+            left: 260px;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            width: 16px;
+            height: 48px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-size: 10px;
+            transition: left 0.25s ease, background 0.15s;
+            user-select: none;
+        }
+        .sidebar-toggle:hover { background: #383838; color: #ccc; }
+        .app-body.sidebar-collapsed .sidebar-toggle { left: 0px; border-radius: 0 4px 4px 0; }
 
         .sidebar-section {
             background: #1a1a1a;
@@ -1166,7 +1193,9 @@ HTML = '''
         <span class="header-time" id="headerTime">--</span>
     </div>
 
-    <div class="app-body">
+    <div class="app-body" id="appBody">
+
+        <div class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Toggle audio panel">&#10094;</div>
 
         <!-- SIDEBAR -->
         <div class="sidebar">
@@ -1479,6 +1508,20 @@ HTML = '''
             document.getElementById('volSlider').style.setProperty('--vol-pct', val + '%');
             if (!_dmrMuted && dvsp && dvsp.player) dvsp.player.volume(val / 100);
             localStorage.setItem('rxVolume', val);
+        }
+
+        function toggleSidebar() {
+            const body = document.getElementById('appBody');
+            const btn  = document.getElementById('sidebarToggle');
+            const collapsed = body.classList.toggle('sidebar-collapsed');
+            btn.innerHTML = collapsed ? '&#10095;' : '&#10094;';
+            localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '');
+        }
+        // Restore sidebar state on load
+        if (localStorage.getItem('sidebarCollapsed')) {
+            document.getElementById('appBody').classList.add('sidebar-collapsed');
+            const btn = document.getElementById('sidebarToggle');
+            if (btn) btn.innerHTML = '&#10095;';
         }
 
         function toggleMuteDmr() {
