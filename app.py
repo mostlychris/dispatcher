@@ -808,6 +808,9 @@ HTML = '''
         /* ---- MAIN LAYOUT ---- */
         .app-body { display: grid; grid-template-columns: 260px 1fr; gap: 0; height: calc(100vh - 37px); transition: grid-template-columns 0.25s ease; }
         .app-body.sidebar-collapsed { grid-template-columns: 0px 1fr; }
+        @media (max-width: 600px) {
+            .app-body, .app-body.sidebar-collapsed { grid-template-columns: 1fr !important; }
+        }
 
         /* ---- LEFT SIDEBAR ---- */
         .sidebar {
@@ -827,7 +830,8 @@ HTML = '''
             position: fixed;
             top: 50%;
             left: 260px;
-            transform: translate(-50%, -50%);
+            transform: translateY(-50%);
+            transition: background 0.15s;
             z-index: 100;
             width: 16px;
             height: 48px;
@@ -932,6 +936,7 @@ HTML = '''
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            min-width: 0;
         }
 
         /* ---- CONTROLS BAR ---- */
@@ -1510,19 +1515,26 @@ HTML = '''
             localStorage.setItem('rxVolume', val);
         }
 
-        function toggleSidebar() {
+        const SIDEBAR_W = 260;
+        function _applySidebarState(collapsed) {
             const body = document.getElementById('appBody');
             const btn  = document.getElementById('sidebarToggle');
+            const w = collapsed ? 0 : SIDEBAR_W;
+            body.style.gridTemplateColumns = w + 'px 1fr';
+            if (btn) { btn.style.left = w + 'px'; btn.innerHTML = collapsed ? '&#10095;' : '&#10094;'; }
+        }
+        function toggleSidebar() {
+            const body = document.getElementById('appBody');
             const collapsed = body.classList.toggle('sidebar-collapsed');
-            btn.innerHTML = collapsed ? '&#10095;' : '&#10094;';
+            _applySidebarState(collapsed);
             localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '');
         }
         // Restore sidebar state on load
-        if (localStorage.getItem('sidebarCollapsed')) {
-            document.getElementById('appBody').classList.add('sidebar-collapsed');
-            const btn = document.getElementById('sidebarToggle');
-            if (btn) btn.innerHTML = '&#10095;';
-        }
+        (function() {
+            const collapsed = !!localStorage.getItem('sidebarCollapsed');
+            if (collapsed) document.getElementById('appBody').classList.add('sidebar-collapsed');
+            _applySidebarState(collapsed);
+        })();
 
         function toggleMuteDmr() {
             _dmrMuted = !_dmrMuted;
