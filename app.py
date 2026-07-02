@@ -2347,7 +2347,11 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 nodeEl.textContent = d.node || '--';
                 _setDirectLink(d.state === 'connected' && d.direct_links && d.direct_links.length ? d.direct_links : null);
                 const asSec = document.getElementById('asSidebarSection');
-                if (asSec) asSec.classList.toggle('as-rx', !!(d.state === 'connected' && d.active));
+                const wasActive = asSec && asSec.classList.contains('as-rx');
+                const nowActive = !!(d.state === 'connected' && d.active);
+                if (nowActive && !wasActive) log('Allstar RX: signal on node ' + (d.node || '--'), 'ok');
+                if (!nowActive && wasActive) log('Allstar RX: signal cleared', 'info');
+                if (asSec) asSec.classList.toggle('as-rx', nowActive);
                 ['btnAsAudio', 'btnAsAudioSidebar'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.classList.toggle('streaming', !!(d.state === 'connected' && d.active));
@@ -2580,6 +2584,7 @@ registerProcessor('mic-decimator', MicDecimator);
             if (btnMain && btnMain.disabled) return;
             _pttActive = true;
             _setPTTKeyed(true);
+            log('Allstar TX: keyed up', 'ok');
 
             try {
                 // Open mic first; BT devices may switch HFP profile here.
@@ -2653,6 +2658,7 @@ registerProcessor('mic-decimator', MicDecimator);
             if (!_pttActive) return;
             _pttActive = false;
             _setPTTKeyed(false);
+            log('Allstar TX: unkeyed', 'info');
             if (_pttNode) {
                 if (_pttNode._stopMeter) _pttNode._stopMeter();
                 try { _pttNode.disconnect(); } catch(e) {}
