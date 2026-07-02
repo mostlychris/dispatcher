@@ -1186,8 +1186,36 @@ HTML = '''
         }
 
         @media (max-width: 600px) {
-            .app-body { grid-template-columns: 1fr; }
-            .sidebar  { border-right: none; border-bottom: 1px solid #222; max-height: 50vh; }
+            /* Layout: single column, sidebar hidden */
+            .app-body, .app-body.sidebar-collapsed { grid-template-columns: 1fr !important; }
+            .sidebar         { display: none !important; }
+            .sidebar-toggle  { display: none !important; }
+
+            /* Panels fill the screen */
+            .content  { overflow-y: auto; }
+            .panels   { padding: 6px; gap: 6px; }
+
+            /* Larger tap targets on collapse headers */
+            .collapse-header { min-height: 48px; padding: 0 10px; }
+            .collapse-header h3 { font-size: 11px; }
+
+            /* Make key status badges more readable at a glance */
+            #connState, #asStateBadge { font-size: 11px !important; padding: 2px 6px; }
+            #dmrActiveCall            { font-size: 15px !important; }
+            #tgValue                  { font-size: 13px !important; }
+            #tgValueName              { display: none; }
+            #asNodeBadge              { font-size: 13px !important; }
+            #asDirectLinkBadge        { font-size: 12px !important; }
+            #modeValue                { display: none; }
+
+            /* Hide non-essential panels entirely on mobile */
+            .mobile-hide { display: none !important; }
+
+            /* Dispatch log: shorter on mobile */
+            .dispatch-log { height: 100px; }
+
+            /* PTT button: full-width easy tap target */
+            .btn-ptt { width: 100% !important; font-size: 14px !important; padding: 10px !important; }
         }
     </style>
 </head>
@@ -1383,7 +1411,7 @@ HTML = '''
                 </div>
 
                 <!-- STATUS STRIP -->
-                <div class="collapse-panel">
+                <div class="collapse-panel mobile-hide">
                     <div class="status-strip">
                         <span class="strip-label">SERVICES</span>
                         <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span>STFU <span id="svc_stfu" class="svc-text-off">--</span></span>
@@ -1394,7 +1422,7 @@ HTML = '''
                 </div>
 
                 <!-- QUICK TUNE -->
-                <div class="collapse-panel">
+                <div class="collapse-panel mobile-hide">
                     <div class="collapse-header" onclick="toggleQuickTune()">
                         <h3>&#9733; QUICK TUNE</h3>
                         <span class="collapse-arrow" id="quickTuneArrow">&#9660;</span>
@@ -2696,6 +2724,16 @@ registerProcessor('mic-decimator', MicDecimator);
         // -------------------------
         // STARTUP
         // -------------------------
+
+        // On mobile, collapse all panels for a clean minimal view
+        if (window.innerWidth <= 600) {
+            dmrSectionOpen = false;
+            document.getElementById('dmrBody').classList.remove('open');
+            document.getElementById('dmrArrow').classList.remove('open');
+            dispatchLogOpen = false;
+            // allstarBody already starts collapsed by default
+        }
+
         connectSSE();
         setInterval(pollStatus, 5000);
         pollStatus();
