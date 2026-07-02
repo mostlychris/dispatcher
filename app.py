@@ -1284,6 +1284,17 @@ HTML = '''
             <!-- PANELS -->
             <div class="panels">
 
+                <!-- DISPATCH LOG -->
+                <div class="collapse-panel">
+                    <div class="collapse-header" onclick="toggleDispatchLog()">
+                        <h3>&#128225; DISPATCH LOG</h3>
+                        <span class="collapse-arrow" id="dispatchArrow">&#9660;</span>
+                    </div>
+                    <div class="collapse-body" id="dispatchLogWrapper">
+                        <div class="dispatch-log" id="dispatchLog"></div>
+                    </div>
+                </div>
+
                 <!-- DMR STATUS -->
                 <div class="collapse-panel" id="dmrSection">
                     <div class="collapse-header" onclick="toggleDmrSection()">
@@ -1379,17 +1390,6 @@ HTML = '''
                         <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM <span id="svc_mmdvm" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>Analog <span id="svc_analog" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span>USRP <span id="svc_usrp" class="svc-text-off">--</span></span>
-                    </div>
-                </div>
-
-                <!-- DISPATCH LOG -->
-                <div class="collapse-panel">
-                    <div class="collapse-header" onclick="toggleDispatchLog()">
-                        <h3>&#128225; DISPATCH LOG</h3>
-                        <span class="collapse-arrow open" id="dispatchArrow">&#9660;</span>
-                    </div>
-                    <div class="collapse-body open" id="dispatchLogWrapper">
-                        <div class="dispatch-log" id="dispatchLog"></div>
                     </div>
                 </div>
 
@@ -1886,7 +1886,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var autoScroll      = true;
         var logViewerOpen   = false;
         var logPollTimer    = null;
-        var dispatchLogOpen = true;
+        var dispatchLogOpen = false;
 
         var dmrSectionOpen = true;
         function toggleDmrSection() {
