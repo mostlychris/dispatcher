@@ -1550,6 +1550,8 @@ HTML = '''
                     document.getElementById('txCallsign').textContent    = cs;
                     document.getElementById('txDetail').textContent      = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
                     document.getElementById('txTime').textContent        = 'Since ' + data.started;
+                    const connEl = document.getElementById('connState');
+                    if (connEl) { connEl.textContent = 'RX'; connEl.className = 'conn-badge conn-rx'; }
                     log('TX: ' + cs + ' → TG ' + data.tg, 'ok');
                     if (lastHeardOpen) pollLastHeard();
                 } else if (data.event === 'tx_end') {
@@ -1559,6 +1561,8 @@ HTML = '''
                     document.getElementById('txCallsign').textContent    = 'STANDBY';
                     document.getElementById('txDetail').textContent      = '—';
                     document.getElementById('txTime').innerHTML          = '&nbsp;';
+                    const connEl = document.getElementById('connState');
+                    if (connEl) { connEl.textContent = 'READY'; connEl.className = 'conn-badge conn-idle'; }
                     if (lastHeardOpen) pollLastHeard();
                 }
             };
