@@ -1873,13 +1873,20 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         var dvsp = null;
+        function _syncDmrMonitorBtns(active) {
+            ['btnMonitor', 'mobBtnDmrMonitor'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('active', active);
+            });
+        }
+
         async function toggleMonitor(btn) {
             if (dvsp && dvsp.isPlaying()) {
                 dvsp.stop();
                 // WorkletPlayer.stop() closes the AudioContext; reset filter refs
                 // so setupAudioFilters() will rewire them on next play.
                 hpFilter = shelfFilter = notchFilter = presFilter = compressor = null;
-                btn.classList.remove('active');
+                _syncDmrMonitorBtns(false);
                 log('RX Monitor stopped', 'warn');
             } else {
                 if (!dvsp) {
@@ -1902,7 +1909,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 }
                 applyStoredVolume();
                 dvsp.play();
-                btn.classList.add('active');
+                _syncDmrMonitorBtns(true);
                 log('RX Monitor started', 'ok');
             }
         }
@@ -2340,7 +2347,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         function _syncAsAudioBtns(active) {
-            ['btnAsAudio', 'btnAsAudioSidebar'].forEach(id => {
+            ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('active', active);
             });
@@ -2419,7 +2426,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 if (nowActive && !wasActive) log('Allstar RX: signal on node ' + (d.node || '--'), 'ok');
                 if (!nowActive && wasActive) log('Allstar RX: signal cleared', 'info');
                 if (asSec) asSec.classList.toggle('as-rx', nowActive);
-                ['btnAsAudio', 'btnAsAudioSidebar'].forEach(id => {
+                ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.classList.toggle('streaming', !!(d.state === 'connected' && d.active));
                 });
@@ -2644,17 +2651,6 @@ registerProcessor('mic-decimator', MicDecimator);
             });
         }
 
-        // Keep mobile monitor buttons in sync with sidebar state
-        function syncMobMonitor() {
-            const src = document.getElementById('btnMonitor');
-            const mob = document.getElementById('mobBtnDmrMonitor');
-            if (src && mob) { mob.className = 'mob-btn ' + src.className.replace('btn-sidebar-sm ', ''); }
-        }
-        function syncMobAsMonitor() {
-            const src = document.getElementById('btnAsAudioSidebar');
-            const mob = document.getElementById('mobBtnAsMonitor');
-            if (src && mob) { mob.className = 'mob-btn ' + src.className.replace('btn-sidebar-sm ', ''); }
-        }
 
         async function pttStart() {
             if (_pttActive) return;
@@ -2806,9 +2802,9 @@ registerProcessor('mic-decimator', MicDecimator);
     <!-- MOBILE BOTTOM ACTION BAR -->
     <div class="mobile-action-bar">
         <button class="mob-btn btn-monitor" id="mobBtnDmrMonitor"
-                onclick="toggleMonitor(this); syncMobMonitor()">&#128264; DMR</button>
+                onclick="toggleMonitor(this)">&#128264; DMR</button>
         <button class="mob-btn btn-monitor" id="mobBtnAsMonitor"
-                onclick="toggleAllstarAudio(this); syncMobAsMonitor()">&#128264; Allstar</button>
+                onclick="toggleAllstarAudio(this)">&#128264; Allstar</button>
         <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled>&#127908; PTT</button>
     </div>
 </body>
