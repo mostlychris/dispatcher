@@ -2194,6 +2194,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     d.status_source === 'cached' ? 'conn-cached' : 'conn-' + d.conn_state
                 );
 
+                // Keep header color and pulse in sync with poll — SSE is real-time but
+                // can miss events on reconnect; the poll corrects any drift.
+                const dmrRx = d.conn_state === 'rx';
+                document.getElementById('dmrSection').classList.toggle('active', dmrRx);
+                document.getElementById('txPulse').classList.toggle('on', dmrRx);
+
                 document.getElementById('tgValue').textContent     = d.tg              || '--';
                 document.getElementById('tgValueName').textContent = d.tg_name         || '';
                 document.getElementById('tgName').textContent      = d.tg_name         || '';
