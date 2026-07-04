@@ -1344,6 +1344,15 @@ HTML = '''
             </div>
         </div>
 
+    <!-- MOBILE BOTTOM ACTION BAR (must be before <script> so getElementById works at parse time) -->
+    <div class="mobile-action-bar">
+        <button class="mob-btn btn-monitor" id="mobBtnDmrMonitor"
+                onclick="toggleMonitor(this)">&#128264; DMR</button>
+        <button class="mob-btn btn-monitor" id="mobBtnAsMonitor"
+                onclick="toggleAllstarAudio(this)">&#128264; Allstar</button>
+        <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled>&#127908; PTT</button>
+    </div>
+
         <!-- MAIN CONTENT -->
         <div class="content">
 
@@ -2808,15 +2817,6 @@ registerProcessor('mic-decimator', MicDecimator);
             if (btn && !btn.disabled) allstarConnect();
         });
     </script>
-
-    <!-- MOBILE BOTTOM ACTION BAR -->
-    <div class="mobile-action-bar">
-        <button class="mob-btn btn-monitor" id="mobBtnDmrMonitor"
-                onclick="toggleMonitor(this)">&#128264; DMR</button>
-        <button class="mob-btn btn-monitor" id="mobBtnAsMonitor"
-                onclick="toggleAllstarAudio(this)">&#128264; Allstar</button>
-        <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled>&#127908; PTT</button>
-    </div>
 </body>
 </html>
 '''
