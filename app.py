@@ -973,7 +973,6 @@ HTML = '''
         button.btn-monitor { background: #1a1a1a; color: #777; border-color: #333; }
         button.btn-monitor:hover { background: #222; color: #aaa; }
         button.btn-monitor.active { background: #006600; color: #fff; border-color: #00aa00; font-weight: bold; }
-        button.btn-monitor.streaming,
         button.btn-monitor.active.streaming { background: #0055cc; color: #fff; border-color: #0055cc; font-weight: bold; box-shadow: 0 0 10px #0077ff; }
         button:disabled { opacity: 0.35; cursor: not-allowed; }
         .btn-sidebar-sm {
@@ -987,7 +986,6 @@ HTML = '''
         .btn-sidebar-sm.btn-monitor { background: #1a1a1a; color: #777; border-color: #333; }
         .btn-sidebar-sm.btn-monitor:hover { background: #222; color: #aaa; }
         .btn-sidebar-sm.btn-monitor.active { background: #006600; color: #fff; border-color: #00aa00; font-weight: bold; }
-        .btn-sidebar-sm.btn-monitor.streaming,
         .btn-sidebar-sm.btn-monitor.active.streaming { background: #0055cc; color: #fff; border-color: #0055cc; font-weight: bold; box-shadow: 0 0 10px #0077ff; }
         .btn-restart-sm {
             font-size: 10px; padding: 2px 7px;
@@ -1249,7 +1247,7 @@ HTML = '''
                 -webkit-tap-highlight-color: transparent;
             }
             .mobile-action-bar .mob-btn.active   { background: #006600; color: #fff; border-color: #00aa00; }
-            .mobile-action-bar .mob-btn.streaming { background: #0055cc; color: #fff; border-color: #0077ff; box-shadow: 0 0 8px #0077ff; }
+            .mobile-action-bar .mob-btn.active.streaming { background: #0055cc; color: #fff; border-color: #0077ff; box-shadow: 0 0 8px #0077ff; }
             .mobile-action-bar .mob-btn.muted     { background: #2a0000; color: #f88; border-color: #f44; }
             .mobile-action-bar .mob-btn.mob-ptt  { background: #1a1a1a; color: #888; border-color: #444; font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
@@ -2452,7 +2450,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 if (asSec) asSec.classList.toggle('as-rx', nowActive);
                 ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor'].forEach(id => {
                     const el = document.getElementById(id);
-                    if (el) el.classList.toggle('streaming', !!(d.state === 'connected' && d.active));
+                    if (el) el.classList.toggle('streaming', !!(d.state === 'connected' && d.active) && el.classList.contains('active'));
                 });
 
                 const btnConn = document.getElementById('btnAsConnect');
