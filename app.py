@@ -1250,6 +1250,7 @@ HTML = '''
             }
             .mobile-action-bar .mob-btn.active   { background: #006600; color: #fff; border-color: #00aa00; }
             .mobile-action-bar .mob-btn.streaming { background: #0055cc; color: #fff; border-color: #0077ff; box-shadow: 0 0 8px #0077ff; }
+            .mobile-action-bar .mob-btn.muted     { background: #2a0000; color: #f88; border-color: #f44; }
             .mobile-action-bar .mob-btn.mob-ptt  { background: #1a1a1a; color: #888; border-color: #444; font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
             .mobile-action-bar .mob-btn:disabled { opacity: 0.35; }
@@ -1624,6 +1625,8 @@ HTML = '''
             btn.style.borderColor = _dmrMuted ? '#f44' : '#444';
             const vol = _dmrMuted ? 0 : parseInt(document.getElementById('volSlider').value) / 100;
             if (dvsp && dvsp.player) dvsp.player.volume(vol);
+            const mob = document.getElementById('mobBtnDmrMonitor');
+            if (mob) { mob.classList.toggle('muted', _dmrMuted); mob.textContent = _dmrMuted ? '🔇 DMR' : '📢 DMR'; }
         }
 
         function toggleMuteAllstar() {
@@ -1634,6 +1637,8 @@ HTML = '''
             btn.style.borderColor = _asMuted ? '#f44' : '#444';
             const vol = _asMuted ? 0 : parseInt(document.getElementById('asVolSlider').value);
             if (asPlayer) asPlayer.setVolume(vol);
+            const mob = document.getElementById('mobBtnAsMonitor');
+            if (mob) { mob.classList.toggle('muted', _asMuted); mob.textContent = _asMuted ? '🔇 Allstar' : '📢 Allstar'; }
         }
 
         function applyStoredVolume() {
