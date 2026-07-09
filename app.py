@@ -2222,7 +2222,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 document.getElementById('connectedSince').textContent   = d.connected_since || '--';
                 document.getElementById('headerTime').textContent = timestamp();
                 const dmrBtn = document.getElementById('btnMonitor');
-                dmrBtn.classList.toggle('streaming', d.conn_state === 'rx' && dmrBtn.classList.contains('active'));
+                const dmrRxAndMonitoring = d.conn_state === 'rx' && dmrBtn.classList.contains('active');
+                dmrBtn.classList.toggle('streaming', dmrRxAndMonitoring);
+                const mobDmr = document.getElementById('mobBtnDmrMonitor');
+                if (mobDmr) mobDmr.classList.toggle('streaming', dmrRxAndMonitoring && mobDmr.classList.contains('active'));
 
                 if (!tgInputPopulated && d.last_tg) {
                     document.getElementById('tgInput').value = d.last_tg;
