@@ -664,7 +664,8 @@ class AllstarManager:
         self._lock        = threading.Lock()
         self._last_audio  = 0.0
         self.linked_nodes = []   # updated by 'L ' TEXT frames from app_rpt
-        self.direct_links = []   # cleared on startup; restored only after a live connect+link
+        saved = _load_allstar_state()
+        self.direct_links = saved.get('direct_links', [])
 
     def _on_audio(self, pcm: bytes):
         self._last_audio = time.time()
@@ -1203,7 +1204,7 @@ HTML = '''
             #connState, #asStateBadge { font-size: 11px !important; padding: 2px 6px; }
             #dmrActiveCall            { font-size: 15px !important; }
             #tgValue                  { font-size: 13px !important; }
-            #tgValueName              { display: none; }
+            #tgValueName              { font-size: 9px !important; }
             #asNodeBadge              { font-size: 13px !important; }
             #asDirectLinkBadge        { font-size: 12px !important; }
             #modeValue                { display: none; }
