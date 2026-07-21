@@ -2298,7 +2298,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             const badge = document.getElementById('asDirectLinkBadge');
             const nodeEl = document.getElementById('asDirectLinkNode');
             if (_asDirectLink) {
-                nodeEl.textContent = _asDirectLink.join(' · ');
+                const shown = _asDirectLink.slice(0, 4);
+                const extra = _asDirectLink.length - shown.length;
+                nodeEl.textContent = shown.join(' · ') + (extra > 0 ? ' +' + extra : '');
                 badge.style.display = '';
             } else {
                 badge.style.display = 'none';
