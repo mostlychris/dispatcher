@@ -664,8 +664,7 @@ class AllstarManager:
         self._lock        = threading.Lock()
         self._last_audio  = 0.0
         self.linked_nodes = []   # updated by 'L ' TEXT frames from app_rpt
-        saved = _load_allstar_state()
-        self.direct_links = saved.get('direct_links', [])
+        self.direct_links = []   # not restored from disk — live L frames are authoritative
 
     def _on_audio(self, pcm: bytes):
         self._last_audio = time.time()
