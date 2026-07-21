@@ -741,7 +741,8 @@ class AllstarManager:
     @property
     def status(self):
         if not self.client:
-            return {'state': 'idle', 'node': '', 'error': '', 'active': False, 'direct_links': self.direct_links}
+            return {'state': 'idle', 'node': '', 'error': '', 'active': False,
+                    'direct_links': self.direct_links, 'linked_nodes': self.linked_nodes}
         active = (self.client.state == 'connected' and
                   time.time() - self._last_audio < 0.6)
         return {
@@ -750,6 +751,7 @@ class AllstarManager:
             'error':        self.client.error_msg,
             'active':       active,
             'direct_links': self.direct_links,
+            'linked_nodes': self.linked_nodes,
         }
 
     def send_dtmf(self, digits: str, inter_digit: float = 0.0):
@@ -2445,7 +2447,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 }
                 if (dot) dot.className = 'rx-dot' + (d.active ? ' lit' : '');
                 nodeEl.textContent = d.node || '--';
-                _setDirectLink(d.state === 'connected' && d.direct_links && d.direct_links.length ? d.direct_links : null);
+                // Prefer linked_nodes (live IAX2 'L' frames) over direct_links (dispatcher-managed).
+                // linked_nodes reflects external changes; direct_links is only updated by this app.
+                const liveNodes = d.linked_nodes && d.linked_nodes.length
+                    ? d.linked_nodes.map(n => n.node)
+                    : (d.direct_links && d.direct_links.length ? d.direct_links : null);
+                _setDirectLink(d.state === 'connected' && liveNodes ? liveNodes : null);
                 const asSec = document.getElementById('asSidebarSection');
                 const wasActive = asSec && asSec.classList.contains('as-rx');
                 const nowActive = !!(d.state === 'connected' && d.active);
