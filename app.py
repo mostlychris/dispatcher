@@ -1959,15 +1959,19 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     body.innerHTML = '<tr><td colspan="6" style="color:#777; padding:6px;">No activity yet today</td></tr>';
                     return;
                 }
-                body.innerHTML = rows.map(r => `
+                body.innerHTML = rows.map(r => {
+                    const utcStr = r.time.replace(' ', 'T') + 'Z';
+                    const localTime = new Date(utcStr).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
+                    return `
                     <tr>
-                        <td class="lh-time">${r.time.split(' ')[1]}</td>
+                        <td class="lh-time">${localTime}</td>
                         <td class="lh-callsign">${r.callsign}</td>
                         <td class="lh-dmrid">${r.dmr_id || ''}</td>
                         <td class="lh-tg">${r.tg}</td>
                         <td class="lh-tgname">${r.tg_name || ''}</td>
                         <td class="${r.source === 'BM' ? 'lh-bm' : 'lh-tgif'}">${r.source}</td>
-                    </tr>`).join('');
+                    </tr>`;
+                }).join('');
             } catch(e) { log('Last heard error: ' + e, 'error'); }
         }
 
