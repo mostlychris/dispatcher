@@ -2404,26 +2404,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         var _asPoller = null;
-        var _asNodePoller = null;
-
-        async function pollAllstarNodes() {
-            try {
-                const res = await fetch('/api/allstar/nodes');
-                const d   = await res.json();
-                const el  = document.getElementById('asNodeList');
-                if (!d.nodes || d.nodes.length === 0) {
-                    el.textContent = '(none)';
-                    return;
-                }
-                const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
-                el.innerHTML = d.nodes.map(n =>
-                    `<span style="display:inline-block;margin-right:10px;">
-                        <span style="color:#7e7;">${n.node}</span>
-                        <span style="color:#aaa;font-size:10px;">${modeLabel[n.mode] || n.mode}</span>
-                    </span>`
-                ).join('');
-            } catch(e) {}
-        }
 
         async function pollAllstarStatus() {
             try {
@@ -2454,6 +2434,21 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     ? d.linked_nodes.map(n => n.node)
                     : (d.direct_links && d.direct_links.length ? d.direct_links : null);
                 _setDirectLink(d.state === 'connected' && liveNodes ? liveNodes : null);
+                // Also update the panel node list from the same data so both are always in sync.
+                const nodeListEl = document.getElementById('asNodeList');
+                if (nodeListEl) {
+                    if (d.state === 'connected' && d.linked_nodes && d.linked_nodes.length) {
+                        const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
+                        nodeListEl.innerHTML = d.linked_nodes.map(n =>
+                            `<span style="display:inline-block;margin-right:10px;">` +
+                            `<span style="color:#7e7;">${n.node}</span>` +
+                            `<span style="color:#aaa;font-size:10px;">${modeLabel[n.mode] || n.mode}</span>` +
+                            `</span>`
+                        ).join('');
+                    } else {
+                        nodeListEl.textContent = d.state === 'connected' ? '(none)' : '--';
+                    }
+                }
                 const asSec = document.getElementById('asSidebarSection');
                 const wasActive = asSec && asSec.classList.contains('as-rx');
                 const nowActive = !!(d.state === 'connected' && d.active);
@@ -2479,10 +2474,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 // keep polling while connected; stop when offline
                 if (d.state === 'connected' || d.state === 'connecting') {
                     if (!_asPoller) _asPoller = setInterval(pollAllstarStatus, 400);
-                    if (!_asNodePoller) { pollAllstarNodes(); _asNodePoller = setInterval(pollAllstarNodes, 3000); }
                 } else {
-                    if (_asPoller)     { clearInterval(_asPoller);     _asPoller     = null; }
-                    if (_asNodePoller) { clearInterval(_asNodePoller); _asNodePoller = null; }
+                    if (_asPoller) { clearInterval(_asPoller); _asPoller = null; }
                     document.getElementById('asNodeList').textContent = '--';
                 }
             } catch(e) { /* sidebar badge stays stale — non-fatal */ }
