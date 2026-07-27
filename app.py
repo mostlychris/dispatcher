@@ -1478,6 +1478,14 @@ HTML = '''
                             <div class="qt-section-label" style="margin-bottom:5px;">CONNECTED NODES</div>
                             <div id="asNodeList" style="font-size:12px; color:#ddd; min-height:16px;">--</div>
                         </div>
+                        <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+                            <label style="font-size:11px; color:#888; white-space:nowrap;">Node alert duration (s)</label>
+                            <input type="number" id="nodeToastDurationInput" min="2" max="60"
+                                value="10"
+                                style="width:54px; background:#111; border:1px solid #444; color:#ccc;
+                                       border-radius:4px; padding:2px 5px; font-size:12px;"
+                                onchange="setNodeToastDuration(this.value)">
+                        </div>
                     </div>
                 </div>
 
@@ -2317,6 +2325,19 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _asDirectLink = null;
         var _prevLinkedNodes = null;  // tracks last known set for change detection
         var _nodeToastDuration = parseInt(localStorage.getItem('nodeToastDuration') || '10', 10);
+
+        function setNodeToastDuration(val) {
+            const n = Math.max(2, Math.min(60, parseInt(val, 10) || 10));
+            _nodeToastDuration = n;
+            localStorage.setItem('nodeToastDuration', n);
+            const el = document.getElementById('nodeToastDurationInput');
+            if (el) el.value = n;
+        }
+
+        (function() {
+            const el = document.getElementById('nodeToastDurationInput');
+            if (el) el.value = _nodeToastDuration;
+        })();
 
         var _nodeToastTimer = null;
 
