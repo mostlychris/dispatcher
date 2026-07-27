@@ -1482,13 +1482,17 @@ HTML = '''
                             <div class="qt-section-label" style="margin-bottom:5px;">CONNECTED NODES</div>
                             <div id="asNodeList" style="font-size:12px; color:#ddd; min-height:16px;">--</div>
                         </div>
-                        <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+                        <div style="margin-top:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                             <label style="font-size:11px; color:#888; white-space:nowrap;">Node alert duration (s)</label>
                             <input type="number" id="nodeToastDurationInput" min="2" max="60"
                                 value="10"
                                 style="width:54px; background:#111; border:1px solid #444; color:#ccc;
                                        border-radius:4px; padding:2px 5px; font-size:12px;"
                                 onchange="setNodeToastDuration(this.value)">
+                            <label style="font-size:11px; color:#888; white-space:nowrap; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                                <input type="checkbox" id="nodeAlertSoundChk" onchange="setNodeAlertSound(this.checked)">
+                                Alert sound
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -2331,6 +2335,36 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _asDirectLink = null;
         var _prevLinkedNodes = null;  // tracks last known set for change detection
         var _nodeToastDuration = parseInt(localStorage.getItem('nodeToastDuration') || '10', 10);
+        var _nodeAlertSound    = localStorage.getItem('nodeAlertSound') !== '0';  // default on
+        var _alertAudioCtx     = null;
+
+        function _getAlertCtx() {
+            if (!_alertAudioCtx) _alertAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            return _alertAudioCtx;
+        }
+
+        function _playNodeAlert(type) {
+            if (!_nodeAlertSound) return;
+            try {
+                const ctx  = _getAlertCtx();
+                const gain = ctx.createGain();
+                gain.connect(ctx.destination);
+                // Two-tone chime: connect = ascending (880→1320 Hz), disconnect = descending (880→440 Hz)
+                const freqs = type === 'connect' ? [880, 1320] : [880, 440];
+                freqs.forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    osc.connect(gain);
+                    const t = ctx.currentTime + i * 0.18;
+                    gain.gain.setValueAtTime(0, t);
+                    gain.gain.linearRampToValueAtTime(0.4, t + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+                    osc.start(t);
+                    osc.stop(t + 0.36);
+                });
+            } catch(e) {}
+        }
 
         function setNodeToastDuration(val) {
             const n = Math.max(2, Math.min(60, parseInt(val, 10) || 10));
@@ -2340,9 +2374,16 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (el) el.value = n;
         }
 
+        function setNodeAlertSound(enabled) {
+            _nodeAlertSound = !!enabled;
+            localStorage.setItem('nodeAlertSound', enabled ? '1' : '0');
+        }
+
         (function() {
-            const el = document.getElementById('nodeToastDurationInput');
-            if (el) el.value = _nodeToastDuration;
+            const dur = document.getElementById('nodeToastDurationInput');
+            if (dur) dur.value = _nodeToastDuration;
+            const chk = document.getElementById('nodeAlertSoundChk');
+            if (chk) chk.checked = _nodeAlertSound;
         })();
 
         var _nodeToastTimer = null;
@@ -2378,7 +2419,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const lines = [];
                 newSet.forEach(n => { if (!oldSet.has(n) && lines.length < 4) lines.push({text: 'Node ' + n + ' connected',    type: 'connect'}); });
                 oldSet.forEach(n => { if (!newSet.has(n) && lines.length < 4) lines.push({text: 'Node ' + n + ' disconnected', type: 'disconnect'}); });
-                if (lines.length) _showNodeToast(lines);
+                if (lines.length) {
+                    _showNodeToast(lines);
+                    _playNodeAlert(lines[0].type);
+                }
             }
             _prevLinkedNodes = nodes ? [...nodes] : [];
         }
