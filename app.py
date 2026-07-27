@@ -1189,17 +1189,22 @@ HTML = '''
 
         /* Node connect/disconnect toast */
         #nodeToastContainer {
-            position: fixed; top: 48px; right: 16px; z-index: 9999;
-            display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 100000; display: flex; flex-direction: column;
+            align-items: center; gap: 10px; pointer-events: none;
         }
         .node-toast {
-            background: #1a2a1a; border: 1px solid #3a3; color: #cfc;
-            padding: 8px 14px; border-radius: 6px; font-size: 12px; font-family: monospace;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.5);
-            opacity: 1; transition: opacity 0.4s ease;
-            max-width: 260px;
+            background: #0d2b0d; border: 3px solid #22cc22; color: #88ff88;
+            padding: 22px 40px; border-radius: 10px; font-size: 22px;
+            font-family: monospace; font-weight: bold; letter-spacing: 1px;
+            box-shadow: 0 0 40px rgba(0,200,0,0.4), 0 4px 24px rgba(0,0,0,0.8);
+            opacity: 1; transition: opacity 0.5s ease;
+            text-align: center; min-width: 300px;
         }
-        .node-toast.disconnect { background: #2a1a1a; border-color: #a33; color: #fcc; }
+        .node-toast.disconnect {
+            background: #2b0d0d; border-color: #cc2222; color: #ff8888;
+            box-shadow: 0 0 40px rgba(200,0,0,0.4), 0 4px 24px rgba(0,0,0,0.8);
+        }
         .node-toast.fade-out { opacity: 0; }
 
         @media (max-width: 600px) {
@@ -2310,6 +2315,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         var _asDirectLink = null;
         var _prevLinkedNodes = null;  // tracks last known set for change detection
+        var _nodeToastDuration = parseInt(localStorage.getItem('nodeToastDuration') || '10', 10);
 
         function _showNodeToast(msg, type) {
             const c = document.getElementById('nodeToastContainer');
@@ -2320,8 +2326,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             c.appendChild(t);
             setTimeout(() => {
                 t.classList.add('fade-out');
-                setTimeout(() => t.remove(), 450);
-            }, 5000);
+                setTimeout(() => t.remove(), 500);
+            }, _nodeToastDuration * 1000);
         }
 
         function _checkNodeChanges(nodes) {
