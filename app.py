@@ -1206,6 +1206,10 @@ HTML = '''
             background: #2b0d0d; border-color: #cc2222; color: #ff8888;
             box-shadow: 0 0 40px rgba(200,0,0,0.4), 0 4px 24px rgba(0,0,0,0.8);
         }
+        .node-toast.dmr {
+            background: #1a1400; border-color: #ccaa00; color: #ffe066;
+            box-shadow: 0 0 40px rgba(200,160,0,0.4), 0 4px 24px rgba(0,0,0,0.8);
+        }
         .node-toast.fade-out { opacity: 0; }
 
         @media (max-width: 600px) {
@@ -1593,6 +1597,7 @@ HTML = '''
                     const connEl = document.getElementById('connState');
                     if (connEl) { connEl.textContent = 'RX'; connEl.className = 'conn-badge conn-rx'; }
                     log('TX: ' + cs + ' → TG ' + data.tg, 'ok');
+                    _showDmrToast(data.tg, data.tg_name, cs);
                     if (lastHeardOpen) pollLastHeard();
                 } else if (data.event === 'tx_end') {
                     document.getElementById('dmrSection').classList.remove('active');
@@ -1603,6 +1608,7 @@ HTML = '''
                     document.getElementById('txTime').innerHTML          = '&nbsp;';
                     const connEl = document.getElementById('connState');
                     if (connEl) { connEl.textContent = 'READY'; connEl.className = 'conn-badge conn-idle'; }
+                    _dismissDmrToast();
                     if (lastHeardOpen) pollLastHeard();
                 }
             };
@@ -2375,6 +2381,34 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 if (lines.length) _showNodeToast(lines);
             }
             _prevLinkedNodes = nodes ? [...nodes] : [];
+        }
+
+        var _dmrToastTimer = null;
+
+        function _showDmrToast(tg, tgName, callsign) {
+            const c = document.getElementById('nodeToastContainer');
+            if (!c) return;
+            while (c.firstChild) c.removeChild(c.firstChild);
+            if (_dmrToastTimer) { clearTimeout(_dmrToastTimer); _dmrToastTimer = null; }
+            const t = document.createElement('div');
+            t.id = 'dmrToast';
+            t.className = 'node-toast dmr';
+            const csLine  = callsign ? `<div style="font-size:0.8em;color:#ffd040;">${callsign}</div>` : '';
+            const tgLine  = `<div>TG ${tg}</div>`;
+            const nameLine = tgName ? `<div style="font-size:0.75em;color:#ffd040;">${tgName}</div>` : '';
+            t.innerHTML = csLine + tgLine + nameLine;
+            c.appendChild(t);
+        }
+
+        function _dismissDmrToast() {
+            const c = document.getElementById('nodeToastContainer');
+            if (!c) return;
+            if (_dmrToastTimer) { clearTimeout(_dmrToastTimer); _dmrToastTimer = null; }
+            const t = document.getElementById('dmrToast');
+            if (t) {
+                t.classList.add('fade-out');
+                setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 500);
+            }
         }
 
         function _setDirectLink(nodes) {
