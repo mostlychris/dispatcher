@@ -1187,6 +1187,21 @@ HTML = '''
 
         .mobile-action-bar { display: none; }
 
+        /* Node connect/disconnect toast */
+        #nodeToastContainer {
+            position: fixed; top: 48px; right: 16px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+        }
+        .node-toast {
+            background: #1a2a1a; border: 1px solid #3a3; color: #cfc;
+            padding: 8px 14px; border-radius: 6px; font-size: 12px; font-family: monospace;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+            opacity: 1; transition: opacity 0.4s ease;
+            max-width: 260px;
+        }
+        .node-toast.disconnect { background: #2a1a1a; border-color: #a33; color: #fcc; }
+        .node-toast.fade-out { opacity: 0; }
+
         @media (max-width: 600px) {
             /* Layout: single column, sidebar hidden */
             .app-body, .app-body.sidebar-collapsed { grid-template-columns: 1fr !important; }
@@ -1346,6 +1361,7 @@ HTML = '''
         </div>
 
     <!-- MOBILE BOTTOM ACTION BAR (must be before <script> so getElementById works at parse time) -->
+    <div id="nodeToastContainer"></div>
     <div class="mobile-action-bar">
         <button class="mob-btn btn-monitor" id="mobBtnDmrMonitor"
                 onclick="toggleMonitor(this)">&#128264; DMR</button>
@@ -2293,6 +2309,31 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         var _asDirectLink = null;
+        var _prevLinkedNodes = null;  // tracks last known set for change detection
+
+        function _showNodeToast(msg, type) {
+            const c = document.getElementById('nodeToastContainer');
+            if (!c) return;
+            const t = document.createElement('div');
+            t.className = 'node-toast' + (type === 'disconnect' ? ' disconnect' : '');
+            t.textContent = msg;
+            c.appendChild(t);
+            setTimeout(() => {
+                t.classList.add('fade-out');
+                setTimeout(() => t.remove(), 450);
+            }, 5000);
+        }
+
+        function _checkNodeChanges(nodes) {
+            // nodes is array of {node, mode} or null
+            const newSet = new Set((nodes || []).map(n => n.node));
+            const oldSet = new Set((_prevLinkedNodes || []).map(n => n.node));
+            if (_prevLinkedNodes !== null) {
+                newSet.forEach(n => { if (!oldSet.has(n)) _showNodeToast('Node ' + n + ' connected', 'connect'); });
+                oldSet.forEach(n => { if (!newSet.has(n)) _showNodeToast('Node ' + n + ' disconnected', 'disconnect'); });
+            }
+            _prevLinkedNodes = nodes ? [...nodes] : [];
+        }
 
         function _setDirectLink(nodes) {
             // accepts a single node string, array of node strings, or null/empty
@@ -2437,6 +2478,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const liveNodes = d.linked_nodes && d.linked_nodes.length
                     ? d.linked_nodes.map(n => n.node)
                     : (d.direct_links && d.direct_links.length ? d.direct_links : null);
+                _checkNodeChanges(d.state === 'connected' ? (d.linked_nodes || []) : []);
                 _setDirectLink(d.state === 'connected' && liveNodes ? liveNodes : null);
                 // Also update the panel node list from the same data so both are always in sync.
                 const nodeListEl = document.getElementById('asNodeList');
@@ -2480,6 +2522,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     if (!_asPoller) _asPoller = setInterval(pollAllstarStatus, 400);
                 } else {
                     if (_asPoller) { clearInterval(_asPoller); _asPoller = null; }
+                    _prevLinkedNodes = null;
                     document.getElementById('asNodeList').textContent = '--';
                 }
             } catch(e) { /* sidebar badge stays stale — non-fatal */ }
