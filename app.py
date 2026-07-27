@@ -1187,6 +1187,39 @@ HTML = '''
 
         .mobile-action-bar { display: none; }
 
+        /* Audio controls overlay */
+        #audioOverlayBtn {
+            position: fixed; bottom: 70px; right: 12px; z-index: 9000;
+            width: 44px; height: 44px; border-radius: 50%;
+            background: #1a1a1a; border: 1px solid #555; color: #ccc;
+            font-size: 20px; cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+        #audioOverlayBtn:hover { background: #2a2a2a; border-color: #888; }
+        @media (min-width: 601px) {
+            #audioOverlayBtn { bottom: 16px; }
+        }
+        #audioOverlay {
+            display: none; position: fixed; inset: 0; z-index: 50000;
+            background: rgba(0,0,0,0.6);
+        }
+        #audioOverlay.open { display: flex; align-items: center; justify-content: center; }
+        #audioOverlayPanel {
+            background: #1a1a1a; border: 1px solid #444; border-radius: 10px;
+            padding: 16px 20px; width: min(360px, 94vw); max-height: 90vh;
+            overflow-y: auto; position: relative;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+        }
+        #audioOverlayPanel h3 { color: #aaa; font-size: 11px; letter-spacing: 1px;
+            text-transform: uppercase; margin: 12px 0 6px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+        #audioOverlayPanel h3:first-child { margin-top: 0; }
+        #audioOverlayCloseBtn {
+            position: absolute; top: 10px; right: 12px;
+            background: none; border: none; color: #888; font-size: 20px; cursor: pointer;
+        }
+        #audioOverlayCloseBtn:hover { color: #ccc; }
+
         /* Node connect/disconnect toast */
         #nodeToastContainer {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -1372,6 +1405,57 @@ HTML = '''
 
     <!-- MOBILE BOTTOM ACTION BAR (must be before <script> so getElementById works at parse time) -->
     <div id="nodeToastContainer"></div>
+
+    <!-- Audio controls overlay (accessible at any screen size) -->
+    <button id="audioOverlayBtn" onclick="toggleAudioOverlay()" title="Audio controls">&#127911;</button>
+    <div id="audioOverlay" onclick="closeAudioOverlayIfBackdrop(event)">
+        <div id="audioOverlayPanel">
+            <button id="audioOverlayCloseBtn" onclick="toggleAudioOverlay()">&#10005;</button>
+
+            <h3>DMR Audio</h3>
+            <div class="vol-row">
+                <span class="vol-label">Volume</span>
+                <button id="dmrMuteBtnOv" onclick="toggleMuteDmr()" class="btn-sidebar-sm">Mute</button>
+                <button id="btnMonitorOv" onclick="toggleMonitor(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
+                <span class="vol-pct" id="volDisplayOv">100%</span>
+            </div>
+            <input type="range" class="vol-slider" id="volSliderOv" min="0" max="100" value="100"
+                   oninput="setVolume(this.value)">
+            <div class="vol-row" style="margin-top:8px;">
+                <span class="vol-label">High Pass</span>
+                <span class="vol-pct" id="hpfDisplayOv" style="color:#fa8;">OFF</span>
+            </div>
+            <input type="range" class="hpf-slider" id="hpfSliderOv" min="100" max="600" step="10" value="220"
+                   oninput="setHpFilter(this.value)">
+            <div class="vol-row" style="margin-top:8px;">
+                <span class="vol-label">Presence</span>
+                <span class="vol-pct" id="presDisplayOv" style="color:lime;">0 dB</span>
+            </div>
+            <input type="range" class="pres-slider" id="presSliderOv" min="0" max="12" step="0.5" value="0"
+                   oninput="setPresence(this.value)">
+            <div class="vol-row" style="margin-top:8px;">
+                <span class="vol-label">Noise Gate</span>
+                <label style="cursor:pointer; color:#ddd; font-size:11px;">
+                    <input type="checkbox" id="gateToggleOv" onchange="setGate(this.checked)"> Enable
+                </label>
+            </div>
+
+            <h3>Allstar Audio</h3>
+            <div class="vol-row">
+                <span class="vol-label">Volume</span>
+                <button id="asMuteBtnOv" onclick="toggleMuteAllstar()" class="btn-sidebar-sm">Mute</button>
+                <button id="btnAsAudioOv" onclick="toggleAllstarAudio(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
+                <span class="vol-pct" id="asVolDisplayOv">100%</span>
+            </div>
+            <input type="range" class="vol-slider" id="asVolSliderOv" min="0" max="100" value="100"
+                   oninput="setAllstarVolume(this.value)">
+            <div style="margin-top:8px;">
+                <button class="btn-ptt" id="btnPTTOv" disabled
+                        style="width:100%;font-size:11px;">&#127908; PTT — Hold to Talk</button>
+            </div>
+        </div>
+    </div>
+
     <div class="mobile-action-bar">
         <button class="mob-btn btn-monitor" id="mobBtnDmrMonitor"
                 onclick="toggleMonitor(this)">&#128264; DMR</button>
@@ -1657,6 +1741,56 @@ HTML = '''
             _applySidebarState(collapsed);
         })();
 
+        // ── Audio overlay ────────────────────────────────────────────
+        function toggleAudioOverlay() {
+            const ov = document.getElementById('audioOverlay');
+            const opening = !ov.classList.contains('open');
+            ov.classList.toggle('open', opening);
+            if (opening) _syncAudioOverlay();
+        }
+        function closeAudioOverlayIfBackdrop(e) {
+            if (e.target === document.getElementById('audioOverlay')) toggleAudioOverlay();
+        }
+
+        // Copy current slider/checkbox values from sidebar into overlay (or vice-versa).
+        function _syncAudioOverlay() {
+            [['volSlider','volSliderOv'], ['hpfSlider','hpfSliderOv'],
+             ['presSlider','presSliderOv'], ['asVolSlider','asVolSliderOv']].forEach(([src, dst]) => {
+                const s = document.getElementById(src), d = document.getElementById(dst);
+                if (s && d) d.value = s.value;
+            });
+            [['volDisplay','volDisplayOv'], ['hpfDisplay','hpfDisplayOv'],
+             ['presDisplay','presDisplayOv'], ['asVolDisplay','asVolDisplayOv']].forEach(([src, dst]) => {
+                const s = document.getElementById(src), d = document.getElementById(dst);
+                if (s && d) d.textContent = s.textContent;
+            });
+            const gc = document.getElementById('gateToggle'), go = document.getElementById('gateToggleOv');
+            if (gc && go) go.checked = gc.checked;
+            // Sync monitor/mute button states
+            ['btnMonitor','btnAsAudioSidebar'].forEach((sid, i) => {
+                const ovId = ['btnMonitorOv','btnAsAudioOv'][i];
+                const s = document.getElementById(sid), d = document.getElementById(ovId);
+                if (s && d) { d.className = s.className; }
+            });
+        }
+
+        // Keep overlay display labels in sync when sidebar sliders change.
+        function _syncOverlayDisplays() {
+            [['volDisplay','volDisplayOv'], ['hpfDisplay','hpfDisplayOv'],
+             ['presDisplay','presDisplayOv'], ['asVolDisplay','asVolDisplayOv']].forEach(([src, dst]) => {
+                const s = document.getElementById(src), d = document.getElementById(dst);
+                if (s && d && d.textContent !== s.textContent) d.textContent = s.textContent;
+            });
+            [['volSlider','volSliderOv'], ['hpfSlider','hpfSliderOv'],
+             ['presSlider','presSliderOv'], ['asVolSlider','asVolSliderOv']].forEach(([src, dst]) => {
+                const s = document.getElementById(src), d = document.getElementById(dst);
+                if (s && d && d.value !== s.value) d.value = s.value;
+            });
+        }
+        setInterval(function() {
+            if (document.getElementById('audioOverlay').classList.contains('open')) _syncOverlayDisplays();
+        }, 200);
+
         function toggleMuteDmr() {
             _dmrMuted = !_dmrMuted;
             const btn = document.getElementById('dmrMuteBtn');
@@ -1932,7 +2066,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         var dvsp = null;
         function _syncDmrMonitorBtns(active) {
-            ['btnMonitor', 'mobBtnDmrMonitor'].forEach(id => {
+            ['btnMonitor', 'mobBtnDmrMonitor', 'btnMonitorOv'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('active', active);
             });
@@ -2541,7 +2675,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         function _syncAsAudioBtns(active) {
-            ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor'].forEach(id => {
+            ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor', 'btnAsAudioOv'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('active', active);
             });
@@ -2621,7 +2755,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 if (nowActive && !wasActive) log('Allstar RX: signal on node ' + (d.node || '--'), 'ok');
                 if (!nowActive && wasActive) log('Allstar RX: signal cleared', 'info');
                 if (asSec) asSec.classList.toggle('as-rx', nowActive);
-                ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor'].forEach(id => {
+                ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor', 'btnAsAudioOv'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.classList.toggle('streaming', !!(d.state === 'connected' && d.active) && el.classList.contains('active'));
                 });
@@ -2631,7 +2765,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const connected = (d.state === 'connected');
                 if (btnConn) btnConn.disabled = (d.state === 'connected' || d.state === 'connecting');
                 if (btnDisc) btnDisc.disabled = (d.state === 'idle' || d.state === 'error');
-                ['btnPTT', 'btnPTTSidebar', 'mobBtnPTT'].forEach(id => {
+                ['btnPTT', 'btnPTTSidebar', 'mobBtnPTT', 'btnPTTOv'].forEach(id => {
                     const b = document.getElementById(id);
                     if (b) b.disabled = !connected;
                 });
@@ -2839,7 +2973,7 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         function _setPTTKeyed(keyed) {
-            ['btnPTT', 'btnPTTSidebar', 'mobBtnPTT'].forEach(id => {
+            ['btnPTT', 'btnPTTSidebar', 'mobBtnPTT', 'btnPTTOv'].forEach(id => {
                 const b = document.getElementById(id);
                 if (b) b.classList.toggle('keyed', keyed);
             });
@@ -2986,6 +3120,7 @@ registerProcessor('mic-decimator', MicDecimator);
         _wirePTTButton('btnPTT');
         _wirePTTButton('btnPTTSidebar');
         _wirePTTButton('mobBtnPTT');
+        _wirePTTButton('btnPTTOv');
         // Auto-connect to the configured Allstar node
         pollAllstarStatus().then(() => {
             const btn = document.getElementById('btnAsConnect');
