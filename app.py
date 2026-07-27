@@ -1195,11 +1195,12 @@ HTML = '''
         }
         .node-toast {
             background: #0d2b0d; border: 3px solid #22cc22; color: #88ff88;
-            padding: 22px 40px; border-radius: 10px; font-size: 22px;
+            padding: 22px 40px; border-radius: 10px; font-size: clamp(14px, 2.5vw, 22px);
             font-family: monospace; font-weight: bold; letter-spacing: 1px;
             box-shadow: 0 0 40px rgba(0,200,0,0.4), 0 4px 24px rgba(0,0,0,0.8);
             opacity: 1; transition: opacity 0.5s ease;
-            text-align: center; min-width: 300px;
+            text-align: center; min-width: min(300px, 90vw); max-width: 90vw;
+            white-space: nowrap;
         }
         .node-toast.disconnect {
             background: #2b0d0d; border-color: #cc2222; color: #ff8888;
