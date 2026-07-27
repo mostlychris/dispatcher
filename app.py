@@ -2346,22 +2346,22 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function _playNodeAlert(type) {
             if (!_nodeAlertSound) return;
             try {
-                const ctx  = _getAlertCtx();
-                const gain = ctx.createGain();
-                gain.connect(ctx.destination);
-                // Two-tone chime: connect = ascending (880→1320 Hz), disconnect = descending (880→440 Hz)
-                const freqs = type === 'connect' ? [880, 1320] : [880, 440];
+                const ctx   = _getAlertCtx();
+                const freqs = type === 'connect' ? [523, 659, 784] : [784, 659, 523];  // C5→E5→G5 or reverse
                 freqs.forEach((freq, i) => {
-                    const osc = ctx.createOscillator();
+                    const osc  = ctx.createOscillator();
+                    const gain = ctx.createGain();
                     osc.type = 'sine';
                     osc.frequency.value = freq;
                     osc.connect(gain);
+                    gain.connect(ctx.destination);
                     const t = ctx.currentTime + i * 0.18;
                     gain.gain.setValueAtTime(0, t);
-                    gain.gain.linearRampToValueAtTime(0.4, t + 0.02);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+                    gain.gain.linearRampToValueAtTime(0.45, t + 0.01);
+                    gain.gain.setValueAtTime(0.45, t + 0.12);
+                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.17);
                     osc.start(t);
-                    osc.stop(t + 0.36);
+                    osc.stop(t + 0.18);
                 });
             } catch(e) {}
         }
