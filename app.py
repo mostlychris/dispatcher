@@ -2317,26 +2317,40 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _prevLinkedNodes = null;  // tracks last known set for change detection
         var _nodeToastDuration = parseInt(localStorage.getItem('nodeToastDuration') || '10', 10);
 
-        function _showNodeToast(msg, type) {
+        var _nodeToastTimer = null;
+
+        function _showNodeToast(lines) {
+            // lines: array of {text, type} — up to 4, shown in one popup.
+            // type 'connect' or 'disconnect' per line; popup border color from first entry.
             const c = document.getElementById('nodeToastContainer');
             if (!c) return;
+            // Remove any existing toast immediately.
+            while (c.firstChild) c.removeChild(c.firstChild);
+            if (_nodeToastTimer) { clearTimeout(_nodeToastTimer); _nodeToastTimer = null; }
+            if (!lines.length) return;
+            const dominantType = lines[0].type;
             const t = document.createElement('div');
-            t.className = 'node-toast' + (type === 'disconnect' ? ' disconnect' : '');
-            t.textContent = msg;
+            t.className = 'node-toast' + (dominantType === 'disconnect' ? ' disconnect' : '');
+            t.innerHTML = lines.map(l => {
+                const color = l.type === 'connect' ? '#88ff88' : '#ff8888';
+                return `<div style="color:${color}">${l.text}</div>`;
+            }).join('');
             c.appendChild(t);
-            setTimeout(() => {
+            _nodeToastTimer = setTimeout(() => {
                 t.classList.add('fade-out');
-                setTimeout(() => t.remove(), 500);
+                setTimeout(() => { if (c.contains(t)) c.removeChild(t); }, 500);
+                _nodeToastTimer = null;
             }, _nodeToastDuration * 1000);
         }
 
         function _checkNodeChanges(nodes) {
-            // nodes is array of {node, mode} or null
             const newSet = new Set((nodes || []).map(n => n.node));
             const oldSet = new Set((_prevLinkedNodes || []).map(n => n.node));
             if (_prevLinkedNodes !== null) {
-                newSet.forEach(n => { if (!oldSet.has(n)) _showNodeToast('Node ' + n + ' connected', 'connect'); });
-                oldSet.forEach(n => { if (!newSet.has(n)) _showNodeToast('Node ' + n + ' disconnected', 'disconnect'); });
+                const lines = [];
+                newSet.forEach(n => { if (!oldSet.has(n) && lines.length < 4) lines.push({text: 'Node ' + n + ' connected',    type: 'connect'}); });
+                oldSet.forEach(n => { if (!newSet.has(n) && lines.length < 4) lines.push({text: 'Node ' + n + ' disconnected', type: 'disconnect'}); });
+                if (lines.length) _showNodeToast(lines);
             }
             _prevLinkedNodes = nodes ? [...nodes] : [];
         }
