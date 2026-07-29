@@ -1685,7 +1685,12 @@ HTML = '''
                     const connEl = document.getElementById('connState');
                     if (connEl) { connEl.textContent = 'RX'; connEl.className = 'conn-badge conn-rx'; }
                     log('TX: ' + cs + ' → TG ' + data.tg, 'ok');
-                    _showDmrToast(data.tg, data.tg_name, cs);
+                    if (data.tg !== _activeDmrTg) {
+                        if (_activeDmrTg) _showDmrToast(_activeDmrTg, _activeDmrTgName, null, 'disconnect');
+                        _activeDmrTg     = data.tg;
+                        _activeDmrTgName = data.tg_name;
+                        _showDmrToast(data.tg, data.tg_name, null, 'connect');
+                    }
                     if (lastHeardOpen) pollLastHeard();
                 } else if (data.event === 'tx_end') {
                     document.getElementById('dmrSection').classList.remove('active');
@@ -1696,7 +1701,6 @@ HTML = '''
                     document.getElementById('txTime').innerHTML          = '&nbsp;';
                     const connEl = document.getElementById('connState');
                     if (connEl) { connEl.textContent = 'READY'; connEl.className = 'conn-badge conn-idle'; }
-                    _dismissDmrToast();
                     if (lastHeardOpen) pollLastHeard();
                 }
             };
@@ -2395,6 +2399,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const dmrRx = d.conn_state === 'rx';
                 document.getElementById('dmrSection').classList.toggle('active', dmrRx);
                 document.getElementById('txPulse').classList.toggle('on', dmrRx);
+                // Reset TG tracking when DMR goes offline so next connect fires the toast.
+                if (d.conn_state === 'offline') { _activeDmrTg = null; _activeDmrTgName = null; }
 
                 document.getElementById('tgValue').textContent     = d.tg              || '--';
                 document.getElementById('tgValueName').textContent = d.tg_name         || '';
@@ -2562,31 +2568,31 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         var _dmrToastTimer = null;
+        var _activeDmrTg     = null;
+        var _activeDmrTgName = null;
 
-        function _showDmrToast(tg, tgName, callsign) {
+        function _showDmrToast(tg, tgName, callsign, type) {
             const c = document.getElementById('nodeToastContainer');
             if (!c) return;
-            while (c.firstChild) c.removeChild(c.firstChild);
+            // Remove any existing DMR toast
+            const old = document.getElementById('dmrToast');
+            if (old) old.remove();
             if (_dmrToastTimer) { clearTimeout(_dmrToastTimer); _dmrToastTimer = null; }
             const t = document.createElement('div');
             t.id = 'dmrToast';
             t.className = 'node-toast dmr';
-            const csLine  = callsign ? `<div style="font-size:0.8em;color:#ffd040;">${callsign}</div>` : '';
-            const tgLine  = `<div>TG ${tg}</div>`;
+            const label    = type === 'disconnect' ? 'TG Disconnected' : 'TG Connected';
+            const color    = type === 'disconnect' ? '#ff8888' : '#ffe066';
+            const tgLine   = `<div style="color:${color}">${label}</div>`;
+            const numLine  = `<div>TG ${tg}</div>`;
             const nameLine = tgName ? `<div style="font-size:0.75em;color:#ffd040;">${tgName}</div>` : '';
-            t.innerHTML = csLine + tgLine + nameLine;
+            t.innerHTML = tgLine + numLine + nameLine;
             c.appendChild(t);
-        }
-
-        function _dismissDmrToast() {
-            const c = document.getElementById('nodeToastContainer');
-            if (!c) return;
-            if (_dmrToastTimer) { clearTimeout(_dmrToastTimer); _dmrToastTimer = null; }
-            const t = document.getElementById('dmrToast');
-            if (t) {
+            _dmrToastTimer = setTimeout(() => {
                 t.classList.add('fade-out');
                 setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 500);
-            }
+                _dmrToastTimer = null;
+            }, _nodeToastDuration * 1000);
         }
 
         function _setDirectLink(nodes) {
