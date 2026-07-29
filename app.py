@@ -1719,6 +1719,7 @@ HTML = '''
         function setVolume(val) {
             val = parseInt(val);
             document.getElementById('volDisplay').textContent = val + '%';
+            document.getElementById('volSlider').value = val;
             document.getElementById('volSlider').style.setProperty('--vol-pct', val + '%');
             if (!_dmrMuted && dvsp && dvsp.player) dvsp.player.volume(val / 100);
             localStorage.setItem('rxVolume', val);
@@ -2043,6 +2044,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             val = parseInt(val);
             const pct = ((val - 100) / 500 * 100).toFixed(1);
             document.getElementById('hpfDisplay').textContent = val + ' Hz';
+            document.getElementById('hpfSlider').value = val;
             document.getElementById('hpfSlider').style.setProperty('--hpf-pct', pct + '%');
             if (hpFilter) hpFilter.frequency.value = val;
             localStorage.setItem('rxHpFilter', val);
@@ -2052,6 +2054,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             val = parseFloat(val);
             const pct = (val / 12 * 100).toFixed(1);
             document.getElementById('presDisplay').textContent = val === 0 ? '0 dB' : '+' + val.toFixed(1) + ' dB';
+            document.getElementById('presSlider').value = val;
             document.getElementById('presSlider').style.setProperty('--pres-pct', pct + '%');
             if (presFilter) presFilter.gain.value = val;
             localStorage.setItem('rxPresence', val);
@@ -2703,6 +2706,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function setAllstarVolume(val) {
             val = parseInt(val);
             document.getElementById('asVolDisplay').textContent = val + '%';
+            document.getElementById('asVolSlider').value = val;
             document.getElementById('asVolSlider').style.setProperty('--vol-pct', val + '%');
             if (!_asMuted && asPlayer) asPlayer.setVolume(val);
             localStorage.setItem('asVolume', val);
