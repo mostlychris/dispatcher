@@ -107,9 +107,10 @@ USRP_PORT      = 31001
 USRP_LISTEN    = 31002
 
 LOG_FILES = {
-    'mmdvm':  '/var/log/mmdvm/MMDVM_Bridge-{date}.log',
-    'analog': '/var/log/dvswitch/Analog_Bridge-{date}.log',
-    'stfu':   '/var/log/dvswitch/STFU.log',
+    'mmdvm':    '/var/log/mmdvm/MMDVM_Bridge-{date}.log',
+    'analog':   '/var/log/dvswitch/Analog_Bridge-{date}.log',
+    'stfu':     '/var/log/dvswitch/STFU.log',
+    'watchdog': '/var/log/dispatcher-watchdog.log',
 }
 
 # -------------------------
@@ -1121,9 +1122,10 @@ HTML = '''
         }
         .log-tab:hover { background: #252525; color: #ddd; }
         .log-tab.active { background: #252525; color: #ddd; border-color: #555; }
-        .log-tab.tab-mmdvm.active  { border-color: #7af; color: #7af; }
-        .log-tab.tab-analog.active { border-color: lime; color: lime; }
-        .log-tab.tab-stfu.active   { border-color: cyan; color: cyan; }
+        .log-tab.tab-mmdvm.active    { border-color: #7af; color: #7af; }
+        .log-tab.tab-analog.active   { border-color: lime; color: lime; }
+        .log-tab.tab-stfu.active     { border-color: cyan; color: cyan; }
+        .log-tab.tab-watchdog.active { border-color: #fa8; color: #fa8; }
 
         .log-controls { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
         .log-controls label { font-size: 10px; color: #aaa; }
@@ -1647,9 +1649,10 @@ HTML = '''
                     </div>
                     <div class="collapse-body" id="logViewerBody">
                         <div class="log-tabs">
-                            <div class="log-tab tab-mmdvm active" onclick="selectTab('mmdvm', this)">MMDVM</div>
-                            <div class="log-tab tab-analog"       onclick="selectTab('analog', this)">Analog</div>
-                            <div class="log-tab tab-stfu"         onclick="selectTab('stfu',   this)">STFU</div>
+                            <div class="log-tab tab-mmdvm active" onclick="selectTab('mmdvm',    this)">MMDVM</div>
+                            <div class="log-tab tab-analog"       onclick="selectTab('analog',   this)">Analog</div>
+                            <div class="log-tab tab-stfu"         onclick="selectTab('stfu',     this)">STFU</div>
+                            <div class="log-tab tab-watchdog"     onclick="selectTab('watchdog', this)">Watchdog</div>
                         </div>
                         <div class="log-controls">
                             <label>Lines:</label>
