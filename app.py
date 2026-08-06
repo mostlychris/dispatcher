@@ -2412,9 +2412,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 document.getElementById('headerTime').textContent = timestamp();
                 const dmrBtn = document.getElementById('btnMonitor');
                 const dmrRxAndMonitoring = d.conn_state === 'rx' && dmrBtn.classList.contains('active');
-                dmrBtn.classList.toggle('streaming', dmrRxAndMonitoring);
-                const mobDmr = document.getElementById('mobBtnDmrMonitor');
-                if (mobDmr) mobDmr.classList.toggle('streaming', dmrRxAndMonitoring && mobDmr.classList.contains('active'));
+                ['btnMonitor', 'mobBtnDmrMonitor', 'btnMonitorOv'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.classList.toggle('streaming', dmrRxAndMonitoring && el.classList.contains('active'));
+                });
 
                 if (!tgInputPopulated && d.last_tg) {
                     document.getElementById('tgInput').value = d.last_tg;
