@@ -16,6 +16,7 @@ import time
 
 API_URL         = 'http://127.0.0.1:9090/api/status'
 STATE_FILE      = '/tmp/dispatcher_watchdog.json'
+LOG_FILE        = '/var/log/dispatcher-watchdog.log'
 USRP_GRACE_SECS = 90   # seconds of usrp_connected=false before restarting AB
 LOG_TAG         = 'dispatcher-watchdog'
 
@@ -32,7 +33,13 @@ RESTART_DELAY  = 5   # seconds between restarts when multiple services are down
 
 def log(msg):
     ts = time.strftime('%Y-%m-%d %H:%M:%S')
-    print(f'{ts} [{LOG_TAG}] {msg}', flush=True)
+    line = f'{ts} [{LOG_TAG}] {msg}'
+    print(line, flush=True)
+    try:
+        with open(LOG_FILE, 'a') as f:
+            f.write(line + '\n')
+    except Exception as e:
+        print(f'Log write error: {e}', flush=True)
     try:
         subprocess.run(['logger', '-t', LOG_TAG, msg], timeout=3)
     except Exception:
