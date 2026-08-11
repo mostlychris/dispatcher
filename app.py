@@ -1484,9 +1484,9 @@ HTML = '''
                     </div>
                 </div>
 
-                <!-- DMR STATUS -->
+                <!-- DMR STATUS BAR -->
                 <div class="collapse-panel" id="dmrSection">
-                    <div class="collapse-header" onclick="toggleDmrSection()">
+                    <div class="collapse-header" style="cursor:default;">
                         <h3>&#128251; DMR</h3>
                         <span id="dmrActiveCall" style="color:orange;font-size:13px;font-weight:bold;margin-left:10px;letter-spacing:1px;"></span>
                         <span style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px;">
@@ -1496,17 +1496,33 @@ HTML = '''
                             <span id="tgValue" style="color:lightgreen;font-size:11px;font-weight:bold;"></span>
                             <span id="tgValueName" style="color:#6c6;font-size:10px;"></span>
                         </span>
-                        <span class="collapse-arrow open" id="dmrArrow">&#9660;</span>
+                        <button onclick="openDmrModal()"
+                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                       padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;"
+                                title="Open DMR controls">&#9881; Controls</button>
                     </div>
-                    <div class="collapse-body open" id="dmrBody">
-                        <div class="status-strip" style="padding:6px 0 4px; background:transparent;">
-                            <span class="strip-item"><span id="txCallsign" style="color:lime;font-weight:bold;font-size:20px;letter-spacing:2px;">STANDBY</span></span>
-                            <span class="strip-item"><span id="txDetail" style="color:#bbb;">&mdash;</span></span>
-                            <span class="strip-item"><span id="tgName" style="color:#6c6;font-size:10px;"></span></span>
-                            <span class="strip-item">Since <span id="connectedSince" style="color:#aaa;">--</span></span>
-                            <span class="strip-item"><span id="txTime" style="color:#999;font-size:10px;">&nbsp;</span></span>
+                </div>
+
+                <!-- DMR MODAL -->
+                <div id="dmrModal" onclick="closeDmrModalIfBackdrop(event)"
+                     style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                            align-items:center;justify-content:center;">
+                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                                padding:16px 20px;width:min(480px,94vw);max-height:90vh;
+                                overflow-y:auto;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+                        <div style="display:flex;align-items:center;margin-bottom:12px;gap:10px;">
+                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128251; DMR CONTROLS</h3>
+                            <span id="txCallsign" style="color:lime;font-weight:bold;font-size:16px;letter-spacing:2px;margin-left:4px;">STANDBY</span>
+                            <button onclick="closeDmrModal()"
+                                    style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
                         </div>
-                        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding-top:8px; border-top:1px solid #2a2a2a; margin-top:4px;">
+                        <div style="color:#bbb;font-size:12px;margin-bottom:4px;"><span id="txDetail">&mdash;</span></div>
+                        <div style="color:#999;font-size:10px;margin-bottom:10px;">
+                            <span id="tgName"></span>
+                            &nbsp;Since <span id="connectedSince">--</span>
+                            &nbsp;<span id="txTime">&nbsp;</span>
+                        </div>
+                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-top:8px;border-top:1px solid #2a2a2a;margin-top:4px;">
                             <button class="btn-tgif" id="btnTGIF" onclick="action('/api/tgif', 'Switching to TGIF...')">&#9654; TGIF</button>
                             <button class="btn-bm"   id="btnBM"   onclick="action('/api/bm',   'Switching to BrandMeister...')">&#9654; BM</button>
                             <div class="controls-sep"></div>
@@ -2168,11 +2184,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var logPollTimer    = null;
         var dispatchLogOpen = false;
 
-        var dmrSectionOpen = true;
-        function toggleDmrSection() {
-            dmrSectionOpen = !dmrSectionOpen;
-            document.getElementById('dmrBody').classList.toggle('open', dmrSectionOpen);
-            document.getElementById('dmrArrow').classList.toggle('open', dmrSectionOpen);
+        function openDmrModal() {
+            document.getElementById('dmrModal').style.display = 'flex';
+        }
+        function closeDmrModal() {
+            document.getElementById('dmrModal').style.display = 'none';
+        }
+        function closeDmrModalIfBackdrop(e) {
+            if (e.target === document.getElementById('dmrModal')) closeDmrModal();
         }
 
         function toggleDispatchLog() {
@@ -3116,9 +3135,6 @@ registerProcessor('mic-decimator', MicDecimator);
 
         // On mobile, collapse all panels for a clean minimal view
         if (window.innerWidth <= 600) {
-            dmrSectionOpen = false;
-            document.getElementById('dmrBody').classList.remove('open');
-            document.getElementById('dmrArrow').classList.remove('open');
             dispatchLogOpen = false;
             // allstarBody already starts collapsed by default
         }
