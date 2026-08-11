@@ -2636,20 +2636,18 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             closeAsQuickTuneModal();
             openAsModal();
 
-            // Unlink any currently linked nodes first
-            const currentNodes = _asDirectLink ? [..._asDirectLink] : [];
-            if (currentNodes.length) {
-                for (const linked of currentNodes) {
-                    log('Quick connect: unlinking ' + linked + '…', 'ok');
-                    try {
-                        const r = await fetch('/api/allstar/unlink', {
-                            method: 'POST', headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({node: linked})
-                        });
-                        const d = await r.json();
-                        log(d.message, d.ok ? 'ok' : 'error');
-                    } catch(e) { log('Unlink error: ' + e, 'error'); }
-                }
+            // Unlink the first connected node only — downstream nodes drop automatically
+            const firstLinked = _asDirectLink && _asDirectLink[0];
+            if (firstLinked) {
+                log('Quick connect: unlinking ' + firstLinked + '…', 'ok');
+                try {
+                    const r = await fetch('/api/allstar/unlink', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({node: firstLinked})
+                    });
+                    const d = await r.json();
+                    log(d.message, d.ok ? 'ok' : 'error');
+                } catch(e) { log('Unlink error: ' + e, 'error'); }
                 // Short delay to let the node settle before relinking
                 await new Promise(res => setTimeout(res, 3000));
             }
