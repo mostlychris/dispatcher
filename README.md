@@ -11,10 +11,14 @@ A web-based dispatcher console for HamVoIP / AllStar repeater nodes running DVSw
 - **Network switching** — one-click toggle between BrandMeister and TGIF via DVSwitch scripts
 - **Allstar / IAX2 control** — connects to your Asterisk node as an IAX2 client; link/unlink remote nodes, send DTMF commands, monitor connected nodes
 - **Allstar audio** — streams decoded ulaw audio from the IAX2 session to the browser
+- **Allstar node favorites** — save and recall frequently-used nodes for quick one-click linking
 - **Service management** — restart STFU, Analog Bridge, or MMDVM Bridge directly from the UI (API-key protected)
-- **Last heard log** — recent activity merged from MMDVM Bridge and Analog Bridge logs
-- **Live log tail** — view the last N lines of any service log in the browser
-- **Favorites** — save and recall talkgroups per network, persisted across restarts
+- **Last heard log** — recent activity merged from MMDVM Bridge and Analog Bridge logs; timestamps shown in browser local time
+- **Live log tail** — view the last N lines of any service log in the browser, including the watchdog log
+- **DMR and Allstar favorites** — save and recall talkgroups (per network) and Allstar nodes, persisted across restarts
+- **Node connect/disconnect toasts** — centered popup alerts for Allstar node link/unlink events with configurable duration and optional audio chimes
+- **DMR talkgroup change toasts** — popup alert when the active talkgroup changes
+- **Floating audio controls** — accessible at any screen size via an overlay button; controls volume, HP/LP filters, squelch tail, and Allstar volume
 
 ---
 
@@ -112,9 +116,35 @@ allow=ulaw
 
 ---
 
+## Watchdog
+
+`watchdog.py` is an optional cron script that monitors the three DVSwitch services and restarts any that have died. It writes a structured log to `/var/log/dispatcher-watchdog.log`, which is visible in the app's log viewer under the **Watchdog** tab.
+
+Install the cron job on the dispatcher host:
+
+```bash
+# Run as root (needs systemctl restart privileges)
+*/2 * * * * /usr/bin/python3 /opt/MMDVM_Bridge/dispatcher/watchdog.py
+```
+
+The watchdog only acts on services that `systemctl is-active` reports as inactive — it does **not** restart services just because there is no active radio traffic (USRP silence is normal and expected).
+
+> **Note:** If your logrotate configs use `systemctl reload` for STFU, Analog Bridge, or MMDVM Bridge, change them to `systemctl restart`. These services exit cleanly on `SIGINT` (exit code 0), which bypasses `Restart=on-failure` in systemd and leaves them dead until manually restarted.
+
+---
+
 ## Architecture
 
 The entire application is a single file (`app.py`) — a Flask server with the complete HTML/CSS/JS frontend embedded as a string and rendered by the `/` route.
+
+### UI layout
+
+Both the DMR and Allstar sections are **status bars with icon-button modals** rather than collapsible panels:
+
+| Section | Status bar shows | ⚙ Controls modal | ★ Quick Tune modal |
+|---|---|---|---|
+| DMR | TX pulse, mode badge, connection state, active TG | Network switch, TG tune, favorites management | Scrollable favorites grid + recent tune history |
+| Allstar | RX dot, connection badge, local node, linked node | Connect/disconnect/audio, PTT/mic, node linking, command, connected nodes, alert config | Saved node favorites with add/remove and quick-connect |
 
 ### Backend layers
 
@@ -137,6 +167,7 @@ The entire application is a single file (`app.py`) — a Flask server with the c
 | File | Purpose |
 |---|---|
 | `favorites.json` | Per-network favorite talkgroups (persisted) |
+| `as_favorites.json` | Saved Allstar node favorites (persisted) |
 | `last_state.json` | Last tuned TG, network, and time (survives restarts) |
 | `tg_names_cache.json` | Snapshot of TG names from last successful load |
 
@@ -152,6 +183,7 @@ The entire application is a single file (`app.py`) — a Flask server with the c
 | `/var/log/mmdvm/MMDVM_Bridge-{date}.log` | Last-heard and TX detection |
 | `/var/log/dvswitch/Analog_Bridge-{date}.log` | Last-heard |
 | `/var/log/dvswitch/STFU.log` | Last-heard (BM) |
+| `/var/log/dispatcher-watchdog.log` | Watchdog restart events |
 
 ---
 
@@ -163,10 +195,13 @@ The entire application is a single file (`app.py`) — a Flask server with the c
 | GET | `/api/stream` | SSE stream (`tx_start` / `tx_end` events) |
 | GET | `/api/status` | Mode, active TG, service states, connection state |
 | GET | `/api/lastheard` | 20 most recent heard entries |
-| GET | `/api/log/<key>` | Tail log; keys: `mmdvm`, `analog`, `stfu`; `?lines=N` (max 500) |
-| GET | `/api/favorites` | Favorites dict |
-| POST | `/api/favorites` | Add favorite `{tg, network}` |
-| DELETE | `/api/favorites/<network>/<tg>` | Remove a favorite |
+| GET | `/api/log/<key>` | Tail log; keys: `mmdvm`, `analog`, `stfu`, `watchdog`; `?lines=N` (max 500) |
+| GET | `/api/favorites` | DMR favorites dict |
+| POST | `/api/favorites` | Add DMR favorite `{tg, network}` |
+| DELETE | `/api/favorites/<network>/<tg>` | Remove a DMR favorite |
+| GET | `/api/as_favorites` | Allstar node favorites list |
+| POST | `/api/as_favorites` | Add Allstar favorite `{node, label}` |
+| DELETE | `/api/as_favorites/<node>` | Remove an Allstar favorite |
 | GET | `/api/tune_history` | In-memory tune history (cleared on restart) |
 | POST | `/api/tgif` | Switch to TGIF network |
 | POST | `/api/bm` | Switch to BrandMeister network |
@@ -175,14 +210,14 @@ The entire application is a single file (`app.py`) — a Flask server with the c
 | POST | `/api/restart_ab` | Restart Analog Bridge *(requires X-Api-Key)* |
 | POST | `/api/restart_mmdvm` | Restart MMDVM Bridge *(requires X-Api-Key)* |
 | GET | `/api/allstar/status` | Allstar connection state and active RX flag |
+| GET | `/api/allstar/nodes` | List currently linked nodes |
 | POST | `/api/allstar/connect` | Connect to configured Allstar node |
 | POST | `/api/allstar/disconnect` | Disconnect IAX2 session |
 | POST | `/api/allstar/link` | Link remote node `{node, mode}` (`monitor`/`transceive`) |
 | POST | `/api/allstar/unlink` | Unlink remote node `{node}` |
 | POST | `/api/allstar/command` | Send DTMF command string `{cmd}` |
-| GET | `/api/allstar/nodes` | List currently linked nodes |
-| WS | `/ws/allstar-audio` | Raw 16-bit PCM at 8 kHz (ulaw decoded) |
 | GET | `/api/debug/abinfo` | Dump raw ABInfo JSON |
+| WS | `/ws/allstar-audio` | Raw 16-bit PCM at 8 kHz (ulaw decoded) |
 
 Endpoints marked *requires X-Api-Key* must include the header `X-Api-Key: <your API_KEY>`.
 
