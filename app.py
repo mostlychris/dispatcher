@@ -93,7 +93,8 @@ except ImportError:
     DVSWITCHPLAYER_PORT = 8080
 
 
-FAVORITES_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
+FAVORITES_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
+AS_FAVORITES_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as_favorites.json')
 LAST_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'last_state.json')
 TG_NAMES_CACHE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tg_names_cache.json')
 
@@ -618,8 +619,25 @@ def save_last_state():
 # -------------------------
 # FAVORITES & TUNE HISTORY
 # -------------------------
-favorites_lock = threading.Lock()
-tune_history   = []
+favorites_lock    = threading.Lock()
+as_favorites_lock = threading.Lock()
+tune_history      = []
+
+def load_as_favorites():
+    try:
+        with open(AS_FAVORITES_FILE) as f:
+            return json.load(f)
+    except:
+        return []
+
+def save_as_favorites(data):
+    try:
+        with open(AS_FAVORITES_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"Warning: could not save Allstar favorites: {e}")
+
+as_favorites = load_as_favorites()
 HISTORY_MAX    = 20
 
 def load_favorites():
@@ -1182,6 +1200,11 @@ HTML = '''
         .btn-save-fav { background: #2a2a1a; color: gold; }
         .btn-save-fav:hover { background: #3d3d23; }
         .qt-empty { color: #777; font-size: 10px; padding: 2px 0; }
+        .qt-fav-row { display:flex; align-items:center; gap:6px; padding:5px 0; border-bottom:1px solid #2a2a2a; }
+        .qt-fav-row:last-child { border-bottom:none; }
+        .qt-fav-label { flex:1; font-size:12px; color:#ccc; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+        .btn-danger-sm { background:#3a1010; color:#ff8888; border:1px solid #662222; border-radius:4px; padding:2px 6px; font-size:11px; cursor:pointer; }
+        .btn-danger-sm:hover { background:#4a1414; }
         .qt-hist-net {
             font-size: 9px; color: #999;
             margin-right: 5px; letter-spacing: 0.5px;
@@ -1537,68 +1560,115 @@ HTML = '''
                     </div>
                 </div>
 
-                <!-- ALLSTAR -->
+                <!-- ALLSTAR STATUS BAR -->
                 <div class="collapse-panel" id="asSidebarSection">
-                    <div class="collapse-header" onclick="toggleAllstar()">
-                        <h3>&#9889; ALLSTAR NODE</h3>
-                        <span style="display:flex;align-items:center;gap:5px;margin-left:auto;margin-right:8px;">
+                    <div class="collapse-header" style="cursor:default;">
+                        <h3>&#9889; ALLSTAR</h3>
+                        <span style="display:flex;align-items:center;gap:5px;margin-left:auto;margin-right:6px;">
                             <span class="rx-dot" id="asRxDot" title="RX activity"></span>
                             <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
                             <span id="asNodeBadge" style="color:#ccc;font-size:11px;letter-spacing:0;font-weight:bold;">--</span>
                             <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:11px;font-weight:bold;">&#8594; <span id="asDirectLinkNode"></span></span>
                         </span>
-                        <span class="collapse-arrow" id="allstarArrow">&#9660;</span>
+                        <button onclick="openAsQuickTuneModal()"
+                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                       padding:2px 7px;font-size:13px;cursor:pointer;margin-right:4px;"
+                                title="Allstar Favorites">&#9733;</button>
+                        <button onclick="openAsModal()"
+                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                       padding:2px 7px;font-size:13px;cursor:pointer;"
+                                title="Allstar Controls">&#9881;</button>
                     </div>
-                    <div class="collapse-body" id="allstarBody">
-                        <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
-                            <button class="btn-monitor" id="btnAsConnect"   onclick="allstarConnect()">&#9654; Connect</button>
-                            <button class="btn-danger"  id="btnAsDisconnect" onclick="allstarDisconnect()" disabled>&#9632; Disconnect</button>
-                            <button class="btn-monitor" id="btnAsAudio"     onclick="toggleAllstarAudio(this)">&#128264; Audio</button>
+                </div>
+
+                <!-- ALLSTAR CONTROLS MODAL -->
+                <div id="asModal" onclick="closeAsModalIfBackdrop(event)"
+                     style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                            align-items:center;justify-content:center;">
+                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                                padding:16px 20px;width:min(480px,94vw);
+                                max-height:85vh;display:flex;flex-direction:column;
+                                position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+                        <div style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
+                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9889; ALLSTAR CONTROLS</h3>
+                            <button onclick="closeAsModal()"
+                                    style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
                         </div>
-                        <div style="margin-bottom:10px;">
-                            <div class="qt-section-label" style="margin-bottom:5px;">TRANSMIT</div>
-                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                                <select id="micDeviceSelect" style="flex:1;min-width:120px;background:#1a1a1a;color:#ccc;border:1px solid #333;border-radius:4px;font-size:11px;padding:3px 5px;" onchange="onMicDeviceChange()">
-                                    <option value="">-- select mic --</option>
-                                </select>
-                                <button class="btn-ptt" id="btnPTT" disabled>&#127908; PTT — Hold to Talk</button>
+                        <div style="overflow-y:auto;flex:1;min-height:0;">
+                            <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;flex-wrap:wrap;">
+                                <button class="btn-monitor" id="btnAsConnect"   onclick="allstarConnect()">&#9654; Connect</button>
+                                <button class="btn-danger"  id="btnAsDisconnect" onclick="allstarDisconnect()" disabled>&#9632; Disconnect</button>
+                                <button class="btn-monitor" id="btnAsAudio"     onclick="toggleAllstarAudio(this)">&#128264; Audio</button>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <div class="qt-section-label" style="margin-bottom:5px;">TRANSMIT</div>
+                                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                    <select id="micDeviceSelect" style="flex:1;min-width:120px;background:#1a1a1a;color:#ccc;border:1px solid #333;border-radius:4px;font-size:11px;padding:3px 5px;" onchange="onMicDeviceChange()">
+                                        <option value="">-- select mic --</option>
+                                    </select>
+                                    <button class="btn-ptt" id="btnPTT" disabled>&#127908; PTT — Hold to Talk</button>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <div class="qt-section-label" style="margin-bottom:5px;">NODE LINKING</div>
+                                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                                    <input class="tg-input" type="text" id="asRemoteNode"
+                                           placeholder="Remote node #..." style="width:140px;">
+                                    <button class="btn-tune"   onclick="allstarLink('monitor')">&#9654; Monitor</button>
+                                    <button class="btn-tune"   onclick="allstarLink('transceive')">&#9654; Xceive</button>
+                                    <button class="btn-danger" onclick="allstarUnlink()">&#9632; Unlink</button>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <div class="qt-section-label" style="margin-bottom:5px;">COMMAND</div>
+                                <div style="display:flex;gap:6px;align-items:center;">
+                                    <input class="tg-input" type="text" id="asCommand"
+                                           placeholder="e.g. *70" style="width:120px;"
+                                           onkeydown="if(event.key==='Enter') allstarCommand()">
+                                    <button class="btn-tune" onclick="allstarCommand()">&#9654; Send</button>
+                                    <button class="btn-tune" onclick="allstarSendCmd('*70')" title="Node status">&#9432; Status</button>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <div class="qt-section-label" style="margin-bottom:5px;">CONNECTED NODES</div>
+                                <div id="asNodeList" style="font-size:12px;color:#ddd;min-height:16px;">--</div>
+                            </div>
+                            <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                <label style="font-size:11px;color:#888;white-space:nowrap;">Node alert duration (s)</label>
+                                <input type="number" id="nodeToastDurationInput" min="2" max="60" value="10"
+                                    style="width:54px;background:#111;border:1px solid #444;color:#ccc;
+                                           border-radius:4px;padding:2px 5px;font-size:12px;"
+                                    onchange="setNodeToastDuration(this.value)">
+                                <label style="font-size:11px;color:#888;white-space:nowrap;display:flex;align-items:center;gap:4px;cursor:pointer;">
+                                    <input type="checkbox" id="nodeAlertSoundChk" onchange="setNodeAlertSound(this.checked)">
+                                    Alert sound
+                                </label>
                             </div>
                         </div>
-                        <div style="margin-bottom:10px;">
-                            <div class="qt-section-label" style="margin-bottom:5px;">NODE LINKING</div>
-                            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                                <input class="tg-input" type="text" id="asRemoteNode"
-                                       placeholder="Remote node #..." style="width:140px;">
-                                <button class="btn-tune"   onclick="allstarLink('monitor')">&#9654; Monitor</button>
-                                <button class="btn-tune"   onclick="allstarLink('transceive')">&#9654; Xceive</button>
-                                <button class="btn-danger" onclick="allstarUnlink()">&#9632; Unlink</button>
-                            </div>
+                    </div>
+                </div>
+
+                <!-- ALLSTAR QUICK TUNE MODAL -->
+                <div id="asQuickTuneModal" onclick="closeAsQuickTuneModalIfBackdrop(event)"
+                     style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                            align-items:center;justify-content:center;">
+                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                                padding:16px 20px;width:min(400px,94vw);
+                                max-height:85vh;display:flex;flex-direction:column;
+                                position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+                        <div style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
+                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9733; ALLSTAR FAVORITES</h3>
+                            <button onclick="closeAsQuickTuneModal()"
+                                    style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
                         </div>
-                        <div style="margin-bottom:10px;">
-                            <div class="qt-section-label" style="margin-bottom:5px;">COMMAND</div>
-                            <div style="display:flex; gap:6px; align-items:center;">
-                                <input class="tg-input" type="text" id="asCommand"
-                                       placeholder="e.g. *70" style="width:120px;"
-                                       onkeydown="if(event.key==='Enter') allstarCommand()">
-                                <button class="btn-tune" onclick="allstarCommand()">&#9654; Send</button>
-                                <button class="btn-tune" onclick="allstarSendCmd('*70')" title="Node status">&#9432; Status</button>
-                            </div>
+                        <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-shrink:0;">
+                            <input class="tg-input" type="text" id="asNodeFavInput" placeholder="Node #..." style="width:110px;">
+                            <input class="tg-input" type="text" id="asNodeFavLabel" placeholder="Label (optional)" style="flex:1;">
+                            <button class="btn-save-fav" onclick="saveAsFavorite()" title="Save to favorites">&#9733; Save</button>
                         </div>
-                        <div style="margin-bottom:10px;">
-                            <div class="qt-section-label" style="margin-bottom:5px;">CONNECTED NODES</div>
-                            <div id="asNodeList" style="font-size:12px; color:#ddd; min-height:16px;">--</div>
-                        </div>
-                        <div style="margin-top:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                            <label style="font-size:11px; color:#888; white-space:nowrap;">Node alert duration (s)</label>
-                            <input type="number" id="nodeToastDurationInput" min="2" max="60"
-                                value="10"
-                                style="width:54px; background:#111; border:1px solid #444; color:#ccc;
-                                       border-radius:4px; padding:2px 5px; font-size:12px;"
-                                onchange="setNodeToastDuration(this.value)">
-                            <label style="font-size:11px; color:#888; white-space:nowrap; display:flex; align-items:center; gap:4px; cursor:pointer;">
-                                <input type="checkbox" id="nodeAlertSoundChk" onchange="setNodeAlertSound(this.checked)">
-                                Alert sound
-                            </label>
+                        <div style="overflow-y:auto;flex:1;min-height:0;">
+                            <div class="qt-section-label" style="margin-bottom:6px;">Saved Nodes</div>
+                            <div id="asFavList"><div class="qt-empty">None saved</div></div>
                         </div>
                     </div>
                 </div>
@@ -2495,11 +2565,82 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var asPlayer    = null;
         var allstarOpen = false;
 
-        function toggleAllstar() {
-            allstarOpen = !allstarOpen;
-            document.getElementById('allstarBody').classList.toggle('open', allstarOpen);
-            document.getElementById('allstarArrow').classList.toggle('open', allstarOpen);
-            if (allstarOpen) pollAllstarStatus();
+        function toggleAllstar() { openAsModal(); }
+
+        // Allstar Controls modal
+        function openAsModal() {
+            document.getElementById('asModal').style.display = 'flex';
+            pollAllstarStatus();
+        }
+        function closeAsModal() { document.getElementById('asModal').style.display = 'none'; }
+        function closeAsModalIfBackdrop(e) {
+            if (e.target === document.getElementById('asModal')) closeAsModal();
+        }
+
+        // Allstar Quick Tune / Favorites modal
+        function openAsQuickTuneModal() {
+            document.getElementById('asQuickTuneModal').style.display = 'flex';
+            loadAsFavorites();
+        }
+        function closeAsQuickTuneModal() { document.getElementById('asQuickTuneModal').style.display = 'none'; }
+        function closeAsQuickTuneModalIfBackdrop(e) {
+            if (e.target === document.getElementById('asQuickTuneModal')) closeAsQuickTuneModal();
+        }
+
+        async function loadAsFavorites() {
+            try {
+                const r = await fetch('/api/as_favorites');
+                const favs = await r.json();
+                renderAsFavs(favs);
+            } catch(e) { console.error('loadAsFavorites:', e); }
+        }
+
+        function renderAsFavs(favs) {
+            const container = document.getElementById('asFavList');
+            if (!favs || favs.length === 0) {
+                container.innerHTML = '<div class="qt-empty">None saved</div>';
+                return;
+            }
+            container.innerHTML = favs.map(f => `
+                <div class="qt-fav-row">
+                    <span class="qt-fav-label">${f.label ? escHtml(f.label) : ''} <span style="color:#888;font-size:11px;">${escHtml(f.node)}</span></span>
+                    <button class="btn-tune" onclick="quickConnectNode('${escHtml(f.node)}')">&#9654; Connect</button>
+                    <button class="btn-danger-sm" onclick="removeAsFav('${escHtml(f.node)}')" title="Remove">&#10005;</button>
+                </div>`).join('');
+        }
+
+        async function saveAsFavorite() {
+            const node  = document.getElementById('asNodeFavInput').value.trim();
+            const label = document.getElementById('asNodeFavLabel').value.trim();
+            if (!node) return;
+            const r = await fetch('/api/as_favorites', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({node, label})
+            });
+            const d = await r.json();
+            log(d.message, d.ok ? 'ok' : 'error');
+            if (d.ok) {
+                document.getElementById('asNodeFavInput').value = '';
+                document.getElementById('asNodeFavLabel').value = '';
+                loadAsFavorites();
+            }
+        }
+
+        async function removeAsFav(node) {
+            const r = await fetch('/api/as_favorites/' + encodeURIComponent(node), {method: 'DELETE'});
+            const d = await r.json();
+            if (d.ok) loadAsFavorites();
+        }
+
+        function quickConnectNode(node) {
+            document.getElementById('asRemoteNode').value = node;
+            closeAsQuickTuneModal();
+            openAsModal();
+            allstarLink('transceive');
+        }
+
+        function escHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
 
         function allstarConnect() {
@@ -3341,6 +3482,33 @@ def remove_fav(network, tg):
         favorites[network] = [f for f in favorites.get(network, []) if f['tg'] != tg]
         save_favorites(favorites)
     return jsonify({"ok": True, "message": f"Removed TG {tg} from {network} favorites"})
+
+@app.route('/api/as_favorites', methods=['GET'])
+def get_as_favs():
+    with as_favorites_lock:
+        return jsonify(as_favorites)
+
+@app.route('/api/as_favorites', methods=['POST'])
+def add_as_fav():
+    data  = request.get_json()
+    node  = str(data.get('node', '')).strip()
+    label = data.get('label', '').strip()
+    if not node.isdigit():
+        return jsonify({"ok": False, "message": "Invalid node number"})
+    with as_favorites_lock:
+        if any(f['node'] == node for f in as_favorites):
+            return jsonify({"ok": True, "message": f"Node {node} already in favorites"})
+        as_favorites.append({"node": node, "label": label})
+        save_as_favorites(as_favorites)
+    return jsonify({"ok": True, "message": f"Saved node {node} to favorites"})
+
+@app.route('/api/as_favorites/<node>', methods=['DELETE'])
+def remove_as_fav(node):
+    with as_favorites_lock:
+        before = len(as_favorites)
+        as_favorites[:] = [f for f in as_favorites if f['node'] != node]
+        save_as_favorites(as_favorites)
+    return jsonify({"ok": True, "message": f"Removed node {node} from favorites"})
 
 @app.route('/api/tune_history', methods=['GET'])
 def get_tune_history():
