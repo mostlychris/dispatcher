@@ -11,7 +11,6 @@ A web-based dispatcher console for HamVoIP / AllStar repeater nodes running DVSw
 - **Network switching** — one-click toggle between BrandMeister and TGIF via DVSwitch scripts
 - **Allstar / IAX2 control** — connects to your Asterisk node as an IAX2 client; link/unlink remote nodes, send DTMF commands, monitor connected nodes
 - **Allstar audio** — streams decoded ulaw audio from the IAX2 session to the browser
-- **Allstar node favorites** — save and recall frequently-used nodes for quick one-click linking
 - **Service management** — restart STFU, Analog Bridge, or MMDVM Bridge directly from the UI (API-key protected)
 - **Last heard log** — recent activity merged from MMDVM Bridge and Analog Bridge logs; timestamps shown in browser local time
 - **Live log tail** — view the last N lines of any service log in the browser, including the watchdog log
