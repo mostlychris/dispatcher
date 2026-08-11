@@ -1489,17 +1489,21 @@ HTML = '''
                     <div class="collapse-header" style="cursor:default;">
                         <h3>&#128251; DMR</h3>
                         <span id="dmrActiveCall" style="color:orange;font-size:13px;font-weight:bold;margin-left:10px;letter-spacing:1px;"></span>
-                        <span style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px;">
+                        <span style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:6px;">
                             <span class="tx-pulse" id="txPulse"></span>
                             <span class="mode-badge badge-unknown" id="modeValue">--</span>
                             <span class="conn-badge conn-offline" id="connState">OFFLINE</span>
                             <span id="tgValue" style="color:lightgreen;font-size:11px;font-weight:bold;"></span>
                             <span id="tgValueName" style="color:#6c6;font-size:10px;"></span>
                         </span>
+                        <button onclick="openQuickTuneModal()"
+                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                       padding:2px 7px;font-size:13px;cursor:pointer;margin-right:4px;"
+                                title="Quick Tune">&#9733;</button>
                         <button onclick="openDmrModal()"
                                 style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                       padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;"
-                                title="Open DMR controls">&#9881; Controls</button>
+                                       padding:2px 7px;font-size:13px;cursor:pointer;"
+                                title="DMR Controls">&#9881;</button>
                     </div>
                 </div>
 
@@ -1607,18 +1611,6 @@ HTML = '''
                         <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM <span id="svc_mmdvm" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>Analog <span id="svc_analog" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span>USRP <span id="svc_usrp" class="svc-text-off">--</span></span>
-                    </div>
-                </div>
-
-                <!-- QUICK TUNE BAR -->
-                <div class="collapse-panel">
-                    <div class="collapse-header" style="cursor:default;">
-                        <h3>&#9733; QUICK TUNE</h3>
-                        <span style="margin-left:auto;margin-right:8px;font-size:11px;color:#888;">Favorites &amp; history</span>
-                        <button onclick="openQuickTuneModal()"
-                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                       padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;"
-                                title="Open Quick Tune">&#9654; Open</button>
                     </div>
                 </div>
 
