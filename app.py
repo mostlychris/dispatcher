@@ -1610,25 +1610,45 @@ HTML = '''
                     </div>
                 </div>
 
-                <!-- QUICK TUNE -->
-                <div class="collapse-panel mobile-hide">
-                    <div class="collapse-header" onclick="toggleQuickTune()">
+                <!-- QUICK TUNE BAR -->
+                <div class="collapse-panel">
+                    <div class="collapse-header" style="cursor:default;">
                         <h3>&#9733; QUICK TUNE</h3>
-                        <span class="collapse-arrow" id="quickTuneArrow">&#9660;</span>
+                        <span style="margin-left:auto;margin-right:8px;font-size:11px;color:#888;">Favorites &amp; history</span>
+                        <button onclick="openQuickTuneModal()"
+                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                       padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;"
+                                title="Open Quick Tune">&#9654; Open</button>
                     </div>
-                    <div class="collapse-body" id="quickTuneBody">
-                        <div class="qt-grid">
-                            <div>
-                                <div class="qt-section-label">TGIF Favorites</div>
-                                <div id="favsTGIF"><div class="qt-empty">None saved</div></div>
-                            </div>
-                            <div>
-                                <div class="qt-section-label">BM Favorites</div>
-                                <div id="favsBM"><div class="qt-empty">None saved</div></div>
-                            </div>
+                </div>
+
+                <!-- QUICK TUNE MODAL -->
+                <div id="quickTuneModal" onclick="closeQuickTuneModalIfBackdrop(event)"
+                     style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                            align-items:center;justify-content:center;">
+                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                                padding:16px 20px;width:min(480px,94vw);
+                                max-height:85vh;display:flex;flex-direction:column;
+                                position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+                        <div style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
+                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9733; QUICK TUNE</h3>
+                            <button onclick="closeQuickTuneModal()"
+                                    style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
                         </div>
-                        <div class="qt-section-label" style="margin-top:6px;">Recent</div>
-                        <div id="tuneHistory"><div class="qt-empty">No history yet</div></div>
+                        <div style="overflow-y:auto;flex:1;min-height:0;">
+                            <div class="qt-grid">
+                                <div>
+                                    <div class="qt-section-label">TGIF Favorites</div>
+                                    <div id="favsTGIF"><div class="qt-empty">None saved</div></div>
+                                </div>
+                                <div>
+                                    <div class="qt-section-label">BM Favorites</div>
+                                    <div id="favsBM"><div class="qt-empty">None saved</div></div>
+                                </div>
+                            </div>
+                            <div class="qt-section-label" style="margin-top:10px;">Recent</div>
+                            <div id="tuneHistory"><div class="qt-empty">No history yet</div></div>
+                        </div>
                     </div>
                 </div>
 
@@ -2308,14 +2328,17 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         // -------------------------
         // QUICK TUNE
         // -------------------------
-        var quickTuneOpen = false;
-        var currentMode   = 'TGIF';
+        var currentMode = 'TGIF';
 
-        function toggleQuickTune() {
-            quickTuneOpen = !quickTuneOpen;
-            document.getElementById('quickTuneBody').classList.toggle('open', quickTuneOpen);
-            document.getElementById('quickTuneArrow').classList.toggle('open', quickTuneOpen);
-            if (quickTuneOpen) loadQuickTune();
+        function openQuickTuneModal() {
+            document.getElementById('quickTuneModal').style.display = 'flex';
+            loadQuickTune();
+        }
+        function closeQuickTuneModal() {
+            document.getElementById('quickTuneModal').style.display = 'none';
+        }
+        function closeQuickTuneModalIfBackdrop(e) {
+            if (e.target === document.getElementById('quickTuneModal')) closeQuickTuneModal();
         }
 
         async function loadQuickTune() {
@@ -2365,7 +2388,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function quickTune(tg) {
             document.getElementById('tgInput').value = tg;
             tuneTG();
-            if (quickTuneOpen) setTimeout(loadQuickTune, 300);
+            const open = document.getElementById('quickTuneModal').style.display === 'flex';
+            if (open) setTimeout(loadQuickTune, 300);
         }
 
         async function saveFavorite() {
@@ -2379,7 +2403,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 });
                 const data = await res.json();
                 log(data.message, data.ok ? 'ok' : 'warn');
-                if (quickTuneOpen) loadQuickTune();
+                const open = document.getElementById('quickTuneModal').style.display === 'flex';
+                if (open) loadQuickTune();
             } catch(e) { log('Save favorite failed: ' + e, 'error'); }
         }
 
@@ -2388,7 +2413,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const res  = await fetch('/api/favorites/' + network + '/' + tg, {method: 'DELETE'});
                 const data = await res.json();
                 log(data.message, data.ok ? 'ok' : 'error');
-                if (quickTuneOpen) loadQuickTune();
+                const open = document.getElementById('quickTuneModal').style.display === 'flex';
+                if (open) loadQuickTune();
             } catch(e) { log('Remove favorite failed: ' + e, 'error'); }
         }
 
