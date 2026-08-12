@@ -4026,8 +4026,8 @@ registerProcessor('mic-decimator', MicDecimator);
             const filter = document.getElementById('trSystemFilter').value;
             const visible = _trCalls.filter(c => !filter || c.system === filter);
             const idx = visible.findIndex(c => c.id === call.id);
-            // Queue calls after the clicked one (older, higher index) that aren't disabled and have audio
-            _trQueue = (idx >= 0 ? visible.slice(idx + 1) : [])
+            // Queue calls newer than the clicked one (lower indices), oldest-first
+            _trQueue = (idx > 0 ? visible.slice(0, idx).reverse() : [])
                 .filter(c => c.audio && !_isTrDisabled(c));
             _updateTrQueueBadge();
             _trStartPlay(call);
