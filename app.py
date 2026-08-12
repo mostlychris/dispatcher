@@ -3709,7 +3709,11 @@ registerProcessor('mic-decimator', MicDecimator);
             audio.pause();
             audio.src = '';
             _trPlaying = null;
-            _trQueue = [];
+            // Remove only queued calls from the same channel; others stay
+            if (target) {
+                const key = _trKey(target);
+                _trQueue = _trQueue.filter(c => _trKey(c) !== key);
+            }
             _updateTrQueueBadge();
             renderTrCalls();
             // Flash SKIPPED badge
