@@ -150,6 +150,20 @@ tr_systems = dict(TR_SYSTEMS)
 # Talkgroups seen from live calls: short_name → {tg_id(int) → {tag, label, group, description}}
 tr_seen_tgs = {}
 
+# Rebuild tr_systems and tr_seen_tgs from persisted call history so they
+# survive restarts without waiting for the next live upload.
+for _c in tr_calls:
+    _sn = _c.get('system', '')
+    if _sn and _sn not in tr_systems:
+        tr_systems[_sn] = _c.get('system_label') or _sn
+    if _sn and _c.get('talkgroup') is not None:
+        tr_seen_tgs.setdefault(_sn, {}).setdefault(int(_c['talkgroup']), {
+            'tag':         _c.get('talkgroup_tag', ''),
+            'label':       _c.get('talkgroup_label', ''),
+            'group':       _c.get('talkgroup_group', ''),
+            'description': _c.get('talkgroup_description', ''),
+        })
+
 # Talkgroup lookup: short_name → {talkgroup_id(int) → {tag, description, group}}
 tr_talkgroups      = {}
 tr_talkgroups_lock = threading.Lock()
