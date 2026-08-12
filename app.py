@@ -1580,6 +1580,8 @@ HTML = '''
                 onclick="toggleMonitor(this)">&#128264; DMR</button>
         <button class="mob-btn btn-monitor" id="mobBtnAsMonitor"
                 onclick="toggleAllstarAudio(this)">&#128264; Allstar</button>
+        <button class="mob-btn" id="mobBtnTrAudio"
+                onclick="trToggleAudio()">&#128251; Scanner</button>
         <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled>&#127908; PTT</button>
     </div>
 
@@ -3600,6 +3602,7 @@ registerProcessor('mic-decimator', MicDecimator);
         var _trPlaying    = null;     // call object currently playing
         var _trPaused     = false;
         var _trAutoplay   = true;
+        var _trAudioEnabled = true;
         var _trDisabled   = {};       // 'system:tg' → true (disabled), 'avoided' → true (avoided/reddish)
         var _trConsoleTgs = {};       // system → [{id,tag,label,group,description}] for console grid
         var TR_INTER_CALL_MS = 800;   // gap between calls in ms
@@ -3610,6 +3613,9 @@ registerProcessor('mic-decimator', MicDecimator);
             _trAutoplay = ap === null ? true : ap === 'true';
             document.getElementById('trAutoplayChk').checked = _trAutoplay;
             try { _trDisabled = JSON.parse(localStorage.getItem('trDisabled') || '{}'); } catch(e) {}
+            const ae = localStorage.getItem('trAudioEnabled');
+            _trAudioEnabled = ae === null ? true : ae === 'true';
+            _updateTrAudioBtn();
         })();
 
         function saveTrPrefs() {
@@ -3632,6 +3638,34 @@ registerProcessor('mic-decimator', MicDecimator);
             document.getElementById('trVolSlider').value = val;
             document.getElementById('trAudio').volume = val / 100;
             localStorage.setItem('trVolume', val);
+        }
+
+        // ---- Scanner audio enable/disable ----
+        function trToggleAudio() {
+            _trAudioEnabled = !_trAudioEnabled;
+            localStorage.setItem('trAudioEnabled', _trAudioEnabled);
+            const audio = document.getElementById('trAudio');
+            if (!_trAudioEnabled) {
+                audio.pause();
+                audio.src = '';
+                _trQueue = [];
+                _trPlaying = null;
+                document.getElementById('trPulse').classList.remove('on');
+                _updateTrQueueBadge();
+            }
+            _updateTrAudioBtn();
+        }
+
+        function _updateTrAudioBtn() {
+            const btn = document.getElementById('mobBtnTrAudio');
+            if (!btn) return;
+            if (_trAudioEnabled) {
+                btn.textContent = '📻 Scanner';
+                btn.classList.remove('muted');
+            } else {
+                btn.textContent = '🔇 Scanner';
+                btn.classList.add('muted');
+            }
         }
 
         // ---- Pause / Resume ----
@@ -3744,7 +3778,7 @@ registerProcessor('mic-decimator', MicDecimator);
 
             renderTrCalls();
 
-            if (_trAutoplay) _trEnqueue(call);
+            if (_trAutoplay && _trAudioEnabled) _trEnqueue(call);
         }
 
         // ---- Modals ----
