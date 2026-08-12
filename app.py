@@ -1533,6 +1533,15 @@ HTML = '''
 
             <!-- RESTART BUTTONS -->
             <div class="sidebar-section">
+                <h3>Tools</h3>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <button class="btn-sidebar-sm" onclick="openDispatchModal()">&#128225; Dispatch Log</button>
+                    <button class="btn-sidebar-sm" onclick="openLastHeardModal()">&#128251; Last Heard</button>
+                    <button class="btn-sidebar-sm" onclick="openLogModal()">&#128203; Log Viewer</button>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
                 <h3>Services</h3>
                 <div style="display:flex; flex-direction:column; gap:4px;">
                     <button id="btnRestart"   class="btn-restart-sm" onclick="action('/api/restart',       'Restarting STFU...')">&#8634; Restart STFU</button>
@@ -1612,16 +1621,6 @@ HTML = '''
             <!-- PANELS -->
             <div class="panels">
 
-                <!-- DISPATCH LOG -->
-                <div class="collapse-panel">
-                    <div class="collapse-header" onclick="toggleDispatchLog()">
-                        <h3>&#128225; DISPATCH LOG</h3>
-                        <span class="collapse-arrow" id="dispatchArrow">&#9660;</span>
-                    </div>
-                    <div class="collapse-body" id="dispatchLogWrapper">
-                        <div class="dispatch-log" id="dispatchLog"></div>
-                    </div>
-                </div>
 
                 <!-- DMR STATUS BAR -->
                 <div class="collapse-panel" id="dmrSection">
@@ -2013,56 +2012,80 @@ HTML = '''
                     </div>
                 </div>
 
-                <!-- LAST HEARD -->
-                <div class="collapse-panel">
-                    <div class="collapse-header" onclick="toggleLastHeard()">
-                        <h3>&#128251; LAST HEARD</h3>
-                        <span class="collapse-arrow" id="lastHeardArrow">&#9660;</span>
-                    </div>
-                    <div class="collapse-body" id="lastHeardBody_wrapper">
-                        <table id="lastHeardTable">
-                            <thead>
-                                <tr>
-                                    <th>TIME</th>
-                                    <th>CALLSIGN</th>
-                                    <th>DMR ID</th>
-                                    <th>TG</th>
-                                    <th>TG NAME</th>
-                                    <th>NET</th>
-                                </tr>
-                            </thead>
-                            <tbody id="lastHeardBody">
-                                <tr><td colspan="6" style="color:#777; padding:8px;">Open to load...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- LOG VIEWER -->
-                <div class="collapse-panel">
-                    <div class="collapse-header" onclick="toggleLogViewer()">
-                        <h3>&#128203; LOG VIEWER</h3>
-                        <span class="collapse-arrow" id="collapseArrow">&#9660;</span>
-                    </div>
-                    <div class="collapse-body" id="logViewerBody">
-                        <div class="log-tabs">
-                            <div class="log-tab tab-mmdvm active" onclick="selectTab('mmdvm',    this)">MMDVM</div>
-                            <div class="log-tab tab-analog"       onclick="selectTab('analog',   this)">Analog</div>
-                            <div class="log-tab tab-stfu"         onclick="selectTab('stfu',     this)">STFU</div>
-                            <div class="log-tab tab-watchdog"     onclick="selectTab('watchdog', this)">Watchdog</div>
-                        </div>
-                        <div class="log-controls">
-                            <label>Lines:</label>
-                            <input type="number" id="logLines" value="50" min="10" max="500" step="10">
-                            <button onclick="fetchLog()">&#8634; Refresh</button>
-                            <button class="btn-autoscroll on" id="btnAutoScroll" onclick="toggleAutoScroll()">&#11015; Auto</button>
-                        </div>
-                        <div class="log-file-label" id="logFileLabel"></div>
-                        <div id="logFileContent">Select a tab to load...</div>
-                    </div>
-                </div>
-
             </div>
+        </div>
+    </div>
+
+    <!-- DISPATCH LOG MODAL -->
+    <div id="dispatchLogModal" onclick="if(event.target===this)closeDispatchModal()"
+         style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                align-items:center;justify-content:center;">
+        <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    padding:16px 20px;width:min(680px,96vw);max-height:85vh;
+                    display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+            <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;">
+                <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128225; DISPATCH LOG</h3>
+                <button onclick="closeDispatchModal()"
+                        style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
+            </div>
+            <div class="dispatch-log" id="dispatchLog" style="flex:1;overflow-y:auto;"></div>
+        </div>
+    </div>
+
+    <!-- LAST HEARD MODAL -->
+    <div id="lastHeardModal" onclick="if(event.target===this)closeLastHeardModal()"
+         style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                align-items:center;justify-content:center;">
+        <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    padding:16px 20px;width:min(680px,96vw);max-height:85vh;
+                    display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+            <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;">
+                <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128251; LAST HEARD</h3>
+                <button onclick="closeLastHeardModal()"
+                        style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
+            </div>
+            <div style="overflow-y:auto;flex:1;">
+                <table id="lastHeardTable">
+                    <thead>
+                        <tr>
+                            <th>TIME</th><th>CALLSIGN</th><th>DMR ID</th>
+                            <th>TG</th><th>TG NAME</th><th>NET</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lastHeardBody">
+                        <tr><td colspan="6" style="color:#777;padding:8px;">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOG VIEWER MODAL -->
+    <div id="logViewerModal" onclick="if(event.target===this)closeLogModal()"
+         style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                align-items:center;justify-content:center;">
+        <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    padding:16px 20px;width:min(860px,96vw);max-height:85vh;
+                    display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+            <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;">
+                <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128203; LOG VIEWER</h3>
+                <button onclick="closeLogModal()"
+                        style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
+            </div>
+            <div class="log-tabs" style="flex-shrink:0;">
+                <div class="log-tab tab-mmdvm active" onclick="selectTab('mmdvm',    this)">MMDVM</div>
+                <div class="log-tab tab-analog"       onclick="selectTab('analog',   this)">Analog</div>
+                <div class="log-tab tab-stfu"         onclick="selectTab('stfu',     this)">STFU</div>
+                <div class="log-tab tab-watchdog"     onclick="selectTab('watchdog', this)">Watchdog</div>
+            </div>
+            <div class="log-controls" style="flex-shrink:0;">
+                <label>Lines:</label>
+                <input type="number" id="logLines" value="50" min="10" max="500" step="10">
+                <button onclick="fetchLog()">&#8634; Refresh</button>
+                <button class="btn-autoscroll on" id="btnAutoScroll" onclick="toggleAutoScroll()">&#11015; Auto</button>
+            </div>
+            <div class="log-file-label" id="logFileLabel" style="flex-shrink:0;"></div>
+            <div id="logFileContent" style="flex:1;overflow-y:auto;">Select a tab to load...</div>
         </div>
     </div>
 
@@ -2521,16 +2544,17 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var lastHeardOpen  = false;
         var lastHeardTimer = null;
 
-        function toggleLastHeard() {
-            lastHeardOpen = !lastHeardOpen;
-            document.getElementById('lastHeardBody_wrapper').classList.toggle('open', lastHeardOpen);
-            document.getElementById('lastHeardArrow').classList.toggle('open', lastHeardOpen);
-            if (lastHeardOpen) {
-                pollLastHeard();
-                lastHeardTimer = setInterval(pollLastHeard, 10000);
-            } else {
-                clearInterval(lastHeardTimer);
-            }
+        function openLastHeardModal() {
+            document.getElementById('lastHeardModal').style.display = 'flex';
+            lastHeardOpen = true;
+            pollLastHeard();
+            if (!lastHeardTimer) lastHeardTimer = setInterval(pollLastHeard, 10000);
+        }
+        function closeLastHeardModal() {
+            document.getElementById('lastHeardModal').style.display = 'none';
+            lastHeardOpen = false;
+            clearInterval(lastHeardTimer);
+            lastHeardTimer = null;
         }
 
         async function pollLastHeard() {
@@ -2577,18 +2601,18 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (e.target === document.getElementById('dmrModal')) closeDmrModal();
         }
 
-        function toggleDispatchLog() {
-            dispatchLogOpen = !dispatchLogOpen;
-            document.getElementById('dispatchLogWrapper').classList.toggle('open', dispatchLogOpen);
-            document.getElementById('dispatchArrow').classList.toggle('open', dispatchLogOpen);
-        }
+        function openDispatchModal()  { document.getElementById('dispatchLogModal').style.display = 'flex'; }
+        function closeDispatchModal() { document.getElementById('dispatchLogModal').style.display = 'none'; }
 
-        function toggleLogViewer() {
-            logViewerOpen = !logViewerOpen;
-            document.getElementById('logViewerBody').classList.toggle('open', logViewerOpen);
-            document.getElementById('collapseArrow').classList.toggle('open', logViewerOpen);
-            if (logViewerOpen) { fetchLog(); logPollTimer = setInterval(fetchLog, 5000); }
-            else { clearInterval(logPollTimer); }
+        function openLogModal() {
+            document.getElementById('logViewerModal').style.display = 'flex';
+            fetchLog();
+            if (!logPollTimer) logPollTimer = setInterval(fetchLog, 5000);
+        }
+        function closeLogModal() {
+            document.getElementById('logViewerModal').style.display = 'none';
+            clearInterval(logPollTimer);
+            logPollTimer = null;
         }
 
         function selectTab(logKey, el) {
