@@ -1829,11 +1829,11 @@ HTML = '''
                             Expected columns: <span style="color:#ccc;">Decimal, Hex, Mode, Alpha Tag, Description, Tag, Group</span>
                         </div>
                         <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-shrink:0;flex-wrap:wrap;">
-                            <select id="trImportSystem"
-                                    style="flex:1;min-width:120px;background:#111;border:1px solid #444;color:#ccc;
-                                           border-radius:4px;font-size:11px;padding:3px 6px;">
-                                <option value="">-- select system --</option>
-                            </select>
+                            <input list="trImportSystemList" id="trImportSystem"
+                                   placeholder="System short name (e.g. lcraboerne)"
+                                   style="flex:1;min-width:160px;background:#111;border:1px solid #444;color:#ccc;
+                                          border-radius:4px;font-size:11px;padding:3px 6px;">
+                            <datalist id="trImportSystemList"></datalist>
                             <label style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
                                           padding:3px 10px;font-size:11px;cursor:pointer;white-space:nowrap;">
                                 &#128196; Choose CSV
@@ -3552,15 +3552,17 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         function _populateTrImportSystems() {
-            const sel = document.getElementById('trImportSystem');
-            const cur = sel.value;
-            while (sel.options.length > 1) sel.remove(1);
-            Object.entries(_trSystems).forEach(([k, v]) => {
+            const dl = document.getElementById('trImportSystemList');
+            dl.innerHTML = '';
+            // Seed from config-known systems and any already received
+            const known = new Set([...Object.keys(_trSystems),
+                                   ...Object.keys(typeof TR_SYSTEMS_JS !== 'undefined' ? TR_SYSTEMS_JS : {})]);
+            known.forEach(k => {
                 const opt = document.createElement('option');
-                opt.value = k; opt.textContent = v + ' (' + k + ')';
-                sel.appendChild(opt);
+                opt.value = k;
+                opt.label = _trSystems[k] || k;
+                dl.appendChild(opt);
             });
-            if (cur) sel.value = cur;
         }
 
         function onTrImportFileChosen() {
@@ -3571,8 +3573,8 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         async function doTrImport() {
-            const sys = document.getElementById('trImportSystem').value;
-            if (!sys) { alert('Select a system first'); return; }
+            const sys = document.getElementById('trImportSystem').value.trim();
+            if (!sys) { alert('Enter the system short name (e.g. lcraboerne)'); return; }
             if (!_trImportFile) { alert('Choose a CSV file first'); return; }
             const fd = new FormData();
             fd.append('file', _trImportFile);
