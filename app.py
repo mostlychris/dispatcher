@@ -1781,6 +1781,9 @@ HTML = '''
                             <span id="trQueueCount" style="display:none;font-size:9px;font-weight:bold;
                                   background:#1a1a2a;border:1px solid #446;color:#88aaff;
                                   border-radius:3px;padding:1px 5px;flex-shrink:0;"></span>
+                            <span id="trSkippedBadge" style="display:none;font-size:9px;font-weight:bold;
+                                  background:#1a1a1a;border:1px solid #666;color:#aaa;
+                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">SKIPPED</span>
                             <span id="trSystemBadge" style="font-size:10px;color:#888;font-weight:bold;letter-spacing:0.5px;flex-shrink:0;">--</span>
                             <span id="trTgBadge" style="font-size:11px;color:#ccc;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">--</span>
                         </span>
@@ -3600,6 +3603,7 @@ registerProcessor('mic-decimator', MicDecimator);
         var _trSystems    = {};       // short_name → label
         var _trQueue      = [];       // playback queue (oldest first)
         var _trPlaying    = null;     // call object currently playing
+        var _trLastCall   = null;     // last call played (persists after audio ends)
         var _trPaused     = false;
         var _trAutoplay   = true;
         var _trAudioEnabled = true;
@@ -3698,20 +3702,32 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         // ---- Skip / Avoid ----
+        var _trSkippedTimer = null;
         function trSkip() {
+            const target = _trPlaying || _trLastCall;
             const audio = document.getElementById('trAudio');
             audio.pause();
             audio.src = '';
             _trPlaying = null;
+            _trQueue = [];
+            _updateTrQueueBadge();
+            renderTrCalls();
+            // Flash SKIPPED badge
+            if (target) {
+                const badge = document.getElementById('trSkippedBadge');
+                badge.style.display = '';
+                clearTimeout(_trSkippedTimer);
+                _trSkippedTimer = setTimeout(() => { badge.style.display = 'none'; }, 2500);
+            }
             setTimeout(_trDequeue, 300);
         }
 
         function trAvoid() {
-            if (!_trPlaying) return;
-            const key = _trKey(_trPlaying);
+            const target = _trPlaying || _trLastCall;
+            if (!target) return;
+            const key = _trKey(target);
             _trDisabled[key] = 'avoided';
             _saveTrDisabled();
-            // Remove any queued calls for same TG
             _trQueue = _trQueue.filter(c => _trKey(c) !== key);
             _updateTrQueueBadge();
             renderTrConsole();
@@ -3736,6 +3752,9 @@ registerProcessor('mic-decimator', MicDecimator);
 
         function _trStartPlay(call) {
             _trPlaying = call;
+            _trLastCall = call;
+            document.getElementById('trSkippedBadge').style.display = 'none';
+            clearTimeout(_trSkippedTimer);
             renderTrCalls();
             const audio = document.getElementById('trAudio');
             const vol = parseInt(localStorage.getItem('trVolume') ?? '100');
@@ -3759,6 +3778,7 @@ registerProcessor('mic-decimator', MicDecimator);
         // Wire audio ended event
         document.getElementById('trAudio').addEventListener('ended', function() {
             document.getElementById('trPulse').classList.remove('on');
+            _trLastCall = _trPlaying || _trLastCall;
             _trPlaying = null;
             renderTrCalls();
             // Status bar badges intentionally left showing the last played call
