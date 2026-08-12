@@ -4021,6 +4021,11 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         // Manual play from call log (bypasses queue, plays immediately)
+        function _playTrCallById(id) {
+            const call = _trCalls.find(c => String(c.id) === String(id));
+            if (call) _playTrCall(call);
+        }
+
         function _playTrCall(call) {
             if (!call.audio) return;
             const filter = document.getElementById('trSystemFilter').value;
@@ -4051,7 +4056,7 @@ registerProcessor('mic-decimator', MicDecimator);
                 const playing  = (_trPlaying && _trPlaying.id === c.id) ? ' playing' : '';
                 const disabled = _isTrDisabled(c) ? ' style="opacity:0.35"' : '';
                 const sys      = escHtml(_trSystems[c.system] || c.system || '');
-                return `<div class="tr-call-row${c.emergency ? ' emergency' : ''}${playing}"${disabled} onclick="_playTrCall(${JSON.stringify(c).replace(/</g,'\\u003c')})">
+                return `<div class="tr-call-row${c.emergency ? ' emergency' : ''}${playing}"${disabled} data-callid="${escHtml(String(c.id))}" onclick="_playTrCallById(this.dataset.callid)">
                     <div class="tr-sys-badge">${escHtml(sys)}</div>
                     <div class="tr-call-info">
                         <div class="tr-tg-name">${escHtml(tgLabel)}${emerg}</div>
