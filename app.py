@@ -4023,7 +4023,12 @@ registerProcessor('mic-decimator', MicDecimator);
         // Manual play from call log (bypasses queue, plays immediately)
         function _playTrCall(call) {
             if (!call.audio) return;
-            _trQueue = [];  // clear queue when manually selecting
+            const filter = document.getElementById('trSystemFilter').value;
+            const visible = _trCalls.filter(c => !filter || c.system === filter);
+            const idx = visible.findIndex(c => c.id === call.id);
+            // Queue calls after the clicked one (older, higher index) that aren't disabled and have audio
+            _trQueue = (idx >= 0 ? visible.slice(idx + 1) : [])
+                .filter(c => c.audio && !_isTrDisabled(c));
             _updateTrQueueBadge();
             _trStartPlay(call);
         }
