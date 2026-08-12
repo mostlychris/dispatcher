@@ -3892,7 +3892,8 @@ def allstar_audio_ws(ws):
 def tr_call_upload():
     """Compatible with Trunk Recorder's rdio-scanner uploader plugin."""
     key = request.form.get('key', '')
-    if TR_API_KEY and key != TR_API_KEY:
+    valid_keys = set(TR_API_KEY) if isinstance(TR_API_KEY, list) else ({TR_API_KEY} if TR_API_KEY else set())
+    if valid_keys and key not in valid_keys:
         return jsonify({'error': 'unauthorized'}), 401
 
     call_json = request.form.get('call', '{}')
