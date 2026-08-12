@@ -104,7 +104,7 @@ except ImportError:
 try:
     from config import TR_MAX_CALLS
 except ImportError:
-    TR_MAX_CALLS = 100
+    TR_MAX_CALLS = 5000
 try:
     from config import TR_SYSTEMS
 except ImportError:
@@ -119,10 +119,30 @@ TG_NAMES_CACHE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tg_n
 
 # Trunk Recorder audio storage
 os.makedirs(TR_AUDIO_DIR, exist_ok=True)
+TR_CALLS_FILE = os.path.join(TR_AUDIO_DIR, 'calls.json')
 
-# In-memory ring buffer of received TR calls (newest first)
-tr_calls      = []
+# Call history (newest first). Persisted to TR_CALLS_FILE across restarts.
 tr_calls_lock = threading.Lock()
+
+def _load_tr_calls():
+    """Load call history from disk, dropping entries whose audio file is gone."""
+    try:
+        with open(TR_CALLS_FILE) as f:
+            calls = json.load(f)
+        existing = set(os.listdir(TR_AUDIO_DIR))
+        return [c for c in calls if c.get('audio') and c['audio'] in existing]
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+
+def _save_tr_calls():
+    """Persist current call list to disk (called under tr_calls_lock)."""
+    try:
+        with open(TR_CALLS_FILE, 'w') as f:
+            json.dump(tr_calls, f)
+    except OSError:
+        pass
+
+tr_calls = _load_tr_calls()
 
 # Known systems: short_name → display label (seeded from config, grows on upload)
 tr_systems = dict(TR_SYSTEMS)
@@ -3808,7 +3828,6 @@ registerProcessor('mic-decimator', MicDecimator);
         // ---- Modals ----
         function openTrModal() {
             document.getElementById('trModal').style.display = 'flex';
-            if (_trCalls.length === 0) _fetchTrCalls();
             const v = parseInt(localStorage.getItem('trVolume') ?? '100');
             setTrVolume(v);
             _updateTrPauseUI();
@@ -4072,6 +4091,7 @@ registerProcessor('mic-decimator', MicDecimator);
         pollStatus();
         applyStoredVolume();
         applyStoredFilters();
+        _fetchTrCalls();
         log('Dispatcher ready', 'ok');
         // Populate device list on load (labels appear only after mic permission granted via Test or PTT)
         populateMicDevices().catch(() => {});
@@ -4499,6 +4519,7 @@ def tr_call_upload():
         if len(tr_calls) > TR_MAX_CALLS:
             old = tr_calls.pop()
             evicted_audio = old.get('audio')
+        _save_tr_calls()
 
     if evicted_audio:
         try:

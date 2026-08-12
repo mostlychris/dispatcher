@@ -45,8 +45,9 @@ TR_API_KEY = 'CHANGE_ME'
 # Directory to store received audio files. Created automatically on startup.
 TR_AUDIO_DIR = '/var/lib/dispatcher/tr-audio'
 
-# Maximum number of calls to keep in memory and on disk (oldest are evicted automatically).
-TR_MAX_CALLS = 100
+# Maximum number of calls to keep. Oldest are evicted (audio deleted) when the limit is reached.
+# At ~30 calls/hour, 5000 covers roughly one week of traffic.
+TR_MAX_CALLS = 5000
 
 # Optional display labels for each Trunk Recorder system short_name.
 # Systems not listed here are auto-registered using their short_name as the label.
