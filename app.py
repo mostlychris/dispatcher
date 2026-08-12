@@ -127,6 +127,9 @@ tr_calls_lock = threading.Lock()
 # Known systems: short_name → display label (seeded from config, grows on upload)
 tr_systems = dict(TR_SYSTEMS)
 
+# Talkgroups seen from live calls: short_name → {tg_id(int) → {tag, label, group, description}}
+tr_seen_tgs = {}
+
 # Talkgroup lookup: short_name → {talkgroup_id(int) → {tag, description, group}}
 tr_talkgroups      = {}
 tr_talkgroups_lock = threading.Lock()
@@ -1259,6 +1262,20 @@ HTML = '''
         .btn-danger-sm { background:#3a1010; color:#ff8888; border:1px solid #662222; border-radius:4px; padding:2px 6px; font-size:11px; cursor:pointer; }
         .btn-danger-sm:hover { background:#4a1414; }
 
+        /* TG console grid */
+        .tr-console-group { margin-bottom:12px; }
+        .tr-console-group-label { font-size:9px; color:#666; letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; }
+        .tr-console-buttons { display:flex; flex-wrap:wrap; gap:5px; }
+        .tr-tg-btn {
+            font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer;
+            border:1px solid #3a5a3a; background:#1a2a1a; color:#88cc88;
+            max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+            text-align:left; transition:background 0.1s;
+        }
+        .tr-tg-btn:hover { background:#223a22; }
+        .tr-tg-btn.disabled { background:#222; border-color:#444; color:#555; }
+        .tr-tg-btn.avoided { background:#2a1010; border-color:#662222; color:#cc6666; }
+
         /* Scanner call log */
         .tr-call-row {
             display:flex; align-items:flex-start; gap:8px; padding:6px 0;
@@ -1752,13 +1769,24 @@ HTML = '''
                         <h3>&#128250; SCANNER</h3>
                         <span style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:6px;">
                             <span class="tx-pulse" id="trPulse"></span>
+                            <span id="trPausedBadge" style="display:none;font-size:9px;font-weight:bold;
+                                  background:#3a2a00;border:1px solid #886600;color:#ffcc44;
+                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">PAUSED</span>
                             <span id="trSystemBadge" style="font-size:10px;color:#888;font-weight:bold;letter-spacing:0.5px;">--</span>
                             <span id="trTgBadge" style="font-size:11px;color:#ccc;font-weight:bold;">--</span>
                         </span>
+                        <button onclick="trPauseToggle()" id="trPauseBtn"
+                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                       padding:2px 7px;font-size:13px;cursor:pointer;margin-right:4px;"
+                                title="Pause / Resume">&#9646;&#9646;</button>
+                        <button onclick="openTrConsoleModal()"
+                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                       padding:2px 7px;font-size:13px;cursor:pointer;margin-right:4px;"
+                                title="Talkgroup Console">&#9783;</button>
                         <button onclick="openTrModal()"
                                 style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
                                        padding:2px 7px;font-size:13px;cursor:pointer;"
-                                title="Scanner Log">&#9776;</button>
+                                title="Call Log">&#9776;</button>
                     </div>
                 </div>
 
@@ -1788,16 +1816,32 @@ HTML = '''
                             <button onclick="closeTrModal()"
                                     style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;margin-left:4px;">&#10005;</button>
                         </div>
-                        <!-- Audio player + volume -->
+                        <!-- Audio player + controls -->
                         <div style="margin-bottom:10px;flex-shrink:0;" id="trPlayerWrap">
-                            <audio id="trAudio" controls
+                            <audio id="trAudio"
                                    style="width:100%;height:32px;accent-color:#4fc3f7;background:#111;border-radius:4px;">
                             </audio>
-                            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-                                <div id="trNowPlaying" style="font-size:10px;color:#888;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                                <div id="trNowPlaying" style="font-size:10px;color:#888;flex:1;min-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                                     No call selected
                                 </div>
-                                <span style="font-size:10px;color:#666;white-space:nowrap;">&#128264;</span>
+                                <button onclick="trSkip()" title="Skip current call"
+                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
+                                    &#9654;&#9654; Skip
+                                </button>
+                                <button onclick="trAvoid()" title="Avoid this talkgroup"
+                                        style="background:#2a1010;border:1px solid #662222;color:#ff8888;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
+                                    &#128683; Avoid
+                                </button>
+                                <button onclick="trPauseToggle()" id="trPauseBtnModal"
+                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
+                                    &#9646;&#9646; Pause
+                                </button>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
+                                <span id="trQueueBadge" style="font-size:10px;color:#666;"></span>
+                                <span style="flex:1;"></span>
+                                <span style="font-size:10px;color:#666;">&#128264;</span>
                                 <input type="range" id="trVolSlider" min="0" max="100" value="100"
                                        style="width:80px;accent-color:#4fc3f7;cursor:pointer;"
                                        oninput="setTrVolume(this.value)">
@@ -1850,6 +1894,40 @@ HTML = '''
                         <div style="overflow-y:auto;flex:1;min-height:0;">
                             <div class="qt-section-label" style="margin-bottom:6px;">Loaded Systems</div>
                             <div id="trTgSummary"><div class="qt-empty">No talkgroup data loaded</div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TG CONSOLE MODAL -->
+                <div id="trConsoleModal" onclick="closeTrConsoleModalIfBackdrop(event)"
+                     style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                            align-items:center;justify-content:center;">
+                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                                padding:16px 20px;width:min(640px,96vw);
+                                max-height:90vh;display:flex;flex-direction:column;
+                                box-shadow:0 8px 32px rgba(0,0,0,0.8);">
+                        <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
+                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9783; TALKGROUP CONSOLE</h3>
+                            <select id="trConsoleSystem"
+                                    style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
+                                           font-size:11px;padding:2px 6px;margin-left:4px;"
+                                    onchange="renderTrConsole()">
+                                <option value="">All systems</option>
+                            </select>
+                            <button onclick="trConsoleEnableAll()"
+                                    style="background:#1a2a1a;border:1px solid #2a6a2a;color:#88cc88;border-radius:4px;
+                                           padding:2px 8px;font-size:11px;cursor:pointer;margin-left:auto;">Enable All</button>
+                            <button onclick="trConsoleDisableAll()"
+                                    style="background:#2a1a1a;border:1px solid #6a2a2a;color:#cc8888;border-radius:4px;
+                                           padding:2px 8px;font-size:11px;cursor:pointer;">Disable All</button>
+                            <button onclick="closeTrConsoleModal()"
+                                    style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;margin-left:4px;">&#10005;</button>
+                        </div>
+                        <div style="font-size:10px;color:#666;margin-bottom:8px;flex-shrink:0;">
+                            Disabled talkgroups are silently dropped. Click a button to toggle.
+                        </div>
+                        <div style="overflow-y:auto;flex:1;min-height:0;" id="trConsoleGrid">
+                            <div class="qt-empty">No talkgroups known yet — import a CSV or wait for calls</div>
                         </div>
                     </div>
                 </div>
@@ -3501,16 +3579,22 @@ registerProcessor('mic-decimator', MicDecimator);
         // -------------------------
         // SCANNER (TRUNK RECORDER)
         // -------------------------
-        var _trCalls      = [];      // local mirror of received calls (newest first)
-        var _trSystems    = {};      // short_name -> label
-        var _trPlaying    = null;    // id of currently playing call
+        var _trCalls      = [];       // history mirror (newest first)
+        var _trSystems    = {};       // short_name → label
+        var _trQueue      = [];       // playback queue (oldest first)
+        var _trPlaying    = null;     // call object currently playing
+        var _trPaused     = false;
         var _trAutoplay   = true;
+        var _trDisabled   = {};       // 'system:tg' → true (disabled), 'avoided' → true (avoided/reddish)
+        var _trConsoleTgs = {};       // system → [{id,tag,label,group,description}] for console grid
+        var TR_INTER_CALL_MS = 800;   // gap between calls in ms
 
-        (function loadTrPrefs() {
+        // Persist & restore prefs
+        (function _initTrPrefs() {
             const ap = localStorage.getItem('trAutoplay');
             _trAutoplay = ap === null ? true : ap === 'true';
-            const chk = document.getElementById('trAutoplayChk');
-            if (chk) chk.checked = _trAutoplay;
+            document.getElementById('trAutoplayChk').checked = _trAutoplay;
+            try { _trDisabled = JSON.parse(localStorage.getItem('trDisabled') || '{}'); } catch(e) {}
         })();
 
         function saveTrPrefs() {
@@ -3518,6 +3602,15 @@ registerProcessor('mic-decimator', MicDecimator);
             localStorage.setItem('trAutoplay', _trAutoplay);
         }
 
+        function _saveTrDisabled() {
+            localStorage.setItem('trDisabled', JSON.stringify(_trDisabled));
+        }
+
+        function _trKey(call) { return call.system + ':' + call.talkgroup; }
+
+        function _isTrDisabled(call) { return !!_trDisabled[_trKey(call)]; }
+
+        // ---- Volume ----
         function setTrVolume(val) {
             val = parseInt(val);
             document.getElementById('trVolDisplay').textContent = val + '%';
@@ -3526,16 +3619,229 @@ registerProcessor('mic-decimator', MicDecimator);
             localStorage.setItem('trVolume', val);
         }
 
+        // ---- Pause / Resume ----
+        function trPauseToggle() {
+            _trPaused = !_trPaused;
+            _updateTrPauseUI();
+            if (!_trPaused) _trDequeue();  // drain queue on resume
+        }
+
+        function _updateTrPauseUI() {
+            const label = _trPaused ? '&#9654; Resume' : '&#9646;&#9646; Pause';
+            document.getElementById('trPauseBtnModal').innerHTML = label;
+            document.getElementById('trPauseBtn').innerHTML = _trPaused ? '&#9654;' : '&#9646;&#9646;';
+            document.getElementById('trPausedBadge').style.display = _trPaused ? '' : 'none';
+            _updateTrQueueBadge();
+        }
+
+        function _updateTrQueueBadge() {
+            const el = document.getElementById('trQueueBadge');
+            if (_trQueue.length)
+                el.textContent = _trQueue.length + ' queued' + (_trPaused ? ' (paused)' : '');
+            else
+                el.textContent = '';
+        }
+
+        // ---- Skip / Avoid ----
+        function trSkip() {
+            const audio = document.getElementById('trAudio');
+            audio.pause();
+            audio.src = '';
+            _trPlaying = null;
+            setTimeout(_trDequeue, 300);
+        }
+
+        function trAvoid() {
+            if (!_trPlaying) return;
+            const key = _trKey(_trPlaying);
+            _trDisabled[key] = 'avoided';
+            _saveTrDisabled();
+            // Remove any queued calls for same TG
+            _trQueue = _trQueue.filter(c => _trKey(c) !== key);
+            _updateTrQueueBadge();
+            renderTrConsole();
+            trSkip();
+        }
+
+        // ---- Playback queue ----
+        function _trEnqueue(call) {
+            if (!call.audio) return;
+            if (_isTrDisabled(call)) return;
+            _trQueue.push(call);
+            _updateTrQueueBadge();
+            if (!_trPlaying && !_trPaused) _trDequeue();
+        }
+
+        function _trDequeue() {
+            if (_trPaused || _trQueue.length === 0) return;
+            const call = _trQueue.shift();
+            _updateTrQueueBadge();
+            _trStartPlay(call);
+        }
+
+        function _trStartPlay(call) {
+            _trPlaying = call;
+            renderTrCalls();
+            const audio = document.getElementById('trAudio');
+            const vol = parseInt(localStorage.getItem('trVolume') ?? '100');
+            audio.volume = vol / 100;
+            audio.src = '/api/tr/audio/' + encodeURIComponent(call.audio);
+            audio.play().catch(() => {});
+            const tgLabel = call.talkgroup_label || call.talkgroup_tag || ('TG ' + call.talkgroup);
+            const sys = _trSystems[call.system] || call.system || '';
+            document.getElementById('trNowPlaying').textContent =
+                sys + ' · ' + tgLabel + (call.talkgroup_group ? ' · ' + call.talkgroup_group : '');
+            // Update status bar
+            const pulse = document.getElementById('trPulse');
+            pulse.classList.add('on');
+        }
+
+        // Wire audio ended event
+        document.getElementById('trAudio').addEventListener('ended', function() {
+            document.getElementById('trPulse').classList.remove('on');
+            _trPlaying = null;
+            renderTrCalls();
+            setTimeout(_trDequeue, TR_INTER_CALL_MS);
+        });
+
+        // ---- Incoming call ----
+        function _onTrCall(call) {
+            _trCalls.unshift(call);
+            if (_trCalls.length > 200) _trCalls.pop();
+
+            if (call.system && !_trSystems[call.system]) {
+                _trSystems[call.system] = call.system_label || call.system;
+                _rebuildSystemFilter();
+                _rebuildConsoleSystemSelect();
+            }
+
+            // Update status bar (even for disabled TGs — just don't play)
+            document.getElementById('trSystemBadge').textContent =
+                (_trSystems[call.system] || call.system || '--').toUpperCase();
+            document.getElementById('trTgBadge').textContent =
+                call.talkgroup_label || call.talkgroup_tag || ('TG ' + call.talkgroup);
+
+            renderTrCalls();
+
+            if (_trAutoplay) _trEnqueue(call);
+        }
+
+        // ---- Modals ----
         function openTrModal() {
             document.getElementById('trModal').style.display = 'flex';
             if (_trCalls.length === 0) _fetchTrCalls();
-            // Restore volume
             const v = parseInt(localStorage.getItem('trVolume') ?? '100');
             setTrVolume(v);
+            _updateTrPauseUI();
         }
         function closeTrModal() { document.getElementById('trModal').style.display = 'none'; }
-        function closeTrModalIfBackdrop(e) {
-            if (e.target === document.getElementById('trModal')) closeTrModal();
+        function closeTrModalIfBackdrop(e) { if (e.target===document.getElementById('trModal')) closeTrModal(); }
+
+        // TG Console modal
+        function openTrConsoleModal() {
+            document.getElementById('trConsoleModal').style.display = 'flex';
+            _rebuildConsoleSystemSelect();
+            renderTrConsole();
+        }
+        function closeTrConsoleModal() { document.getElementById('trConsoleModal').style.display = 'none'; }
+        function closeTrConsoleModalIfBackdrop(e) { if (e.target===document.getElementById('trConsoleModal')) closeTrConsoleModal(); }
+
+        function _rebuildConsoleSystemSelect() {
+            const sel = document.getElementById('trConsoleSystem');
+            const cur = sel.value;
+            while (sel.options.length > 1) sel.remove(1);
+            Object.entries(_trSystems).forEach(([k,v]) => {
+                const o = document.createElement('option');
+                o.value = k; o.textContent = v; sel.appendChild(o);
+            });
+            sel.value = cur;
+        }
+
+        async function renderTrConsole() {
+            const sys = document.getElementById('trConsoleSystem').value;
+            const el  = document.getElementById('trConsoleGrid');
+
+            // Fetch TG list for selected system(s)
+            const systems = sys ? [sys] : Object.keys(_trSystems);
+            if (!systems.length) {
+                el.innerHTML = '<div class="qt-empty">No talkgroups known yet</div>';
+                return;
+            }
+
+            // Load missing TG data from server
+            for (const s of systems) {
+                if (!_trConsoleTgs[s]) {
+                    try {
+                        const r = await fetch('/api/tr/talkgroups/' + encodeURIComponent(s));
+                        _trConsoleTgs[s] = await r.json();
+                    } catch(e) { _trConsoleTgs[s] = []; }
+                }
+            }
+
+            let html = '';
+            for (const s of systems) {
+                const tgs = _trConsoleTgs[s] || [];
+                if (!tgs.length) continue;
+                // Group by group label
+                const groups = {};
+                tgs.forEach(tg => {
+                    const g = tg.group || 'Ungrouped';
+                    (groups[g] = groups[g] || []).push(tg);
+                });
+                const sysLabel = escHtml(_trSystems[s] || s);
+                if (systems.length > 1)
+                    html += `<div style="font-size:11px;color:#4fc3f7;font-weight:bold;margin:8px 0 4px;">${sysLabel}</div>`;
+                for (const [grp, items] of Object.entries(groups)) {
+                    html += `<div class="tr-console-group">
+                        <div class="tr-console-group-label">${escHtml(grp)}</div>
+                        <div class="tr-console-buttons">`;
+                    items.forEach(tg => {
+                        const key   = s + ':' + tg.id;
+                        const state = _trDisabled[key];
+                        const cls   = state === 'avoided' ? 'avoided' : state ? 'disabled' : '';
+                        const label = escHtml(tg.label || tg.tag || ('TG ' + tg.id));
+                        html += `<button class="tr-tg-btn ${cls}" onclick="trToggleTg('${escHtml(s)}',${tg.id})" title="TG ${tg.id}">${label}</button>`;
+                    });
+                    html += `</div></div>`;
+                }
+            }
+            el.innerHTML = html || '<div class="qt-empty">No talkgroups known yet — import a CSV or wait for calls</div>';
+        }
+
+        function trToggleTg(sys, tgId) {
+            const key = sys + ':' + tgId;
+            if (_trDisabled[key]) {
+                delete _trDisabled[key];
+            } else {
+                _trDisabled[key] = true;
+                // Purge queued calls for this TG
+                _trQueue = _trQueue.filter(c => !(c.system === sys && c.talkgroup === tgId));
+                _updateTrQueueBadge();
+            }
+            _saveTrDisabled();
+            renderTrConsole();
+        }
+
+        function trConsoleEnableAll() {
+            const sys = document.getElementById('trConsoleSystem').value;
+            const systems = sys ? [sys] : Object.keys(_trSystems);
+            systems.forEach(s => {
+                Object.keys(_trDisabled).filter(k => k.startsWith(s + ':')).forEach(k => delete _trDisabled[k]);
+            });
+            _saveTrDisabled();
+            renderTrConsole();
+        }
+
+        function trConsoleDisableAll() {
+            const sys = document.getElementById('trConsoleSystem').value;
+            const systems = sys ? [sys] : Object.keys(_trSystems);
+            systems.forEach(s => {
+                (_trConsoleTgs[s] || []).forEach(tg => { _trDisabled[s + ':' + tg.id] = true; });
+            });
+            _saveTrDisabled();
+            _trQueue = [];
+            _updateTrQueueBadge();
+            renderTrConsole();
         }
 
         // TG Import modal
@@ -3547,20 +3853,14 @@ registerProcessor('mic-decimator', MicDecimator);
             _loadTrTgSummary();
         }
         function closeTrImportModal() { document.getElementById('trImportModal').style.display = 'none'; }
-        function closeTrImportModalIfBackdrop(e) {
-            if (e.target === document.getElementById('trImportModal')) closeTrImportModal();
-        }
+        function closeTrImportModalIfBackdrop(e) { if (e.target===document.getElementById('trImportModal')) closeTrImportModal(); }
 
         function _populateTrImportSystems() {
             const dl = document.getElementById('trImportSystemList');
             dl.innerHTML = '';
-            // Seed from config-known systems and any already received
-            const known = new Set([...Object.keys(_trSystems),
-                                   ...Object.keys(typeof TR_SYSTEMS_JS !== 'undefined' ? TR_SYSTEMS_JS : {})]);
-            known.forEach(k => {
+            Object.keys(_trSystems).forEach(k => {
                 const opt = document.createElement('option');
-                opt.value = k;
-                opt.label = _trSystems[k] || k;
+                opt.value = k; opt.label = _trSystems[k] || k;
                 dl.appendChild(opt);
             });
         }
@@ -3586,6 +3886,7 @@ registerProcessor('mic-decimator', MicDecimator);
                     _trImportFile = null;
                     document.getElementById('trImportFile').value = '';
                     document.getElementById('trImportFileName').textContent = 'No file chosen';
+                    delete _trConsoleTgs[sys];  // force console reload
                     _loadTrTgSummary();
                 }
             } catch(e) { log('TG import error: ' + e, 'error'); }
@@ -3615,10 +3916,11 @@ registerProcessor('mic-decimator', MicDecimator);
                     fetch('/api/tr/calls'),
                     fetch('/api/tr/systems'),
                 ]);
-                _trCalls   = await callsR.json();
+                _trCalls  = await callsR.json();
                 const sysList = await sysR.json();
                 sysList.forEach(s => { _trSystems[s.short_name] = s.label; });
                 _rebuildSystemFilter();
+                _rebuildConsoleSystemSelect();
                 renderTrCalls();
             } catch(e) { console.error('_fetchTrCalls:', e); }
         }
@@ -3626,41 +3928,20 @@ registerProcessor('mic-decimator', MicDecimator);
         function _rebuildSystemFilter() {
             const sel = document.getElementById('trSystemFilter');
             const cur = sel.value;
-            // keep "All systems" option, rebuild the rest
             while (sel.options.length > 1) sel.remove(1);
-            Object.entries(_trSystems).forEach(([k, v]) => {
+            Object.entries(_trSystems).forEach(([k,v]) => {
                 const opt = document.createElement('option');
-                opt.value = k; opt.textContent = v;
-                sel.appendChild(opt);
+                opt.value = k; opt.textContent = v; sel.appendChild(opt);
             });
             sel.value = cur;
         }
 
-        function _onTrCall(call) {
-            // Keep local mirror in sync
-            _trCalls.unshift(call);
-            if (_trCalls.length > 200) _trCalls.pop();
-
-            // Register system if new
-            if (call.system && !_trSystems[call.system]) {
-                _trSystems[call.system] = call.system_label || call.system;
-                _rebuildSystemFilter();
-            }
-
-            // Update status bar
-            const pulse = document.getElementById('trPulse');
-            pulse.classList.add('on');
-            setTimeout(() => pulse.classList.remove('on'), Math.max((call.call_length || 3) * 1000, 2000));
-            document.getElementById('trSystemBadge').textContent =
-                (_trSystems[call.system] || call.system || '--').toUpperCase();
-            document.getElementById('trTgBadge').textContent =
-                call.talkgroup_label || call.talkgroup_tag || ('TG ' + call.talkgroup);
-
-            // Prepend to log if modal is open
-            renderTrCalls();
-
-            // Auto-play
-            if (_trAutoplay && call.audio) _playTrCall(call);
+        // Manual play from call log (bypasses queue, plays immediately)
+        function _playTrCall(call) {
+            if (!call.audio) return;
+            _trQueue = [];  // clear queue when manually selecting
+            _updateTrQueueBadge();
+            _trStartPlay(call);
         }
 
         function renderTrCalls() {
@@ -3672,15 +3953,16 @@ registerProcessor('mic-decimator', MicDecimator);
                 return;
             }
             el.innerHTML = visible.map(c => {
-                const tgLabel = c.talkgroup_label || c.talkgroup_tag || ('TG ' + c.talkgroup);
-                const sub     = [c.talkgroup_description, c.talkgroup_group].filter(Boolean).join(' · ') || ('TG ' + c.talkgroup);
-                const dur     = c.call_length ? c.call_length + 's' : '';
-                const freq    = c.freq ? (c.freq / 1e6).toFixed(4) + ' MHz' : '';
-                const ts      = new Date(c.start_time * 1000).toLocaleTimeString();
-                const emerg   = c.emergency ? '<span class="tr-emerg-tag">EMERG</span>' : '';
-                const playing = _trPlaying === c.id ? ' playing' : '';
-                const sys     = escHtml(_trSystems[c.system] || c.system || '');
-                return `<div class="tr-call-row${c.emergency ? ' emergency' : ''}${playing}" onclick="_playTrCall(${JSON.stringify(c).replace(/</g,'\\u003c')})">
+                const tgLabel  = c.talkgroup_label || c.talkgroup_tag || ('TG ' + c.talkgroup);
+                const sub      = [c.talkgroup_description, c.talkgroup_group].filter(Boolean).join(' · ') || ('TG ' + c.talkgroup);
+                const dur      = c.call_length ? c.call_length + 's' : '';
+                const freq     = c.freq ? (c.freq / 1e6).toFixed(4) + ' MHz' : '';
+                const ts       = new Date(c.start_time * 1000).toLocaleTimeString();
+                const emerg    = c.emergency ? '<span class="tr-emerg-tag">EMERG</span>' : '';
+                const playing  = (_trPlaying && _trPlaying.id === c.id) ? ' playing' : '';
+                const disabled = _isTrDisabled(c) ? ' style="opacity:0.35"' : '';
+                const sys      = escHtml(_trSystems[c.system] || c.system || '');
+                return `<div class="tr-call-row${c.emergency ? ' emergency' : ''}${playing}"${disabled} onclick="_playTrCall(${JSON.stringify(c).replace(/</g,'\\u003c')})">
                     <div class="tr-sys-badge">${escHtml(sys)}</div>
                     <div class="tr-call-info">
                         <div class="tr-tg-name">${escHtml(tgLabel)}${emerg}</div>
@@ -3689,19 +3971,6 @@ registerProcessor('mic-decimator', MicDecimator);
                     <div class="tr-call-meta">${escHtml(ts)}<br>${escHtml(dur)}${dur && freq ? ' · ' : ''}${escHtml(freq)}</div>
                 </div>`;
             }).join('');
-        }
-
-        function _playTrCall(call) {
-            if (!call.audio) return;
-            _trPlaying = call.id;
-            renderTrCalls();  // re-render to highlight playing row
-            const audio = document.getElementById('trAudio');
-            audio.src = '/api/tr/audio/' + encodeURIComponent(call.audio);
-            audio.play().catch(() => {});
-            const tgLabel = call.talkgroup_tag || ('TG ' + call.talkgroup);
-            const sys     = _trSystems[call.system] || call.system || '';
-            document.getElementById('trNowPlaying').textContent =
-                sys + ' · ' + tgLabel + (call.talkgroup_group ? ' · ' + call.talkgroup_group : '');
         }
 
         connectSSE();
@@ -4121,6 +4390,15 @@ def tr_call_upload():
         'received':              time.time(),
     }
 
+    # Track seen talkgroups for the TG console
+    with tr_talkgroups_lock:
+        tr_seen_tgs.setdefault(short_name, {})[tg_id] = {
+            'tag':         tg_tag,
+            'label':       tg_label,
+            'group':       tg_group,
+            'description': tg_desc,
+        }
+
     evicted_audio = None
     with tr_calls_lock:
         tr_calls.insert(0, call)
@@ -4206,6 +4484,19 @@ def tr_tg_import(short_name):
         tr_systems[short_name] = TR_SYSTEMS.get(short_name, short_name)
 
     return jsonify({'ok': True, 'message': f'Imported {rows} talkgroups for {short_name}', 'count': rows})
+
+
+@app.route('/api/tr/talkgroups/<short_name>', methods=['GET'])
+def tr_tg_get(short_name):
+    """Return full talkgroup dict for a system (imported + seen from calls)."""
+    with tr_talkgroups_lock:
+        imported = tr_talkgroups.get(short_name, {})
+        seen     = tr_seen_tgs.get(short_name, {})
+    merged = {**imported}
+    for tg_id, info in seen.items():
+        if tg_id not in merged:
+            merged[tg_id] = info
+    return jsonify([{'id': k, **v} for k, v in sorted(merged.items())])
 
 
 @app.route('/api/tr/talkgroups')
