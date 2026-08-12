@@ -4056,11 +4056,18 @@ def tr_call_upload():
     if valid_keys and key not in valid_keys:
         return jsonify({'error': 'unauthorized'}), 401
 
+    # Log raw fields to help diagnose format mismatches
+    print(f'[TR upload] form keys: {list(request.form.keys())}  file keys: {list(request.files.keys())}')
+    for k, v in request.form.items():
+        print(f'[TR upload] form[{k!r}] = {v[:300]!r}')
+
     call_json = request.form.get('call', '{}')
     try:
         meta = json.loads(call_json)
     except Exception:
         return jsonify({'error': 'invalid call JSON'}), 400
+
+    print(f'[TR upload] meta keys: {list(meta.keys())}  short_name={meta.get("short_name")}  tg={meta.get("talkgroup")}')
 
     short_name = meta.get('short_name', 'unknown')
 
