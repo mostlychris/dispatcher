@@ -1263,18 +1263,22 @@ HTML = '''
         .btn-danger-sm:hover { background:#4a1414; }
 
         /* TG console grid */
-        .tr-console-group { margin-bottom:12px; }
+        .tr-console-group { margin-bottom:14px; }
         .tr-console-group-label { font-size:9px; color:#666; letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; }
         .tr-console-buttons { display:flex; flex-wrap:wrap; gap:5px; }
         .tr-tg-btn {
-            font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer;
+            font-size:10px; padding:5px 9px; border-radius:4px; cursor:pointer;
             border:1px solid #3a5a3a; background:#1a2a1a; color:#88cc88;
-            max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-            text-align:left; transition:background 0.1s;
+            width:160px; text-align:left; transition:background 0.1s;
+            display:flex; flex-direction:column; gap:1px; flex-shrink:0;
         }
         .tr-tg-btn:hover { background:#223a22; }
         .tr-tg-btn.disabled { background:#222; border-color:#444; color:#555; }
+        .tr-tg-btn.disabled .tr-tg-btn-num { color:#444; }
         .tr-tg-btn.avoided { background:#2a1010; border-color:#662222; color:#cc6666; }
+        .tr-tg-btn.avoided .tr-tg-btn-num { color:#882222; }
+        .tr-tg-btn-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:bold; }
+        .tr-tg-btn-num  { font-size:9px; color:#4a8a4a; font-family:monospace; }
 
         /* Scanner call log */
         .tr-call-row {
@@ -1778,7 +1782,7 @@ HTML = '''
                         <button onclick="trPauseToggle()" id="trPauseBtn"
                                 style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
                                        padding:2px 7px;font-size:13px;cursor:pointer;margin-right:4px;"
-                                title="Pause / Resume">&#9646;&#9646;</button>
+                                title="Pause / Resume">⏸</button>
                         <button onclick="openTrConsoleModal()"
                                 style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
                                        padding:2px 7px;font-size:13px;cursor:pointer;margin-right:4px;"
@@ -1827,7 +1831,7 @@ HTML = '''
                                 </div>
                                 <button onclick="trSkip()" title="Skip current call"
                                         style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
-                                    &#9654;&#9654; Skip
+                                    ⏭ Skip
                                 </button>
                                 <button onclick="trAvoid()" title="Avoid this talkgroup"
                                         style="background:#2a1010;border:1px solid #662222;color:#ff8888;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
@@ -1835,7 +1839,7 @@ HTML = '''
                                 </button>
                                 <button onclick="trPauseToggle()" id="trPauseBtnModal"
                                         style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
-                                    &#9646;&#9646; Pause
+                                    ⏸ Pause
                                 </button>
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
@@ -3627,9 +3631,9 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         function _updateTrPauseUI() {
-            const label = _trPaused ? '&#9654; Resume' : '&#9646;&#9646; Pause';
+            const label = _trPaused ? '▶ Resume' : '⏸ Pause';
             document.getElementById('trPauseBtnModal').innerHTML = label;
-            document.getElementById('trPauseBtn').innerHTML = _trPaused ? '&#9654;' : '&#9646;&#9646;';
+            document.getElementById('trPauseBtn').innerHTML = _trPaused ? '▶' : '⏸';
             document.getElementById('trPausedBadge').style.display = _trPaused ? '' : 'none';
             _updateTrQueueBadge();
         }
@@ -3799,8 +3803,11 @@ registerProcessor('mic-decimator', MicDecimator);
                         const key   = s + ':' + tg.id;
                         const state = _trDisabled[key];
                         const cls   = state === 'avoided' ? 'avoided' : state ? 'disabled' : '';
-                        const label = escHtml(tg.label || tg.tag || ('TG ' + tg.id));
-                        html += `<button class="tr-tg-btn ${cls}" onclick="trToggleTg('${escHtml(s)}',${tg.id})" title="TG ${tg.id}">${label}</button>`;
+                        const name = tg.label || tg.tag || '';
+                        html += `<button class="tr-tg-btn ${cls}" onclick="trToggleTg('${escHtml(s)}',${tg.id})" title="TG ${tg.id}${name ? ' · ' + name : ''}">
+                            <span class="tr-tg-btn-name">${escHtml(name || ('TG ' + tg.id))}</span>
+                            <span class="tr-tg-btn-num">TG ${tg.id}</span>
+                        </button>`;
                     });
                     html += `</div></div>`;
                 }
