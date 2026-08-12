@@ -3727,11 +3727,7 @@ registerProcessor('mic-decimator', MicDecimator);
             document.getElementById('trPulse').classList.remove('on');
             _trPlaying = null;
             renderTrCalls();
-            // Clear status bar only if queue is empty
-            if (_trQueue.length === 0) {
-                document.getElementById('trSystemBadge').textContent = '--';
-                document.getElementById('trTgBadge').textContent = '--';
-            }
+            // Status bar badges intentionally left showing the last played call
             setTimeout(_trDequeue, TR_INTER_CALL_MS);
         });
 
