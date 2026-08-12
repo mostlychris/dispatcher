@@ -3803,10 +3803,12 @@ registerProcessor('mic-decimator', MicDecimator);
                         const key   = s + ':' + tg.id;
                         const state = _trDisabled[key];
                         const cls   = state === 'avoided' ? 'avoided' : state ? 'disabled' : '';
-                        const name = tg.label || tg.tag || '';
-                        html += `<button class="tr-tg-btn ${cls}" onclick="trToggleTg('${escHtml(s)}',${tg.id})" title="TG ${tg.id}${name ? ' · ' + name : ''}">
+                        const name = tg.label || tg.description || tg.tag || '';
+                        const sub  = tg.group || tg.tag || '';
+                        html += `<button class="tr-tg-btn ${cls}" onclick="trToggleTg('${escHtml(s)}',${tg.id})"
+                                    title="TG ${tg.id}${name ? ' · ' + name : ''}${sub ? ' [' + sub + ']' : ''}">
                             <span class="tr-tg-btn-name">${escHtml(name || ('TG ' + tg.id))}</span>
-                            <span class="tr-tg-btn-num">TG ${tg.id}</span>
+                            <span class="tr-tg-btn-num">TG ${tg.id}${sub ? ' · ' + escHtml(sub) : ''}</span>
                         </button>`;
                     });
                     html += `</div></div>`;
@@ -4451,30 +4453,39 @@ def tr_tg_import(short_name):
         return jsonify({'ok': False, 'message': 'No file provided'}), 400
 
     import csv, io
-    text    = f.read().decode('utf-8-sig', errors='replace')
-    reader  = csv.reader(io.StringIO(text))
+    text   = f.read().decode('utf-8-sig', errors='replace')
+    reader = csv.DictReader(io.StringIO(text))
+
+    # Normalise header names — RadioReference uses "Alpha Tag", "Description", "Tag", "Group", "Dec"/"Decimal"
     tg_data = {}
     rows    = 0
-    skipped = 0
+
+    # Column name aliases (case-insensitive) to handle minor RR format variations
+    def _col(row, *names):
+        for n in names:
+            for k, v in row.items():
+                if k and k.strip().lower() == n.lower():
+                    return v.strip() if v else ''
+        return ''
+
     for row in reader:
-        # Skip header rows and blank lines
-        if not row or not row[0].strip().lstrip('-').isdigit():
-            skipped += 1
+        dec = _col(row, 'Decimal', 'Dec', 'DEC')
+        if not dec:
             continue
         try:
-            tg_id = int(row[0].strip())
+            tg_id = int(dec)
         except ValueError:
-            skipped += 1
             continue
         tg_data[tg_id] = {
-            'tag':         row[3].strip() if len(row) > 3 else '',
-            'description': row[4].strip() if len(row) > 4 else '',
-            'group':       row[6].strip() if len(row) > 6 else '',
+            'label':       _col(row, 'Alpha Tag', 'Alpha', 'Label'),
+            'description': _col(row, 'Description', 'Desc'),
+            'group':       _col(row, 'Group'),
+            'tag':         _col(row, 'Tag'),   # category (Fire, Law, EMS, etc.)
         }
         rows += 1
 
     if not rows:
-        return jsonify({'ok': False, 'message': 'No valid talkgroup rows found — check CSV format'})
+        return jsonify({'ok': False, 'message': 'No valid talkgroup rows found — check CSV format (expected columns: Decimal, Alpha Tag, Description, Tag, Group)'})
 
     with tr_talkgroups_lock:
         tr_talkgroups[short_name] = tg_data
