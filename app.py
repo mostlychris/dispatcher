@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template_string, Response
+from flask import Flask, jsonify, request, render_template_string, Response, send_file
 from flask_sock import Sock
 import subprocess
 import json
@@ -9,6 +9,7 @@ import struct
 import threading
 import time
 import queue
+import uuid
 from datetime import datetime
 import logging
 logging.basicConfig(level=logging.DEBUG,
@@ -92,11 +93,39 @@ try:
 except ImportError:
     DVSWITCHPLAYER_PORT = 8080
 
+try:
+    from config import TR_API_KEY
+except ImportError:
+    TR_API_KEY = ''
+try:
+    from config import TR_AUDIO_DIR
+except ImportError:
+    TR_AUDIO_DIR = '/tmp/dispatcher-tr-audio'
+try:
+    from config import TR_MAX_CALLS
+except ImportError:
+    TR_MAX_CALLS = 100
+try:
+    from config import TR_SYSTEMS
+except ImportError:
+    # Map short_name → display label. Auto-populated from uploads if not set.
+    TR_SYSTEMS = {}
+
 
 FAVORITES_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
 AS_FAVORITES_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as_favorites.json')
 LAST_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'last_state.json')
 TG_NAMES_CACHE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tg_names_cache.json')
+
+# Trunk Recorder audio storage
+os.makedirs(TR_AUDIO_DIR, exist_ok=True)
+
+# In-memory ring buffer of received TR calls (newest first)
+tr_calls      = []
+tr_calls_lock = threading.Lock()
+
+# Known systems: short_name → display label (seeded from config, grows on upload)
+tr_systems = dict(TR_SYSTEMS)
 
 ABINFO_ACTIVE  = '/tmp/ABInfo_31001.json'
 TGLIST_BM      = '/tmp/TGList_BM.txt'
@@ -1205,6 +1234,26 @@ HTML = '''
         .qt-fav-label { flex:1; font-size:12px; color:#ccc; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
         .btn-danger-sm { background:#3a1010; color:#ff8888; border:1px solid #662222; border-radius:4px; padding:2px 6px; font-size:11px; cursor:pointer; }
         .btn-danger-sm:hover { background:#4a1414; }
+
+        /* Scanner call log */
+        .tr-call-row {
+            display:flex; align-items:flex-start; gap:8px; padding:6px 0;
+            border-bottom:1px solid #222; cursor:pointer;
+        }
+        .tr-call-row:last-child { border-bottom:none; }
+        .tr-call-row:hover { background:#1f1f1f; border-radius:4px; }
+        .tr-call-row.playing { background:#0d1a1f; border-radius:4px; }
+        .tr-sys-badge {
+            font-size:9px; font-weight:bold; letter-spacing:0.5px; padding:2px 5px;
+            border-radius:3px; background:#1a2a3a; color:#4fc3f7; white-space:nowrap;
+            margin-top:2px; flex-shrink:0;
+        }
+        .tr-call-row.emergency .tr-sys-badge { background:#3a1a1a; color:#ff6666; }
+        .tr-call-info { flex:1; min-width:0; }
+        .tr-tg-name { font-size:12px; color:#ddd; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .tr-tg-sub  { font-size:10px; color:#777; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .tr-call-meta { font-size:10px; color:#666; text-align:right; white-space:nowrap; flex-shrink:0; }
+        .tr-emerg-tag { font-size:9px; color:#ff6666; font-weight:bold; margin-left:4px; }
         .qt-hist-net {
             font-size: 9px; color: #999;
             margin-right: 5px; letter-spacing: 0.5px;
@@ -1673,6 +1722,60 @@ HTML = '''
                     </div>
                 </div>
 
+                <!-- SCANNER STATUS BAR -->
+                <div class="collapse-panel" id="trSection">
+                    <div class="collapse-header" style="cursor:default;">
+                        <h3>&#128250; SCANNER</h3>
+                        <span style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:6px;">
+                            <span class="tx-pulse" id="trPulse"></span>
+                            <span id="trSystemBadge" style="font-size:10px;color:#888;font-weight:bold;letter-spacing:0.5px;">--</span>
+                            <span id="trTgBadge" style="font-size:11px;color:#ccc;font-weight:bold;">--</span>
+                        </span>
+                        <button onclick="openTrModal()"
+                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                       padding:2px 7px;font-size:13px;cursor:pointer;"
+                                title="Scanner Log">&#9776;</button>
+                    </div>
+                </div>
+
+                <!-- SCANNER CALL LOG MODAL -->
+                <div id="trModal" onclick="closeTrModalIfBackdrop(event)"
+                     style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                            align-items:center;justify-content:center;">
+                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                                padding:16px 20px;width:min(560px,96vw);
+                                max-height:90vh;display:flex;flex-direction:column;
+                                position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+                        <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
+                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128250; SCANNER</h3>
+                            <select id="trSystemFilter"
+                                    style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
+                                           font-size:11px;padding:2px 6px;margin-left:4px;"
+                                    onchange="renderTrCalls()">
+                                <option value="">All systems</option>
+                            </select>
+                            <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;margin-left:auto;cursor:pointer;">
+                                <input type="checkbox" id="trAutoplayChk" onchange="saveTrPrefs()"> Auto-play
+                            </label>
+                            <button onclick="closeTrModal()"
+                                    style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;margin-left:4px;">&#10005;</button>
+                        </div>
+                        <!-- Audio player -->
+                        <div style="margin-bottom:10px;flex-shrink:0;" id="trPlayerWrap">
+                            <audio id="trAudio" controls
+                                   style="width:100%;height:32px;accent-color:#4fc3f7;background:#111;border-radius:4px;">
+                            </audio>
+                            <div id="trNowPlaying" style="font-size:10px;color:#888;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                No call selected
+                            </div>
+                        </div>
+                        <!-- Call log -->
+                        <div style="overflow-y:auto;flex:1;min-height:0;" id="trCallLog">
+                            <div class="qt-empty">No calls received yet</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- STATUS STRIP -->
                 <div class="collapse-panel mobile-hide">
                     <div class="status-strip">
@@ -1803,6 +1906,8 @@ HTML = '''
                     const connEl = document.getElementById('connState');
                     if (connEl) { connEl.textContent = 'READY'; connEl.className = 'conn-badge conn-idle'; }
                     if (lastHeardOpen) pollLastHeard();
+                } else if (data.event === 'tr_call') {
+                    _onTrCall(data);
                 }
             };
             es.onerror = function() { setTimeout(connectSSE, 5000); };
@@ -3315,6 +3420,130 @@ registerProcessor('mic-decimator', MicDecimator);
             // allstarBody already starts collapsed by default
         }
 
+        // -------------------------
+        // SCANNER (TRUNK RECORDER)
+        // -------------------------
+        var _trCalls      = [];      // local mirror of received calls (newest first)
+        var _trSystems    = {};      // short_name -> label
+        var _trPlaying    = null;    // id of currently playing call
+        var _trAutoplay   = true;
+
+        (function loadTrPrefs() {
+            const ap = localStorage.getItem('trAutoplay');
+            _trAutoplay = ap === null ? true : ap === 'true';
+            const chk = document.getElementById('trAutoplayChk');
+            if (chk) chk.checked = _trAutoplay;
+        })();
+
+        function saveTrPrefs() {
+            _trAutoplay = document.getElementById('trAutoplayChk').checked;
+            localStorage.setItem('trAutoplay', _trAutoplay);
+        }
+
+        function openTrModal() {
+            document.getElementById('trModal').style.display = 'flex';
+            if (_trCalls.length === 0) _fetchTrCalls();
+        }
+        function closeTrModal() { document.getElementById('trModal').style.display = 'none'; }
+        function closeTrModalIfBackdrop(e) {
+            if (e.target === document.getElementById('trModal')) closeTrModal();
+        }
+
+        async function _fetchTrCalls() {
+            try {
+                const [callsR, sysR] = await Promise.all([
+                    fetch('/api/tr/calls'),
+                    fetch('/api/tr/systems'),
+                ]);
+                _trCalls   = await callsR.json();
+                const sysList = await sysR.json();
+                sysList.forEach(s => { _trSystems[s.short_name] = s.label; });
+                _rebuildSystemFilter();
+                renderTrCalls();
+            } catch(e) { console.error('_fetchTrCalls:', e); }
+        }
+
+        function _rebuildSystemFilter() {
+            const sel = document.getElementById('trSystemFilter');
+            const cur = sel.value;
+            // keep "All systems" option, rebuild the rest
+            while (sel.options.length > 1) sel.remove(1);
+            Object.entries(_trSystems).forEach(([k, v]) => {
+                const opt = document.createElement('option');
+                opt.value = k; opt.textContent = v;
+                sel.appendChild(opt);
+            });
+            sel.value = cur;
+        }
+
+        function _onTrCall(call) {
+            // Keep local mirror in sync
+            _trCalls.unshift(call);
+            if (_trCalls.length > 200) _trCalls.pop();
+
+            // Register system if new
+            if (call.system && !_trSystems[call.system]) {
+                _trSystems[call.system] = call.system_label || call.system;
+                _rebuildSystemFilter();
+            }
+
+            // Update status bar
+            const pulse = document.getElementById('trPulse');
+            pulse.classList.add('on');
+            setTimeout(() => pulse.classList.remove('on'), Math.max((call.call_length || 3) * 1000, 2000));
+            document.getElementById('trSystemBadge').textContent =
+                (_trSystems[call.system] || call.system || '--').toUpperCase();
+            document.getElementById('trTgBadge').textContent =
+                call.talkgroup_tag || ('TG ' + call.talkgroup);
+
+            // Prepend to log if modal is open
+            renderTrCalls();
+
+            // Auto-play
+            if (_trAutoplay && call.audio) _playTrCall(call);
+        }
+
+        function renderTrCalls() {
+            const filter  = document.getElementById('trSystemFilter').value;
+            const el      = document.getElementById('trCallLog');
+            const visible = _trCalls.filter(c => !filter || c.system === filter);
+            if (!visible.length) {
+                el.innerHTML = '<div class="qt-empty">No calls received yet</div>';
+                return;
+            }
+            el.innerHTML = visible.map(c => {
+                const tgLabel = c.talkgroup_tag || ('TG ' + c.talkgroup);
+                const sub     = [c.talkgroup_group, c.talkgroup_description].filter(Boolean).join(' · ') || ('TG ' + c.talkgroup);
+                const dur     = c.call_length ? c.call_length + 's' : '';
+                const freq    = c.freq ? (c.freq / 1e6).toFixed(4) + ' MHz' : '';
+                const ts      = new Date(c.start_time * 1000).toLocaleTimeString();
+                const emerg   = c.emergency ? '<span class="tr-emerg-tag">EMERG</span>' : '';
+                const playing = _trPlaying === c.id ? ' playing' : '';
+                const sys     = escHtml(_trSystems[c.system] || c.system || '');
+                return `<div class="tr-call-row${c.emergency ? ' emergency' : ''}${playing}" onclick="_playTrCall(${JSON.stringify(c).replace(/</g,'\\u003c')})">
+                    <div class="tr-sys-badge">${escHtml(sys)}</div>
+                    <div class="tr-call-info">
+                        <div class="tr-tg-name">${escHtml(tgLabel)}${emerg}</div>
+                        <div class="tr-tg-sub">${escHtml(sub)}</div>
+                    </div>
+                    <div class="tr-call-meta">${escHtml(ts)}<br>${escHtml(dur)}${dur && freq ? ' · ' : ''}${escHtml(freq)}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function _playTrCall(call) {
+            if (!call.audio) return;
+            _trPlaying = call.id;
+            renderTrCalls();  // re-render to highlight playing row
+            const audio = document.getElementById('trAudio');
+            audio.src = '/api/tr/audio/' + encodeURIComponent(call.audio);
+            audio.play().catch(() => {});
+            const tgLabel = call.talkgroup_tag || ('TG ' + call.talkgroup);
+            const sys     = _trSystems[call.system] || call.system || '';
+            document.getElementById('trNowPlaying').textContent =
+                sys + ' · ' + tgLabel + (call.talkgroup_group ? ' · ' + call.talkgroup_group : '');
+        }
+
         connectSSE();
         setInterval(pollStatus, 5000);
         pollStatus();
@@ -3653,6 +3882,94 @@ def allstar_audio_ws(ws):
         pass
     finally:
         allstar_mgr.remove_listener(q)
+
+
+# -------------------------
+# TRUNK RECORDER ENDPOINTS
+# -------------------------
+
+@app.route('/api/call-upload', methods=['POST'])
+def tr_call_upload():
+    """Compatible with Trunk Recorder's rdio-scanner uploader plugin."""
+    key = request.form.get('key', '')
+    if TR_API_KEY and key != TR_API_KEY:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    call_json = request.form.get('call', '{}')
+    try:
+        meta = json.loads(call_json)
+    except Exception:
+        return jsonify({'error': 'invalid call JSON'}), 400
+
+    short_name = meta.get('short_name', 'unknown')
+
+    # Register system label on first appearance
+    if short_name not in tr_systems:
+        tr_systems[short_name] = TR_SYSTEMS.get(short_name, short_name)
+
+    # Save audio file
+    audio_filename = None
+    audio_file = request.files.get('audio')
+    if audio_file and audio_file.filename:
+        ext = os.path.splitext(audio_file.filename)[1] or '.m4a'
+        ts  = meta.get('start_time', int(time.time()))
+        tg  = meta.get('talkgroup', 0)
+        audio_filename = f"{short_name}_{tg}_{ts}_{uuid.uuid4().hex[:6]}{ext}"
+        audio_file.save(os.path.join(TR_AUDIO_DIR, audio_filename))
+
+    call = {
+        'id':                   uuid.uuid4().hex[:8],
+        'system':               short_name,
+        'system_label':         tr_systems.get(short_name, short_name),
+        'talkgroup':            meta.get('talkgroup', 0),
+        'talkgroup_tag':        meta.get('talkgroup_tag', ''),
+        'talkgroup_group':      meta.get('talkgroup_group', ''),
+        'talkgroup_description': meta.get('talkgroup_description', ''),
+        'start_time':           meta.get('start_time', int(time.time())),
+        'call_length':          meta.get('call_length', 0),
+        'emergency':            bool(meta.get('emergency', 0)),
+        'encrypted':            bool(meta.get('encrypted', 0)),
+        'freq':                 meta.get('freq', 0),
+        'srcList':              meta.get('srcList', []),
+        'audio':                audio_filename,
+        'received':             time.time(),
+    }
+
+    evicted_audio = None
+    with tr_calls_lock:
+        tr_calls.insert(0, call)
+        if len(tr_calls) > TR_MAX_CALLS:
+            old = tr_calls.pop()
+            evicted_audio = old.get('audio')
+
+    if evicted_audio:
+        try:
+            os.remove(os.path.join(TR_AUDIO_DIR, evicted_audio))
+        except OSError:
+            pass
+
+    push_event({'event': 'tr_call', **call})
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/tr/calls')
+def tr_calls_list():
+    with tr_calls_lock:
+        return jsonify(list(tr_calls))
+
+
+@app.route('/api/tr/systems')
+def tr_systems_list():
+    return jsonify([{'short_name': k, 'label': v} for k, v in tr_systems.items()])
+
+
+@app.route('/api/tr/audio/<path:filename>')
+def tr_audio(filename):
+    filename = os.path.basename(filename)  # strip any path traversal
+    path = os.path.join(TR_AUDIO_DIR, filename)
+    if not os.path.isfile(path):
+        return '', 404
+    return send_file(path)
 
 
 @sock.route('/ws/allstar-tx')

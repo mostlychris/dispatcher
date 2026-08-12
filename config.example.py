@@ -33,3 +33,24 @@ MMDVM_SERVICE        = 'mmdvm_bridge.service'
 
 # Port the DVSwitchPlayer WebSocket listens on (used in the browser UI).
 DVSWITCHPLAYER_PORT = 8080
+
+# -------------------------
+# Trunk Recorder integration
+# -------------------------
+
+# API key sent by Trunk Recorder's uploader. Must match the 'key' in TR's config.json.
+# Leave empty to accept uploads without authentication (not recommended on public networks).
+TR_API_KEY = 'CHANGE_ME'
+
+# Directory to store received audio files. Created automatically on startup.
+TR_AUDIO_DIR = '/var/lib/dispatcher/tr-audio'
+
+# Maximum number of calls to keep in memory and on disk (oldest are evicted automatically).
+TR_MAX_CALLS = 100
+
+# Optional display labels for each Trunk Recorder system short_name.
+# Systems not listed here are auto-registered using their short_name as the label.
+TR_SYSTEMS = {
+    # 'mysystem': 'My County P25',
+    # 'fire':     'Fire Dispatch',
+}

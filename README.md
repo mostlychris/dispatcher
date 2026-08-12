@@ -115,6 +115,48 @@ allow=ulaw
 
 ---
 
+## Trunk Recorder integration
+
+The dispatcher accepts call uploads directly from Trunk Recorder using the same multipart HTTP format as rdio-scanner, so no custom scripts are needed — just point TR's built-in uploader at the dispatcher.
+
+### Trunk Recorder config (`config.json`)
+
+```json
+"uploaders": [
+  {
+    "url": "http://<dispatcher-ip>:9090",
+    "key": "CHANGE_ME"
+  }
+]
+```
+
+`CHANGE_ME` must match `TR_API_KEY` in `config.py`. The dispatcher receives calls at `POST /api/call-upload` (the same path rdio-scanner uses).
+
+### Adding multiple systems
+
+Each call upload includes a `short_name` field from Trunk Recorder. The dispatcher registers systems automatically on first upload. You can give them friendly display names in `config.py`:
+
+```python
+TR_SYSTEMS = {
+    'countyp25': 'County P25',
+    'fire':      'Fire Dispatch',
+}
+```
+
+### What happens on each call
+
+1. Audio file is saved to `TR_AUDIO_DIR`
+2. Call metadata is added to the in-memory ring buffer (newest first, max `TR_MAX_CALLS`)
+3. An SSE event is pushed to all connected browsers
+4. The Scanner status bar flashes and updates with system + talkgroup
+5. If **Auto-play** is enabled, audio plays immediately in the browser
+
+### Audio storage
+
+Audio files are stored in `TR_AUDIO_DIR` (default `/var/lib/dispatcher/tr-audio`). When the ring buffer reaches `TR_MAX_CALLS`, the oldest call's audio file is deleted automatically.
+
+---
+
 ## Watchdog
 
 `watchdog.py` is an optional cron script that monitors the three DVSwitch services and restarts any that have died. It writes a structured log to `/var/log/dispatcher-watchdog.log`, which is visible in the app's log viewer under the **Watchdog** tab.
@@ -217,6 +259,10 @@ Both the DMR and Allstar sections are **status bars with icon-button modals** ra
 | POST | `/api/allstar/command` | Send DTMF command string `{cmd}` |
 | GET | `/api/debug/abinfo` | Dump raw ABInfo JSON |
 | WS | `/ws/allstar-audio` | Raw 16-bit PCM at 8 kHz (ulaw decoded) |
+| POST | `/api/call-upload` | Trunk Recorder call upload (multipart: `key`, `audio`, `call` JSON) |
+| GET | `/api/tr/calls` | Recent TR call list (newest first, max `TR_MAX_CALLS`) |
+| GET | `/api/tr/systems` | Registered TR systems with display labels |
+| GET | `/api/tr/audio/<filename>` | Serve a stored TR audio file |
 
 Endpoints marked *requires X-Api-Key* must include the header `X-Api-Key: <your API_KEY>`.
 
