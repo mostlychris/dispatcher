@@ -1967,6 +1967,14 @@ HTML = '''
                                     onchange="renderTrConsole()">
                                 <option value="">All systems</option>
                             </select>
+                            <select id="trConsoleFilter"
+                                    style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
+                                           font-size:11px;padding:2px 6px;"
+                                    onchange="renderTrConsole()">
+                                <option value="all">All</option>
+                                <option value="active">Active only</option>
+                                <option value="disabled">Disabled only</option>
+                            </select>
                             <button onclick="trConsoleEnableAll()"
                                     style="background:#1a2a1a;border:1px solid #2a6a2a;color:#88cc88;border-radius:4px;
                                            padding:2px 8px;font-size:11px;cursor:pointer;margin-left:auto;">Enable All</button>
@@ -3894,8 +3902,9 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         async function renderTrConsole() {
-            const sys = document.getElementById('trConsoleSystem').value;
-            const el  = document.getElementById('trConsoleGrid');
+            const sys    = document.getElementById('trConsoleSystem').value;
+            const filter = document.getElementById('trConsoleFilter').value;
+            const el     = document.getElementById('trConsoleGrid');
 
             // Fetch TG list for selected system(s)
             const systems = sys ? [sys] : Object.keys(_trSystems);
@@ -3934,6 +3943,9 @@ registerProcessor('mic-decimator', MicDecimator);
                     items.forEach(tg => {
                         const key   = s + ':' + tg.id;
                         const state = _trDisabled[key];
+                        const isDisabled = !!state;
+                        if (filter === 'active'   &&  isDisabled) return;
+                        if (filter === 'disabled' && !isDisabled) return;
                         const cls   = state === 'avoided' ? 'avoided' : state ? 'disabled' : '';
                         const name = tg.label || tg.description || tg.tag || '';
                         const sub  = tg.group || tg.tag || '';
