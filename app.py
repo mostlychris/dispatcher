@@ -127,6 +127,30 @@ tr_calls_lock = threading.Lock()
 # Known systems: short_name → display label (seeded from config, grows on upload)
 tr_systems = dict(TR_SYSTEMS)
 
+# Talkgroup lookup: short_name → {talkgroup_id(int) → {tag, description, group}}
+tr_talkgroups      = {}
+tr_talkgroups_lock = threading.Lock()
+TR_TG_DIR          = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tr_talkgroups')
+os.makedirs(TR_TG_DIR, exist_ok=True)
+
+def _tg_file(short_name):
+    return os.path.join(TR_TG_DIR, short_name.replace('/', '_') + '.json')
+
+def _load_all_tg_files():
+    for fname in os.listdir(TR_TG_DIR):
+        if not fname.endswith('.json'):
+            continue
+        short_name = fname[:-5]
+        try:
+            with open(os.path.join(TR_TG_DIR, fname)) as f:
+                data = json.load(f)
+            # keys stored as strings in JSON; convert to int on load
+            tr_talkgroups[short_name] = {int(k): v for k, v in data.items()}
+        except Exception as e:
+            print(f'Warning: could not load TG file {fname}: {e}')
+
+_load_all_tg_files()
+
 ABINFO_ACTIVE  = '/tmp/ABInfo_31001.json'
 TGLIST_BM      = '/tmp/TGList_BM.txt'
 TGLIST_TGIF    = '/tmp/TGList_TGIF.txt'
@@ -1754,24 +1778,78 @@ HTML = '''
                                     onchange="renderTrCalls()">
                                 <option value="">All systems</option>
                             </select>
+                            <button onclick="openTrImportModal()"
+                                    style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                           padding:2px 7px;font-size:11px;cursor:pointer;white-space:nowrap;"
+                                    title="Import RadioReference talkgroup CSV">&#128196; TG Import</button>
                             <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;margin-left:auto;cursor:pointer;">
                                 <input type="checkbox" id="trAutoplayChk" onchange="saveTrPrefs()"> Auto-play
                             </label>
                             <button onclick="closeTrModal()"
                                     style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;margin-left:4px;">&#10005;</button>
                         </div>
-                        <!-- Audio player -->
+                        <!-- Audio player + volume -->
                         <div style="margin-bottom:10px;flex-shrink:0;" id="trPlayerWrap">
                             <audio id="trAudio" controls
                                    style="width:100%;height:32px;accent-color:#4fc3f7;background:#111;border-radius:4px;">
                             </audio>
-                            <div id="trNowPlaying" style="font-size:10px;color:#888;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                                No call selected
+                            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+                                <div id="trNowPlaying" style="font-size:10px;color:#888;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                    No call selected
+                                </div>
+                                <span style="font-size:10px;color:#666;white-space:nowrap;">&#128264;</span>
+                                <input type="range" id="trVolSlider" min="0" max="100" value="100"
+                                       style="width:80px;accent-color:#4fc3f7;cursor:pointer;"
+                                       oninput="setTrVolume(this.value)">
+                                <span id="trVolDisplay" style="font-size:10px;color:#888;width:28px;text-align:right;">100%</span>
                             </div>
                         </div>
                         <!-- Call log -->
                         <div style="overflow-y:auto;flex:1;min-height:0;" id="trCallLog">
                             <div class="qt-empty">No calls received yet</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TG IMPORT MODAL -->
+                <div id="trImportModal" onclick="closeTrImportModalIfBackdrop(event)"
+                     style="display:none;position:fixed;inset:0;z-index:60000;background:rgba(0,0,0,0.7);
+                            align-items:center;justify-content:center;">
+                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                                padding:16px 20px;width:min(420px,94vw);
+                                max-height:80vh;display:flex;flex-direction:column;
+                                box-shadow:0 8px 32px rgba(0,0,0,0.8);">
+                        <div style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
+                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128196; TALKGROUP IMPORT</h3>
+                            <button onclick="closeTrImportModal()"
+                                    style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
+                        </div>
+                        <div style="font-size:11px;color:#888;margin-bottom:10px;flex-shrink:0;">
+                            Import a RadioReference talkgroup CSV for a system. Replaces existing talkgroup data for that system.
+                            Expected columns: <span style="color:#ccc;">Decimal, Hex, Mode, Alpha Tag, Description, Tag, Group</span>
+                        </div>
+                        <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-shrink:0;flex-wrap:wrap;">
+                            <select id="trImportSystem"
+                                    style="flex:1;min-width:120px;background:#111;border:1px solid #444;color:#ccc;
+                                           border-radius:4px;font-size:11px;padding:3px 6px;">
+                                <option value="">-- select system --</option>
+                            </select>
+                            <label style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                          padding:3px 10px;font-size:11px;cursor:pointer;white-space:nowrap;">
+                                &#128196; Choose CSV
+                                <input type="file" id="trImportFile" accept=".csv,.txt" style="display:none;"
+                                       onchange="onTrImportFileChosen()">
+                            </label>
+                        </div>
+                        <div id="trImportFileName" style="font-size:10px;color:#666;margin-bottom:8px;flex-shrink:0;">No file chosen</div>
+                        <button onclick="doTrImport()"
+                                style="background:#1a2a1a;border:1px solid #2a6a2a;color:#88cc88;border-radius:4px;
+                                       padding:6px 14px;font-size:12px;cursor:pointer;flex-shrink:0;margin-bottom:12px;">
+                            &#9654; Import
+                        </button>
+                        <div style="overflow-y:auto;flex:1;min-height:0;">
+                            <div class="qt-section-label" style="margin-bottom:6px;">Loaded Systems</div>
+                            <div id="trTgSummary"><div class="qt-empty">No talkgroup data loaded</div></div>
                         </div>
                     </div>
                 </div>
@@ -3440,13 +3518,93 @@ registerProcessor('mic-decimator', MicDecimator);
             localStorage.setItem('trAutoplay', _trAutoplay);
         }
 
+        function setTrVolume(val) {
+            val = parseInt(val);
+            document.getElementById('trVolDisplay').textContent = val + '%';
+            document.getElementById('trVolSlider').value = val;
+            document.getElementById('trAudio').volume = val / 100;
+            localStorage.setItem('trVolume', val);
+        }
+
         function openTrModal() {
             document.getElementById('trModal').style.display = 'flex';
             if (_trCalls.length === 0) _fetchTrCalls();
+            // Restore volume
+            const v = parseInt(localStorage.getItem('trVolume') ?? '100');
+            setTrVolume(v);
         }
         function closeTrModal() { document.getElementById('trModal').style.display = 'none'; }
         function closeTrModalIfBackdrop(e) {
             if (e.target === document.getElementById('trModal')) closeTrModal();
+        }
+
+        // TG Import modal
+        var _trImportFile = null;
+
+        function openTrImportModal() {
+            document.getElementById('trImportModal').style.display = 'flex';
+            _populateTrImportSystems();
+            _loadTrTgSummary();
+        }
+        function closeTrImportModal() { document.getElementById('trImportModal').style.display = 'none'; }
+        function closeTrImportModalIfBackdrop(e) {
+            if (e.target === document.getElementById('trImportModal')) closeTrImportModal();
+        }
+
+        function _populateTrImportSystems() {
+            const sel = document.getElementById('trImportSystem');
+            const cur = sel.value;
+            while (sel.options.length > 1) sel.remove(1);
+            Object.entries(_trSystems).forEach(([k, v]) => {
+                const opt = document.createElement('option');
+                opt.value = k; opt.textContent = v + ' (' + k + ')';
+                sel.appendChild(opt);
+            });
+            if (cur) sel.value = cur;
+        }
+
+        function onTrImportFileChosen() {
+            const input = document.getElementById('trImportFile');
+            _trImportFile = input.files[0] || null;
+            document.getElementById('trImportFileName').textContent =
+                _trImportFile ? _trImportFile.name : 'No file chosen';
+        }
+
+        async function doTrImport() {
+            const sys = document.getElementById('trImportSystem').value;
+            if (!sys) { alert('Select a system first'); return; }
+            if (!_trImportFile) { alert('Choose a CSV file first'); return; }
+            const fd = new FormData();
+            fd.append('file', _trImportFile);
+            try {
+                const r = await fetch('/api/tr/talkgroups/' + encodeURIComponent(sys), {method: 'POST', body: fd});
+                const d = await r.json();
+                log(d.message, d.ok ? 'ok' : 'error');
+                if (d.ok) {
+                    _trImportFile = null;
+                    document.getElementById('trImportFile').value = '';
+                    document.getElementById('trImportFileName').textContent = 'No file chosen';
+                    _loadTrTgSummary();
+                }
+            } catch(e) { log('TG import error: ' + e, 'error'); }
+        }
+
+        async function _loadTrTgSummary() {
+            try {
+                const r = await fetch('/api/tr/talkgroups');
+                const systems = await r.json();
+                const el = document.getElementById('trTgSummary');
+                if (!systems.length) {
+                    el.innerHTML = '<div class="qt-empty">No talkgroup data loaded</div>';
+                    return;
+                }
+                el.innerHTML = systems.map(s =>
+                    `<div class="qt-fav-row">
+                        <span class="qt-fav-label">${escHtml(s.label)} <span style="color:#888;font-size:10px;">${escHtml(s.short_name)}</span></span>
+                        <span style="font-size:11px;color:#4fc3f7;white-space:nowrap;">${s.count} TGs</span>
+                     </div>`
+                ).join('');
+            } catch(e) { console.error('_loadTrTgSummary:', e); }
         }
 
         async function _fetchTrCalls() {
@@ -3908,24 +4066,31 @@ def tr_call_upload():
     if short_name not in tr_systems:
         tr_systems[short_name] = TR_SYSTEMS.get(short_name, short_name)
 
+    # Enrich talkgroup fields from imported RR data if TR didn't supply them
+    tg_id = int(meta.get('talkgroup', 0))
+    with tr_talkgroups_lock:
+        tg_lookup = tr_talkgroups.get(short_name, {}).get(tg_id, {})
+    tg_tag   = meta.get('talkgroup_tag', '')        or tg_lookup.get('tag', '')
+    tg_group = meta.get('talkgroup_group', '')      or tg_lookup.get('group', '')
+    tg_desc  = meta.get('talkgroup_description', '') or tg_lookup.get('description', '')
+
     # Save audio file
     audio_filename = None
     audio_file = request.files.get('audio')
     if audio_file and audio_file.filename:
         ext = os.path.splitext(audio_file.filename)[1] or '.m4a'
         ts  = meta.get('start_time', int(time.time()))
-        tg  = meta.get('talkgroup', 0)
-        audio_filename = f"{short_name}_{tg}_{ts}_{uuid.uuid4().hex[:6]}{ext}"
+        audio_filename = f"{short_name}_{tg_id}_{ts}_{uuid.uuid4().hex[:6]}{ext}"
         audio_file.save(os.path.join(TR_AUDIO_DIR, audio_filename))
 
     call = {
         'id':                   uuid.uuid4().hex[:8],
         'system':               short_name,
         'system_label':         tr_systems.get(short_name, short_name),
-        'talkgroup':            meta.get('talkgroup', 0),
-        'talkgroup_tag':        meta.get('talkgroup_tag', ''),
-        'talkgroup_group':      meta.get('talkgroup_group', ''),
-        'talkgroup_description': meta.get('talkgroup_description', ''),
+        'talkgroup':            tg_id,
+        'talkgroup_tag':        tg_tag,
+        'talkgroup_group':      tg_group,
+        'talkgroup_description': tg_desc,
         'start_time':           meta.get('start_time', int(time.time())),
         'call_length':          meta.get('call_length', 0),
         'emergency':            bool(meta.get('emergency', 0)),
@@ -3971,6 +4136,64 @@ def tr_audio(filename):
     if not os.path.isfile(path):
         return '', 404
     return send_file(path)
+
+
+@app.route('/api/tr/talkgroups/<short_name>', methods=['POST'])
+def tr_tg_import(short_name):
+    """Accept a RadioReference CSV upload and store talkgroup data for a system."""
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'ok': False, 'message': 'No file provided'}), 400
+
+    import csv, io
+    text    = f.read().decode('utf-8-sig', errors='replace')
+    reader  = csv.reader(io.StringIO(text))
+    tg_data = {}
+    rows    = 0
+    skipped = 0
+    for row in reader:
+        # Skip header rows and blank lines
+        if not row or not row[0].strip().lstrip('-').isdigit():
+            skipped += 1
+            continue
+        try:
+            tg_id = int(row[0].strip())
+        except ValueError:
+            skipped += 1
+            continue
+        tg_data[tg_id] = {
+            'tag':         row[3].strip() if len(row) > 3 else '',
+            'description': row[4].strip() if len(row) > 4 else '',
+            'group':       row[6].strip() if len(row) > 6 else '',
+        }
+        rows += 1
+
+    if not rows:
+        return jsonify({'ok': False, 'message': 'No valid talkgroup rows found — check CSV format'})
+
+    with tr_talkgroups_lock:
+        tr_talkgroups[short_name] = tg_data
+
+    # Persist to disk
+    try:
+        with open(_tg_file(short_name), 'w') as out:
+            json.dump({str(k): v for k, v in tg_data.items()}, out, indent=2)
+    except Exception as e:
+        return jsonify({'ok': True, 'message': f'Loaded {rows} talkgroups (disk save failed: {e})', 'count': rows})
+
+    # Register system label if not already known
+    if short_name not in tr_systems:
+        tr_systems[short_name] = TR_SYSTEMS.get(short_name, short_name)
+
+    return jsonify({'ok': True, 'message': f'Imported {rows} talkgroups for {short_name}', 'count': rows})
+
+
+@app.route('/api/tr/talkgroups')
+def tr_tg_summary():
+    """Return count of loaded talkgroups per system."""
+    with tr_talkgroups_lock:
+        return jsonify([{'short_name': k, 'label': tr_systems.get(k, k), 'count': len(v)}
+                        for k, v in tr_talkgroups.items()])
 
 
 @sock.route('/ws/allstar-tx')
