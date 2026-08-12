@@ -4479,8 +4479,8 @@ def tr_call_upload():
 
     f = request.form
 
-    # TR's rdio-scanner uploader plugin sends flat camelCase fields (no nested call JSON)
-    short_name = f.get('systemLabel', 'unknown')
+    # TR sends systemLabel; SDRTrunk sends system — accept both
+    short_name = f.get('systemLabel') or f.get('system') or 'unknown'
     tg_id_raw  = f.get('talkgroup', '0')
     try:
         tg_id = int(tg_id_raw)
@@ -4502,6 +4502,12 @@ def tr_call_upload():
         src_list = json.loads(f.get('sources', '[]'))
     except Exception:
         src_list = []
+    # SDRTrunk sends a single 'source' string instead of a 'sources' JSON array
+    if not src_list and f.get('source'):
+        try:
+            src_list = [{'src': int(f.get('source'))}]
+        except (ValueError, TypeError):
+            pass
 
     # Register system label on first appearance
     if short_name not in tr_systems:
