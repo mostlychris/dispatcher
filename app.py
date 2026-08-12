@@ -3654,7 +3654,7 @@ registerProcessor('mic-decimator', MicDecimator);
             document.getElementById('trSystemBadge').textContent =
                 (_trSystems[call.system] || call.system || '--').toUpperCase();
             document.getElementById('trTgBadge').textContent =
-                call.talkgroup_tag || ('TG ' + call.talkgroup);
+                call.talkgroup_label || call.talkgroup_tag || ('TG ' + call.talkgroup);
 
             // Prepend to log if modal is open
             renderTrCalls();
@@ -3672,8 +3672,8 @@ registerProcessor('mic-decimator', MicDecimator);
                 return;
             }
             el.innerHTML = visible.map(c => {
-                const tgLabel = c.talkgroup_tag || ('TG ' + c.talkgroup);
-                const sub     = [c.talkgroup_group, c.talkgroup_description].filter(Boolean).join(' · ') || ('TG ' + c.talkgroup);
+                const tgLabel = c.talkgroup_label || c.talkgroup_tag || ('TG ' + c.talkgroup);
+                const sub     = [c.talkgroup_description, c.talkgroup_group].filter(Boolean).join(' · ') || ('TG ' + c.talkgroup);
                 const dur     = c.call_length ? c.call_length + 's' : '';
                 const freq    = c.freq ? (c.freq / 1e6).toFixed(4) + ' MHz' : '';
                 const ts      = new Date(c.start_time * 1000).toLocaleTimeString();
@@ -4056,58 +4056,69 @@ def tr_call_upload():
     if valid_keys and key not in valid_keys:
         return jsonify({'error': 'unauthorized'}), 401
 
-    # Log raw fields to help diagnose format mismatches
-    print(f'[TR upload] form keys: {list(request.form.keys())}  file keys: {list(request.files.keys())}')
-    for k, v in request.form.items():
-        print(f'[TR upload] form[{k!r}] = {v[:300]!r}')
+    f = request.form
 
-    call_json = request.form.get('call', '{}')
+    # TR's rdio-scanner uploader plugin sends flat camelCase fields (no nested call JSON)
+    short_name = f.get('systemLabel', 'unknown')
+    tg_id_raw  = f.get('talkgroup', '0')
     try:
-        meta = json.loads(call_json)
+        tg_id = int(tg_id_raw)
+    except ValueError:
+        tg_id = 0
+
+    ts_raw = f.get('dateTime', '')
+    try:
+        start_time = int(ts_raw)
+    except ValueError:
+        start_time = int(time.time())
+
+    try:
+        freq = int(f.get('frequency', 0))
+    except ValueError:
+        freq = 0
+
+    try:
+        src_list = json.loads(f.get('sources', '[]'))
     except Exception:
-        return jsonify({'error': 'invalid call JSON'}), 400
-
-    print(f'[TR upload] meta keys: {list(meta.keys())}  short_name={meta.get("short_name")}  tg={meta.get("talkgroup")}')
-
-    short_name = meta.get('short_name', 'unknown')
+        src_list = []
 
     # Register system label on first appearance
     if short_name not in tr_systems:
         tr_systems[short_name] = TR_SYSTEMS.get(short_name, short_name)
 
     # Enrich talkgroup fields from imported RR data if TR didn't supply them
-    tg_id = int(meta.get('talkgroup', 0))
     with tr_talkgroups_lock:
         tg_lookup = tr_talkgroups.get(short_name, {}).get(tg_id, {})
-    tg_tag   = meta.get('talkgroup_tag', '')        or tg_lookup.get('tag', '')
-    tg_group = meta.get('talkgroup_group', '')      or tg_lookup.get('group', '')
-    tg_desc  = meta.get('talkgroup_description', '') or tg_lookup.get('description', '')
+    tg_tag   = f.get('talkgroupTag', '')   or tg_lookup.get('tag', '')
+    tg_group = f.get('talkgroupGroup', '') or tg_lookup.get('group', '')
+    tg_desc  = f.get('talkgroupName', '')  or tg_lookup.get('description', '')
+    tg_label = f.get('talkgroupLabel', '')
 
     # Save audio file
     audio_filename = None
     audio_file = request.files.get('audio')
     if audio_file and audio_file.filename:
         ext = os.path.splitext(audio_file.filename)[1] or '.m4a'
-        ts  = meta.get('start_time', int(time.time()))
-        audio_filename = f"{short_name}_{tg_id}_{ts}_{uuid.uuid4().hex[:6]}{ext}"
+        audio_filename = f"{short_name}_{tg_id}_{start_time}_{uuid.uuid4().hex[:6]}{ext}"
         audio_file.save(os.path.join(TR_AUDIO_DIR, audio_filename))
 
     call = {
-        'id':                   uuid.uuid4().hex[:8],
-        'system':               short_name,
-        'system_label':         tr_systems.get(short_name, short_name),
-        'talkgroup':            tg_id,
-        'talkgroup_tag':        tg_tag,
-        'talkgroup_group':      tg_group,
+        'id':                    uuid.uuid4().hex[:8],
+        'system':                short_name,
+        'system_label':          tr_systems.get(short_name, short_name),
+        'talkgroup':             tg_id,
+        'talkgroup_tag':         tg_tag,
+        'talkgroup_label':       tg_label,
+        'talkgroup_group':       tg_group,
         'talkgroup_description': tg_desc,
-        'start_time':           meta.get('start_time', int(time.time())),
-        'call_length':          meta.get('call_length', 0),
-        'emergency':            bool(meta.get('emergency', 0)),
-        'encrypted':            bool(meta.get('encrypted', 0)),
-        'freq':                 meta.get('freq', 0),
-        'srcList':              meta.get('srcList', []),
-        'audio':                audio_filename,
-        'received':             time.time(),
+        'start_time':            start_time,
+        'call_length':           0,
+        'emergency':             False,
+        'encrypted':             False,
+        'freq':                  freq,
+        'srcList':               src_list,
+        'audio':                 audio_filename,
+        'received':              time.time(),
     }
 
     evicted_audio = None
