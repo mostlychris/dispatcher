@@ -1804,10 +1804,13 @@ HTML = '''
 
                 <!-- SCANNER STATUS BAR -->
                 <div class="collapse-panel" id="trSection">
-                    <div class="collapse-header" style="cursor:default;flex-wrap:wrap;gap:4px;">
-                        <h3 style="flex-shrink:0;">&#128250; SCANNER</h3>
-                        <span style="display:flex;align-items:center;gap:5px;flex:1;min-width:0;overflow:hidden;">
+                    <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:6px;padding:8px 12px;">
+                        <!-- Row 1: label · pulse · TG name · badges · system -->
+                        <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                            <h3 style="flex-shrink:0;margin:0;">&#128250; SCANNER</h3>
                             <span class="tx-pulse" id="trPulse"></span>
+                            <span id="trTgBadge" style="font-size:13px;color:#ddd;font-weight:bold;
+                                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">--</span>
                             <span id="trPausedBadge" style="display:none;font-size:9px;font-weight:bold;
                                   background:#3a2a00;border:1px solid #886600;color:#ffcc44;
                                   border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">PAUSED</span>
@@ -1817,29 +1820,30 @@ HTML = '''
                             <span id="trSkippedBadge" style="display:none;font-size:9px;font-weight:bold;
                                   background:#1a1a1a;border:1px solid #666;color:#aaa;
                                   border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">SKIPPED</span>
-                            <span id="trSystemBadge" style="font-size:10px;color:#888;font-weight:bold;letter-spacing:0.5px;flex-shrink:0;">--</span>
-                            <span id="trTgBadge" style="font-size:11px;color:#ccc;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">--</span>
-                        </span>
-                        <span style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+                            <span id="trSystemBadge" style="font-size:10px;color:#888;font-weight:bold;
+                                  letter-spacing:0.5px;flex-shrink:0;text-align:right;">--</span>
+                        </div>
+                        <!-- Row 2: action buttons -->
+                        <div style="display:flex;align-items:center;gap:6px;">
                             <button onclick="trSkip()" title="Skip current call"
                                     style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                           padding:2px 7px;font-size:13px;cursor:pointer;">⏭</button>
+                                           padding:3px 10px;font-size:12px;cursor:pointer;">⏭ Skip</button>
                             <button onclick="trAvoid()" title="Avoid this talkgroup"
                                     style="background:#2a1010;border:1px solid #662222;color:#ff8888;border-radius:4px;
-                                           padding:2px 7px;font-size:13px;cursor:pointer;">&#128683;</button>
+                                           padding:3px 10px;font-size:12px;cursor:pointer;">&#128683; Avoid</button>
                             <button onclick="trPauseToggle()" id="trPauseBtn"
                                     style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                           padding:2px 7px;font-size:13px;cursor:pointer;"
-                                    title="Pause / Resume">⏸</button>
+                                           padding:3px 10px;font-size:12px;cursor:pointer;"
+                                    title="Pause / Resume">⏸ Pause</button>
                             <button onclick="openTrConsoleModal()"
                                     style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                           padding:2px 7px;font-size:13px;cursor:pointer;"
-                                    title="Talkgroup Console">&#9783;</button>
+                                           padding:3px 10px;font-size:12px;cursor:pointer;"
+                                    title="Talkgroup Console">&#9783; TG Console</button>
                             <button onclick="openTrModal()"
                                     style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                           padding:2px 7px;font-size:13px;cursor:pointer;"
-                                    title="Call Log">&#9776;</button>
-                        </span>
+                                           padding:3px 10px;font-size:12px;cursor:pointer;"
+                                    title="Call Log">&#9776; Call Log</button>
+                        </div>
                     </div>
                 </div>
 
@@ -3748,7 +3752,7 @@ registerProcessor('mic-decimator', MicDecimator);
         function _updateTrPauseUI() {
             const label = _trPaused ? '▶ Resume' : '⏸ Pause';
             document.getElementById('trPauseBtnModal').innerHTML = label;
-            document.getElementById('trPauseBtn').innerHTML = _trPaused ? '▶' : '⏸';
+            document.getElementById('trPauseBtn').innerHTML = _trPaused ? '▶ Resume' : '⏸ Pause';
             document.getElementById('trPausedBadge').style.display = _trPaused ? '' : 'none';
             _updateTrQueueBadge();
         }
