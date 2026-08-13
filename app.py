@@ -1474,29 +1474,33 @@ HTML = '''
                 display: flex !important;  /* overrides desktop display:none */
                 position: fixed;
                 bottom: 0; left: 0; right: 0;
-                height: 56px;
+                box-sizing: border-box;
+                height: 52px;
                 background: #111;
                 border-top: 1px solid #333;
                 z-index: 200;
-                gap: 8px;
-                padding: 6px 8px;
+                gap: 4px;
+                padding: 5px 5px;
                 align-items: stretch;
             }
             .mobile-action-bar .mob-btn {
                 flex: 1;
-                font-size: 12px;
+                min-width: 0;
+                font-size: 10px;
                 font-weight: bold;
-                border-radius: 6px;
+                border-radius: 5px;
                 border: 1px solid #444;
                 background: #1a1a1a;
                 color: #aaa;
                 cursor: pointer;
                 display: flex;
+                flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                gap: 5px;
-                white-space: nowrap;
+                gap: 1px;
+                overflow: hidden;
                 -webkit-tap-highlight-color: transparent;
+                padding: 3px 2px;
             }
             .mobile-action-bar .mob-btn.active   { background: #006600; color: #fff; border-color: #00aa00; }
             .mobile-action-bar .mob-btn.active.streaming { background: #0055cc; color: #fff; border-color: #0077ff; box-shadow: 0 0 8px #0077ff; }
@@ -1659,12 +1663,12 @@ HTML = '''
 
     <div class="mobile-action-bar">
         <button class="mob-btn btn-monitor" id="mobBtnDmrMonitor"
-                onclick="toggleMonitor(this)">&#128264; DMR</button>
+                onclick="toggleMonitor(this)"><span style="font-size:16px;">&#128264;</span><span>DMR</span></button>
         <button class="mob-btn btn-monitor" id="mobBtnAsMonitor"
-                onclick="toggleAllstarAudio(this)">&#128264; Allstar</button>
+                onclick="toggleAllstarAudio(this)"><span style="font-size:16px;">&#128264;</span><span>Allstar</span></button>
         <button class="mob-btn" id="mobBtnTrAudio"
-                onclick="trToggleAudio()">&#128251; Scanner</button>
-        <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled>&#127908; PTT</button>
+                onclick="trToggleAudio()"><span style="font-size:16px;">&#128251;</span><span>Scanner</span></button>
+        <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled><span style="font-size:16px;">&#127908;</span><span>PTT</span></button>
     </div>
 
         <!-- MAIN CONTENT -->
@@ -2003,11 +2007,16 @@ HTML = '''
                                 padding:16px 20px;width:min(640px,96vw);
                                 max-height:90vh;display:flex;flex-direction:column;
                                 box-shadow:0 8px 32px rgba(0,0,0,0.8);">
-                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
+                        <!-- TG console header: row 1 = title + close, row 2 = controls -->
+                        <div style="display:flex;align-items:center;margin-bottom:6px;flex-shrink:0;gap:6px;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9783; TALKGROUP CONSOLE</h3>
+                            <button onclick="closeTrConsoleModal()"
+                                    style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;margin-left:auto;flex-shrink:0;">&#10005;</button>
+                        </div>
+                        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-bottom:8px;flex-shrink:0;">
                             <select id="trConsoleSystem"
                                     style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
-                                           font-size:11px;padding:2px 6px;margin-left:4px;"
+                                           font-size:11px;padding:2px 6px;"
                                     onchange="renderTrConsole()">
                                 <option value="">All systems</option>
                             </select>
@@ -2021,12 +2030,10 @@ HTML = '''
                             </select>
                             <button onclick="trConsoleEnableAll()"
                                     style="background:#1a2a1a;border:1px solid #2a6a2a;color:#88cc88;border-radius:4px;
-                                           padding:2px 8px;font-size:11px;cursor:pointer;margin-left:auto;">Enable All</button>
+                                           padding:2px 8px;font-size:11px;cursor:pointer;">Enable All</button>
                             <button onclick="trConsoleDisableAll()"
                                     style="background:#2a1a1a;border:1px solid #6a2a2a;color:#cc8888;border-radius:4px;
                                            padding:2px 8px;font-size:11px;cursor:pointer;">Disable All</button>
-                            <button onclick="closeTrConsoleModal()"
-                                    style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;margin-left:4px;">&#10005;</button>
                         </div>
                         <div style="font-size:10px;color:#666;margin-bottom:8px;flex-shrink:0;">
                             Disabled talkgroups are silently dropped. Click a button to toggle.
@@ -3774,10 +3781,10 @@ registerProcessor('mic-decimator', MicDecimator);
             const btn = document.getElementById('mobBtnTrAudio');
             if (!btn) return;
             if (_trAudioEnabled) {
-                btn.textContent = '📻 Scanner';
+                btn.innerHTML = '<span style="font-size:16px;">&#128251;</span><span>Scanner</span>';
                 btn.classList.remove('muted');
             } else {
-                btn.textContent = '🔇 Scanner';
+                btn.innerHTML = '<span style="font-size:16px;">&#128263;</span><span>Scanner</span>';
                 btn.classList.add('muted');
             }
         }
