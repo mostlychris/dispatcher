@@ -3929,7 +3929,8 @@ registerProcessor('mic-decimator', MicDecimator);
             // Status bar — show what's actually playing
             document.getElementById('trPulse').classList.add('on');
             document.getElementById('trSystemBadge').textContent = sys.toUpperCase() || '--';
-            document.getElementById('trTgBadge').textContent = tgLabel;
+            document.getElementById('trTgBadge').innerHTML =
+                escHtml(tgLabel) + ' <span style="font-size:11px;color:#aaa;font-weight:normal;">' + call.talkgroup + '</span>';
 
             // Modal now-playing label
             document.getElementById('trNowPlaying').textContent =
