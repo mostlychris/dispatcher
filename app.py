@@ -1427,6 +1427,45 @@ HTML = '''
             /* Dispatch log: shorter on mobile */
             .dispatch-log { height: 100px; }
 
+            /* Modals: full-width, reduced padding, max-height safe zone */
+            .modal-panel {
+                width: calc(100vw - 16px) !important;
+                max-width: calc(100vw - 16px) !important;
+                max-height: 88vh !important;
+                padding: 10px 10px !important;
+                border-radius: 8px !important;
+            }
+            .modal-panel table { font-size: 10px; }
+            .modal-panel th, .modal-panel td { padding: 3px 4px !important; }
+            .modal-header-row {
+                flex-wrap: nowrap !important;
+                gap: 4px !important;
+            }
+            .modal-header-row h3 { font-size: 11px !important; }
+            .modal-header-row select { font-size: 10px !important; max-width: 90px; }
+
+            /* Scanner bar: icon-only buttons on mobile */
+            .btn-label { display: none !important; }
+            #trTgBadge { font-size: 13px !important; }
+
+            /* Log viewer content: scrollable */
+            #logFileContent { font-size: 10px; }
+
+            /* Last heard table: horizontal scroll */
+            .lh-table-wrap { overflow-x: auto; }
+
+            /* TG console buttons smaller */
+            .tr-tg-btn { width: 120px !important; font-size: 9px !important; padding: 4px 6px !important; }
+
+            /* Modals: anchor near top so content isn't hidden behind nav chrome */
+            [id$="Modal"] { align-items: flex-start !important; padding-top: 8px; }
+
+            /* Close button always visible and not squeezed */
+            .modal-header-row button[onclick*="close"], .modal-header-row button[onclick*="Close"] {
+                flex-shrink: 0 !important;
+                margin-left: auto !important;
+            }
+
             /* PTT button: full-width easy tap target */
             .btn-ptt { width: 100% !important; font-size: 14px !important; padding: 10px !important; }
 
@@ -1663,10 +1702,10 @@ HTML = '''
                 <div id="dmrModal" onclick="closeDmrModalIfBackdrop(event)"
                      style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
                             align-items:center;justify-content:center;">
-                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
                                 padding:16px 20px;width:min(480px,94vw);max-height:90vh;
                                 overflow-y:auto;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-                        <div style="display:flex;align-items:center;margin-bottom:12px;gap:10px;">
+                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:12px;gap:10px;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128251; DMR CONTROLS</h3>
                             <span id="txCallsign" style="color:lime;font-weight:bold;font-size:16px;letter-spacing:2px;margin-left:4px;">STANDBY</span>
                             <button onclick="closeDmrModal()"
@@ -1714,11 +1753,11 @@ HTML = '''
                 <div id="asModal" onclick="closeAsModalIfBackdrop(event)"
                      style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
                             align-items:center;justify-content:center;">
-                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
                                 padding:16px 20px;width:min(480px,94vw);
                                 max-height:85vh;display:flex;flex-direction:column;
                                 position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-                        <div style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
+                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9889; ALLSTAR CONTROLS</h3>
                             <button onclick="closeAsModal()"
                                     style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
@@ -1781,11 +1820,11 @@ HTML = '''
                 <div id="asQuickTuneModal" onclick="closeAsQuickTuneModalIfBackdrop(event)"
                      style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
                             align-items:center;justify-content:center;">
-                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
                                 padding:16px 20px;width:min(400px,94vw);
                                 max-height:85vh;display:flex;flex-direction:column;
                                 position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-                        <div style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
+                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9733; ALLSTAR FAVORITES</h3>
                             <button onclick="closeAsQuickTuneModal()"
                                     style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
@@ -1828,22 +1867,22 @@ HTML = '''
                         <div style="display:flex;align-items:center;gap:5px;">
                             <button onclick="trSkip()" title="Skip current call"
                                     style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
-                                           padding:2px 7px;font-size:10px;cursor:pointer;">⏭ Skip</button>
+                                           padding:2px 7px;font-size:10px;cursor:pointer;">⏭<span class="btn-label"> Skip</span></button>
                             <button onclick="trAvoid()" title="Avoid this talkgroup"
                                     style="background:#1a1010;border:1px solid #442222;color:#aa6666;border-radius:3px;
-                                           padding:2px 7px;font-size:10px;cursor:pointer;">&#128683; Avoid</button>
+                                           padding:2px 7px;font-size:10px;cursor:pointer;">&#128683;<span class="btn-label"> Avoid</span></button>
                             <button onclick="trPauseToggle()" id="trPauseBtn"
                                     style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
                                            padding:2px 7px;font-size:10px;cursor:pointer;"
-                                    title="Pause / Resume">⏸ Pause</button>
+                                    title="Pause / Resume">⏸<span class="btn-label"> Pause</span></button>
                             <button onclick="openTrConsoleModal()"
                                     style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
                                            padding:2px 7px;font-size:10px;cursor:pointer;"
-                                    title="Talkgroup Console">&#9783; TG Console</button>
+                                    title="Talkgroup Console">&#9783;<span class="btn-label"> TG Console</span></button>
                             <button onclick="openTrModal()"
                                     style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
                                            padding:2px 7px;font-size:10px;cursor:pointer;"
-                                    title="Call Log">&#9776; Call Log</button>
+                                    title="Call Log">&#9776;<span class="btn-label"> Call Log</span></button>
                         </div>
                     </div>
                 </div>
@@ -1852,11 +1891,11 @@ HTML = '''
                 <div id="trModal" onclick="closeTrModalIfBackdrop(event)"
                      style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
                             align-items:center;justify-content:center;">
-                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
                                 padding:16px 20px;width:min(560px,96vw);
                                 max-height:90vh;display:flex;flex-direction:column;
                                 position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-                        <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
+                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128250; SCANNER</h3>
                             <select id="trSystemFilter"
                                     style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
@@ -1917,11 +1956,11 @@ HTML = '''
                 <div id="trImportModal" onclick="closeTrImportModalIfBackdrop(event)"
                      style="display:none;position:fixed;inset:0;z-index:60000;background:rgba(0,0,0,0.7);
                             align-items:center;justify-content:center;">
-                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
                                 padding:16px 20px;width:min(420px,94vw);
                                 max-height:80vh;display:flex;flex-direction:column;
                                 box-shadow:0 8px 32px rgba(0,0,0,0.8);">
-                        <div style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
+                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128196; TALKGROUP IMPORT</h3>
                             <button onclick="closeTrImportModal()"
                                     style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
@@ -1960,11 +1999,11 @@ HTML = '''
                 <div id="trConsoleModal" onclick="closeTrConsoleModalIfBackdrop(event)"
                      style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
                             align-items:center;justify-content:center;">
-                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
                                 padding:16px 20px;width:min(640px,96vw);
                                 max-height:90vh;display:flex;flex-direction:column;
                                 box-shadow:0 8px 32px rgba(0,0,0,0.8);">
-                        <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
+                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9783; TALKGROUP CONSOLE</h3>
                             <select id="trConsoleSystem"
                                     style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
@@ -2013,11 +2052,11 @@ HTML = '''
                 <div id="quickTuneModal" onclick="closeQuickTuneModalIfBackdrop(event)"
                      style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
                             align-items:center;justify-content:center;">
-                    <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
                                 padding:16px 20px;width:min(480px,94vw);
                                 max-height:85vh;display:flex;flex-direction:column;
                                 position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-                        <div style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
+                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9733; QUICK TUNE</h3>
                             <button onclick="closeQuickTuneModal()"
                                     style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
@@ -2047,10 +2086,10 @@ HTML = '''
     <div id="dispatchLogModal" onclick="if(event.target===this)closeDispatchModal()"
          style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
                 align-items:center;justify-content:center;">
-        <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+        <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
                     padding:16px 20px;width:min(680px,96vw);max-height:85vh;
                     display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-            <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;">
+            <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;">
                 <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128225; DISPATCH LOG</h3>
                 <button onclick="closeDispatchModal()"
                         style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
@@ -2063,15 +2102,15 @@ HTML = '''
     <div id="lastHeardModal" onclick="if(event.target===this)closeLastHeardModal()"
          style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
                 align-items:center;justify-content:center;">
-        <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+        <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
                     padding:16px 20px;width:min(680px,96vw);max-height:85vh;
                     display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-            <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;">
+            <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;">
                 <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128251; LAST HEARD</h3>
                 <button onclick="closeLastHeardModal()"
                         style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
             </div>
-            <div style="overflow-y:auto;flex:1;">
+            <div class="lh-table-wrap" style="overflow:auto;flex:1;">
                 <table id="lastHeardTable">
                     <thead>
                         <tr>
@@ -2091,10 +2130,10 @@ HTML = '''
     <div id="logViewerModal" onclick="if(event.target===this)closeLogModal()"
          style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
                 align-items:center;justify-content:center;">
-        <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+        <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
                     padding:16px 20px;width:min(860px,96vw);max-height:85vh;
                     display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-            <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;">
+            <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;">
                 <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128203; LOG VIEWER</h3>
                 <button onclick="closeLogModal()"
                         style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
@@ -3753,7 +3792,9 @@ registerProcessor('mic-decimator', MicDecimator);
         function _updateTrPauseUI() {
             const label = _trPaused ? '▶ Resume' : '⏸ Pause';
             document.getElementById('trPauseBtnModal').innerHTML = label;
-            document.getElementById('trPauseBtn').innerHTML = _trPaused ? '▶ Resume' : '⏸ Pause';
+            document.getElementById('trPauseBtn').innerHTML = _trPaused
+                ? '▶<span class="btn-label"> Resume</span>'
+                : '⏸<span class="btn-label"> Pause</span>';
             document.getElementById('trPausedBadge').style.display = _trPaused ? '' : 'none';
             _updateTrQueueBadge();
         }
