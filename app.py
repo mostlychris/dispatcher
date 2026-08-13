@@ -1868,7 +1868,7 @@ HTML = '''
                                   letter-spacing:0.5px;flex-shrink:0;text-align:right;">--</span>
                         </div>
                         <!-- Row 2: action buttons -->
-                        <div style="display:flex;align-items:center;gap:5px;">
+                        <div style="display:flex;align-items:center;gap:5px;margin-top:4px;padding-top:6px;border-top:1px solid #222;">
                             <button onclick="trSkip()" title="Skip current call"
                                     style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
                                            padding:2px 7px;font-size:10px;cursor:pointer;">⏭<span class="btn-label"> Skip</span></button>
