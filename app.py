@@ -1658,6 +1658,15 @@ HTML = '''
                 <button class="btn-ptt" id="btnPTTOv" disabled
                         style="width:100%;font-size:11px;">&#127908; PTT — Hold to Talk</button>
             </div>
+
+            <h3>Scanner Audio</h3>
+            <div class="vol-row">
+                <span class="vol-label">Volume</span>
+                <button id="trAudioToggleOv" onclick="trToggleAudio()" class="btn-sidebar-sm btn-monitor">&#128264; Enable</button>
+                <span class="vol-pct" id="trVolDisplayOv">100%</span>
+            </div>
+            <input type="range" class="vol-slider" id="trVolSliderOv" min="0" max="100" value="100"
+                   oninput="setTrVolumeOv(this.value)">
         </div>
     </div>
 
@@ -3749,6 +3758,8 @@ registerProcessor('mic-decimator', MicDecimator);
             const ae = localStorage.getItem('trAudioEnabled');
             _trAudioEnabled = ae === null ? true : ae === 'true';
             _updateTrAudioBtn();
+            const sv = parseInt(localStorage.getItem('trVolume') ?? '100');
+            setTrVolume(sv);
         })();
 
         function saveTrPrefs() {
@@ -3769,9 +3780,13 @@ registerProcessor('mic-decimator', MicDecimator);
             val = parseInt(val);
             document.getElementById('trVolDisplay').textContent = val + '%';
             document.getElementById('trVolSlider').value = val;
+            document.getElementById('trVolDisplayOv').textContent = val + '%';
+            document.getElementById('trVolSliderOv').value = val;
             document.getElementById('trAudio').volume = val / 100;
             localStorage.setItem('trVolume', val);
         }
+
+        function setTrVolumeOv(val) { setTrVolume(val); }
 
         // ---- Scanner audio enable/disable ----
         function trToggleAudio() {
@@ -3790,14 +3805,17 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         function _updateTrAudioBtn() {
-            const btn = document.getElementById('mobBtnTrAudio');
-            if (!btn) return;
-            if (_trAudioEnabled) {
-                btn.innerHTML = '<span style="font-size:16px;">&#128251;</span><span>Scanner</span>';
-                btn.classList.remove('muted');
-            } else {
-                btn.innerHTML = '<span style="font-size:16px;">&#128263;</span><span>Scanner</span>';
-                btn.classList.add('muted');
+            const mob = document.getElementById('mobBtnTrAudio');
+            const ov  = document.getElementById('trAudioToggleOv');
+            if (mob) {
+                mob.innerHTML = _trAudioEnabled
+                    ? '<span style="font-size:16px;">&#128251;</span><span>Scanner</span>'
+                    : '<span style="font-size:16px;">&#128263;</span><span>Scanner</span>';
+                mob.classList.toggle('muted', !_trAudioEnabled);
+            }
+            if (ov) {
+                ov.textContent = _trAudioEnabled ? '🔊 Enable' : '🔇 Muted';
+                ov.classList.toggle('active', _trAudioEnabled);
             }
         }
 
