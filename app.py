@@ -1809,8 +1809,9 @@ HTML = '''
                         <div style="display:flex;align-items:center;gap:6px;min-width:0;">
                             <h3 style="flex-shrink:0;margin:0;">&#128250; SCANNER</h3>
                             <span class="tx-pulse" id="trPulse"></span>
-                            <span id="trTgBadge" style="font-size:13px;color:#ddd;font-weight:bold;
-                                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">--</span>
+                            <span id="trTgBadge" style="font-size:16px;color:#fff;font-weight:bold;
+                                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;
+                                  letter-spacing:0.3px;">--</span>
                             <span id="trPausedBadge" style="display:none;font-size:9px;font-weight:bold;
                                   background:#3a2a00;border:1px solid #886600;color:#ffcc44;
                                   border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">PAUSED</span>
@@ -1824,24 +1825,24 @@ HTML = '''
                                   letter-spacing:0.5px;flex-shrink:0;text-align:right;">--</span>
                         </div>
                         <!-- Row 2: action buttons -->
-                        <div style="display:flex;align-items:center;gap:6px;">
+                        <div style="display:flex;align-items:center;gap:5px;">
                             <button onclick="trSkip()" title="Skip current call"
-                                    style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                           padding:3px 10px;font-size:12px;cursor:pointer;">⏭ Skip</button>
+                                    style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                           padding:2px 7px;font-size:10px;cursor:pointer;">⏭ Skip</button>
                             <button onclick="trAvoid()" title="Avoid this talkgroup"
-                                    style="background:#2a1010;border:1px solid #662222;color:#ff8888;border-radius:4px;
-                                           padding:3px 10px;font-size:12px;cursor:pointer;">&#128683; Avoid</button>
+                                    style="background:#1a1010;border:1px solid #442222;color:#aa6666;border-radius:3px;
+                                           padding:2px 7px;font-size:10px;cursor:pointer;">&#128683; Avoid</button>
                             <button onclick="trPauseToggle()" id="trPauseBtn"
-                                    style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                           padding:3px 10px;font-size:12px;cursor:pointer;"
+                                    style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                           padding:2px 7px;font-size:10px;cursor:pointer;"
                                     title="Pause / Resume">⏸ Pause</button>
                             <button onclick="openTrConsoleModal()"
-                                    style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                           padding:3px 10px;font-size:12px;cursor:pointer;"
+                                    style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                           padding:2px 7px;font-size:10px;cursor:pointer;"
                                     title="Talkgroup Console">&#9783; TG Console</button>
                             <button onclick="openTrModal()"
-                                    style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                           padding:3px 10px;font-size:12px;cursor:pointer;"
+                                    style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                           padding:2px 7px;font-size:10px;cursor:pointer;"
                                     title="Call Log">&#9776; Call Log</button>
                         </div>
                     </div>
