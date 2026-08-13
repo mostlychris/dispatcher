@@ -4573,6 +4573,8 @@ def tr_call_upload():
         return jsonify({'error': 'unauthorized'}), 401
 
     f = request.form
+    app.logger.warning('TR upload form fields: %s', dict(f))
+    app.logger.warning('TR upload files: %s', list(request.files.keys()))
 
     # TR sends systemLabel; SDRTrunk sends system — accept both
     short_name = f.get('systemLabel') or f.get('system') or 'unknown'
