@@ -1880,6 +1880,10 @@ HTML = '''
                                 <button onclick="trAvoid()" title="Avoid this talkgroup"
                                         style="background:#1a1010;border:1px solid #442222;color:#aa6666;border-radius:3px;
                                                padding:2px 7px;font-size:10px;cursor:pointer;">&#128683;<span class="btn-label"> Avoid</span></button>
+                                <button onclick="trLockSysToggle()" id="trLockSysBtn"
+                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                               padding:2px 7px;font-size:10px;cursor:pointer;"
+                                        title="Lock to current system">&#128274;<span class="btn-label"> Lock Sys</span></button>
                                 <button onclick="trPauseToggle()" id="trPauseBtn"
                                         style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
                                                padding:2px 7px;font-size:10px;cursor:pointer;"
@@ -1900,6 +1904,9 @@ HTML = '''
                             <span id="trTgBadge" style="font-size:16px;color:#fff;font-weight:bold;
                                   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;
                                   letter-spacing:0.3px;">--</span>
+                            <span id="trLockedBadge" style="display:none;font-size:9px;font-weight:bold;
+                                  background:#003a00;border:1px solid #00aa00;color:#4f4;
+                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;"></span>
                             <span id="trPausedBadge" style="display:none;font-size:9px;font-weight:bold;
                                   background:#3a2a00;border:1px solid #886600;color:#ffcc44;
                                   border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">PAUSED</span>
@@ -3749,6 +3756,7 @@ registerProcessor('mic-decimator', MicDecimator);
         var _trAutoplay   = true;
         var _trAudioEnabled = true;
         var _trDisabled   = {};       // 'system:tg' → true (disabled), 'avoided' → true (avoided/reddish)
+        var _trLockedSystem = null;   // when set, only calls from this system are played
         var _trConsoleTgs = {};       // system → [{id,tag,label,group,description}] for console grid
         var TR_INTER_CALL_MS = 800;   // gap between calls in ms
 
@@ -3825,6 +3833,37 @@ registerProcessor('mic-decimator', MicDecimator);
             if (ov) ov.textContent = _trAudioEnabled ? '🔊 Enable' : '🔇 Muted';
         }
 
+        // ---- System Lock ----
+        function trLockSysToggle() {
+            if (_trLockedSystem) {
+                _trLockedSystem = null;
+            } else {
+                const target = _trPlaying || _trLastCall;
+                if (!target) return;
+                _trLockedSystem = target.system;
+                // Flush queued calls from other systems
+                _trQueue = _trQueue.filter(c => c.system === _trLockedSystem);
+                _updateTrQueueBadge();
+            }
+            _updateTrLockUI();
+        }
+
+        function _updateTrLockUI() {
+            const btn = document.getElementById('trLockSysBtn');
+            const badge = document.getElementById('trLockedBadge');
+            if (btn) {
+                btn.style.background   = _trLockedSystem ? '#003a00' : '#1a1a1a';
+                btn.style.borderColor  = _trLockedSystem ? '#00aa00' : '#333';
+                btn.style.color        = _trLockedSystem ? '#4f4'    : '#777';
+            }
+            if (badge) {
+                badge.style.display = _trLockedSystem ? '' : 'none';
+                badge.textContent   = _trLockedSystem
+                    ? 'LOCKED: ' + (_trSystems[_trLockedSystem] || _trLockedSystem).toUpperCase()
+                    : '';
+            }
+        }
+
         // ---- Pause / Resume ----
         function trPauseToggle() {
             _trPaused = !_trPaused;
@@ -3898,6 +3937,7 @@ registerProcessor('mic-decimator', MicDecimator);
         function _trEnqueue(call) {
             if (!call.audio) return;
             if (_isTrDisabled(call)) return;
+            if (_trLockedSystem && call.system !== _trLockedSystem) return;
             _trQueue.push(call);
             _updateTrQueueBadge();
             if (!_trPlaying && !_trPaused) _trDequeue();
@@ -3905,6 +3945,10 @@ registerProcessor('mic-decimator', MicDecimator);
 
         function _trDequeue() {
             if (_trPaused || _trQueue.length === 0) return;
+            // Drain any queued calls that don't match the locked system
+            while (_trQueue.length && _trLockedSystem && _trQueue[0].system !== _trLockedSystem)
+                _trQueue.shift();
+            if (_trQueue.length === 0) { _updateTrQueueBadge(); return; }
             const call = _trQueue.shift();
             _updateTrQueueBadge();
             _trStartPlay(call);
