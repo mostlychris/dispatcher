@@ -1504,7 +1504,6 @@ HTML = '''
             }
             .mobile-action-bar .mob-btn.active   { background: #006600; color: #fff; border-color: #00aa00; }
             .mobile-action-bar .mob-btn.active.streaming { background: #0055cc; color: #fff; border-color: #0077ff; box-shadow: 0 0 8px #0077ff; }
-            .mobile-action-bar .mob-btn.muted     { background: #2a0000; color: #f88; border-color: #f44; }
             .mobile-action-bar .mob-btn.mob-ptt  { background: #1a1a1a; color: #888; border-color: #444; font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
             .mobile-action-bar .mob-btn:disabled { opacity: 0.35; }
@@ -1675,7 +1674,7 @@ HTML = '''
                 onclick="toggleMonitor(this)"><span style="font-size:16px;">&#128264;</span><span>DMR</span></button>
         <button class="mob-btn btn-monitor" id="mobBtnAsMonitor"
                 onclick="toggleAllstarAudio(this)"><span style="font-size:16px;">&#128264;</span><span>Allstar</span></button>
-        <button class="mob-btn" id="mobBtnTrAudio"
+        <button class="mob-btn btn-monitor" id="mobBtnTrAudio"
                 onclick="trToggleAudio()"><span style="font-size:16px;">&#128251;</span><span>Scanner</span></button>
         <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled><span style="font-size:16px;">&#127908;</span><span>PTT</span></button>
     </div>
@@ -3805,18 +3804,21 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         function _updateTrAudioBtn() {
+            const playing = !!_trPlaying && _trAudioEnabled;
+            ['mobBtnTrAudio', 'trAudioToggleOv'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.classList.toggle('active', _trAudioEnabled);
+                el.classList.toggle('streaming', playing);
+            });
             const mob = document.getElementById('mobBtnTrAudio');
-            const ov  = document.getElementById('trAudioToggleOv');
             if (mob) {
                 mob.innerHTML = _trAudioEnabled
                     ? '<span style="font-size:16px;">&#128251;</span><span>Scanner</span>'
                     : '<span style="font-size:16px;">&#128263;</span><span>Scanner</span>';
-                mob.classList.toggle('muted', !_trAudioEnabled);
             }
-            if (ov) {
-                ov.textContent = _trAudioEnabled ? '🔊 Enable' : '🔇 Muted';
-                ov.classList.toggle('active', _trAudioEnabled);
-            }
+            const ov = document.getElementById('trAudioToggleOv');
+            if (ov) ov.textContent = _trAudioEnabled ? '🔊 Enable' : '🔇 Muted';
         }
 
         // ---- Pause / Resume ----
@@ -3914,6 +3916,7 @@ registerProcessor('mic-decimator', MicDecimator);
             audio.volume = vol / 100;
             audio.src = '/api/tr/audio/' + encodeURIComponent(call.audio);
             audio.play().catch(() => {});
+            _updateTrAudioBtn();
 
             const tgLabel = call.talkgroup_label || call.talkgroup_tag || ('TG ' + call.talkgroup);
             const sys     = _trSystems[call.system] || call.system || '';
@@ -3933,6 +3936,7 @@ registerProcessor('mic-decimator', MicDecimator);
             document.getElementById('trPulse').classList.remove('on');
             _trLastCall = _trPlaying || _trLastCall;
             _trPlaying = null;
+            _updateTrAudioBtn();
             renderTrCalls();
             // Status bar badges intentionally left showing the last played call
             setTimeout(_trDequeue, TR_INTER_CALL_MS);
