@@ -4576,7 +4576,7 @@ def tr_call_upload():
 
     # SDRTrunk sends a startup probe with {'system': '2', 'test': '1'} — ignore it
     if f.get('test'):
-        return jsonify({'status': 'ok'})
+        return 'Call imported successfully.\n', 200
 
     app.logger.warning('TR upload form fields: %s', dict(f))
     app.logger.warning('TR upload files: %s', list(request.files.keys()))
@@ -4674,7 +4674,7 @@ def tr_call_upload():
             pass
 
     push_event({'event': 'tr_call', **call})
-    return jsonify({'status': 'ok'})
+    return 'Call imported successfully.\n', 200
 
 
 @app.route('/api/tr/calls')
