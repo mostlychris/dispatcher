@@ -4578,9 +4578,6 @@ def tr_call_upload():
     if f.get('test'):
         return 'Incomplete call data: no talkgroup\n', 200
 
-    app.logger.warning('TR upload form fields: %s', dict(f))
-    app.logger.warning('TR upload files: %s', list(request.files.keys()))
-
     # TR sends systemLabel; SDRTrunk sends system — accept both
     short_name = f.get('systemLabel') or f.get('system') or 'unknown'
     tg_id_raw  = f.get('talkgroup', '0')
