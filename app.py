@@ -1749,11 +1749,14 @@ HTML = '''
                 <!-- ALLSTAR STATUS BAR -->
                 <div class="collapse-panel" id="asSidebarSection">
                     <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
-                        <!-- Row 1: title + buttons -->
+                        <!-- Row 1: title + pulse + node (active call) + buttons -->
                         <div style="display:flex;align-items:center;gap:6px;">
-                            <h3 style="margin:0;">&#9889; ALLSTAR</h3>
+                            <h3 style="flex-shrink:0;margin:0;">&#9889; ALLSTAR</h3>
                             <span class="rx-dot" id="asRxDot" title="RX activity"></span>
-                            <span style="margin-left:auto;display:flex;gap:5px;">
+                            <span id="asNodeBadge" style="color:#fff;font-size:16px;font-weight:bold;
+                                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;
+                                  letter-spacing:0.3px;">--</span>
+                            <span style="margin-left:auto;display:flex;gap:5px;flex-shrink:0;">
                                 <button onclick="openAsQuickTuneModal()"
                                         style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
                                                padding:2px 7px;font-size:13px;cursor:pointer;"
@@ -1767,7 +1770,6 @@ HTML = '''
                         <!-- Row 2: connection info -->
                         <div style="display:flex;align-items:center;gap:6px;padding-top:5px;border-top:1px solid #222;">
                             <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
-                            <span id="asNodeBadge" style="color:#ccc;font-size:13px;letter-spacing:0;font-weight:bold;">--</span>
                             <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:13px;font-weight:bold;">&#8594; <span id="asDirectLinkNode"></span></span>
                         </div>
                     </div>
