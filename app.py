@@ -1523,7 +1523,12 @@ HTML = '''
 
     <div class="header-bar">
         <h1>&#9889; RADIO DISPATCHER</h1>
-        <span class="header-time" id="headerTime">--</span>
+        <span style="display:flex;align-items:center;gap:10px;">
+            <button id="wakeLockBtn" onclick="toggleWakeLock()" title="Keep screen awake"
+                    style="background:#1a1a1a;border:1px solid #333;color:#666;border-radius:5px;
+                           padding:3px 9px;font-size:12px;cursor:pointer;display:none;">&#9728;</button>
+            <span class="header-time" id="headerTime">--</span>
+        </span>
     </div>
 
     <div class="app-body" id="appBody">
@@ -2777,6 +2782,40 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         // -------------------------
+        // ---- Wake Lock ----
+        var _wakeLock = null;
+        (function _initWakeLock() {
+            const btn = document.getElementById('wakeLockBtn');
+            if (!('wakeLock' in navigator) || !btn) return;
+            btn.style.display = '';  // only show when supported
+            document.addEventListener('visibilitychange', async () => {
+                if (_wakeLock && document.visibilityState === 'visible') {
+                    try { _wakeLock = await navigator.wakeLock.request('screen'); }
+                    catch(e) {}
+                }
+            });
+        })();
+
+        async function toggleWakeLock() {
+            const btn = document.getElementById('wakeLockBtn');
+            if (_wakeLock) {
+                await _wakeLock.release();
+                _wakeLock = null;
+                btn.style.background = '#1a1a1a';
+                btn.style.borderColor = '#333';
+                btn.style.color = '#666';
+                btn.title = 'Keep screen awake';
+            } else {
+                try {
+                    _wakeLock = await navigator.wakeLock.request('screen');
+                    btn.style.background = '#003a00';
+                    btn.style.borderColor = '#00aa00';
+                    btn.style.color = '#4f4';
+                    btn.title = 'Screen wake lock active — tap to release';
+                } catch(e) {}
+            }
+        }
+
         // DISPATCH LOG
         // -------------------------
         function timestamp() {
