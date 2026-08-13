@@ -3904,11 +3904,8 @@ registerProcessor('mic-decimator', MicDecimator);
             audio.src = '';
             _trPlaying = null;
             _updateTrAudioBtn();
-            // Remove only queued calls from the same channel; others stay
-            if (target) {
-                const key = _trKey(target);
-                _trQueue = _trQueue.filter(c => _trKey(c) !== key);
-            }
+            // Skip only removes the currently playing call — queue stays intact
+            // (Avoid is what purges future calls from the same channel)
             _updateTrQueueBadge();
             renderTrCalls();
             // Flash SKIPPED badge
