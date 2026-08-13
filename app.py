@@ -3864,6 +3864,7 @@ registerProcessor('mic-decimator', MicDecimator);
             audio.pause();
             audio.src = '';
             _trPlaying = null;
+            _updateTrAudioBtn();
             // Remove only queued calls from the same channel; others stay
             if (target) {
                 const key = _trKey(target);
