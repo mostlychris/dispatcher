@@ -1364,9 +1364,16 @@ HTML = '''
             overflow-y: auto; position: relative;
             box-shadow: 0 8px 32px rgba(0,0,0,0.7);
         }
-        #audioOverlayPanel h3 { color: #aaa; font-size: 11px; letter-spacing: 1px;
-            text-transform: uppercase; margin: 12px 0 6px; border-bottom: 1px solid #333; padding-bottom: 4px; }
-        #audioOverlayPanel h3:first-child { margin-top: 0; }
+        #audioOverlayPanel .audio-section { background: #222; border-radius: 7px; padding: 10px 12px; margin-bottom: 10px; }
+        #audioOverlayPanel .audio-section:last-child { margin-bottom: 0; }
+        #audioOverlayPanel .audio-section-hdr {
+            display: flex; align-items: center; gap: 7px;
+            font-size: 12px; font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase;
+            margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #333; }
+        #audioOverlayPanel .audio-section-hdr .section-icon { font-size: 15px; }
+        #audioOverlayPanel .audio-section-hdr.hdr-dmr     { color: #7af; }
+        #audioOverlayPanel .audio-section-hdr.hdr-allstar { color: #af7; }
+        #audioOverlayPanel .audio-section-hdr.hdr-scanner { color: #fa7; }
         #audioOverlayCloseBtn {
             position: absolute; top: 10px; right: 12px;
             background: none; border: none; color: #888; font-size: 20px; cursor: pointer;
@@ -1616,56 +1623,68 @@ HTML = '''
         <div id="audioOverlayPanel">
             <button id="audioOverlayCloseBtn" onclick="toggleAudioOverlay()">&#10005;</button>
 
-            <h3>DMR Audio</h3>
-            <div class="vol-row">
-                <span class="vol-label">Volume</span>
-                <button id="dmrMuteBtnOv" onclick="toggleMuteDmr()" class="btn-sidebar-sm">Mute</button>
-                <button id="btnMonitorOv" onclick="toggleMonitor(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
-                <span class="vol-pct" id="volDisplayOv">100%</span>
-            </div>
-            <input type="range" class="vol-slider" id="volSliderOv" min="0" max="100" value="100"
-                   oninput="setVolume(this.value)">
-            <div class="vol-row" style="margin-top:8px;">
-                <span class="vol-label">High Pass</span>
-                <span class="vol-pct" id="hpfDisplayOv" style="color:#fa8;">OFF</span>
-            </div>
-            <input type="range" class="hpf-slider" id="hpfSliderOv" min="100" max="600" step="10" value="220"
-                   oninput="setHpFilter(this.value)">
-            <div class="vol-row" style="margin-top:8px;">
-                <span class="vol-label">Presence</span>
-                <span class="vol-pct" id="presDisplayOv" style="color:lime;">0 dB</span>
-            </div>
-            <input type="range" class="pres-slider" id="presSliderOv" min="0" max="12" step="0.5" value="0"
-                   oninput="setPresence(this.value)">
-            <div class="vol-row" style="margin-top:8px;">
-                <span class="vol-label">Noise Gate</span>
-                <label style="cursor:pointer; color:#ddd; font-size:11px;">
-                    <input type="checkbox" id="gateToggleOv" onchange="setGate(this.checked)"> Enable
-                </label>
-            </div>
-
-            <h3>Allstar Audio</h3>
-            <div class="vol-row">
-                <span class="vol-label">Volume</span>
-                <button id="asMuteBtnOv" onclick="toggleMuteAllstar()" class="btn-sidebar-sm">Mute</button>
-                <button id="btnAsAudioOv" onclick="toggleAllstarAudio(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
-                <span class="vol-pct" id="asVolDisplayOv">100%</span>
-            </div>
-            <input type="range" class="vol-slider" id="asVolSliderOv" min="0" max="100" value="100"
-                   oninput="setAllstarVolume(this.value)">
-            <div style="margin-top:8px;">
-                <button class="btn-ptt" id="btnPTTOv" disabled
-                        style="width:100%;font-size:11px;">&#127908; PTT — Hold to Talk</button>
+            <div class="audio-section">
+                <div class="audio-section-hdr hdr-dmr">
+                    <span class="section-icon">📻</span> DMR Audio
+                </div>
+                <div class="vol-row">
+                    <span class="vol-label">Volume</span>
+                    <button id="dmrMuteBtnOv" onclick="toggleMuteDmr()" class="btn-sidebar-sm">Mute</button>
+                    <button id="btnMonitorOv" onclick="toggleMonitor(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
+                    <span class="vol-pct" id="volDisplayOv">100%</span>
+                </div>
+                <input type="range" class="vol-slider" id="volSliderOv" min="0" max="100" value="100"
+                       oninput="setVolume(this.value)">
+                <div class="vol-row" style="margin-top:8px;">
+                    <span class="vol-label">High Pass</span>
+                    <span class="vol-pct" id="hpfDisplayOv" style="color:#fa8;">OFF</span>
+                </div>
+                <input type="range" class="hpf-slider" id="hpfSliderOv" min="100" max="600" step="10" value="220"
+                       oninput="setHpFilter(this.value)">
+                <div class="vol-row" style="margin-top:8px;">
+                    <span class="vol-label">Presence</span>
+                    <span class="vol-pct" id="presDisplayOv" style="color:lime;">0 dB</span>
+                </div>
+                <input type="range" class="pres-slider" id="presSliderOv" min="0" max="12" step="0.5" value="0"
+                       oninput="setPresence(this.value)">
+                <div class="vol-row" style="margin-top:8px;">
+                    <span class="vol-label">Noise Gate</span>
+                    <label style="cursor:pointer; color:#ddd; font-size:11px;">
+                        <input type="checkbox" id="gateToggleOv" onchange="setGate(this.checked)"> Enable
+                    </label>
+                </div>
             </div>
 
-            <h3>Scanner Audio</h3>
-            <div class="vol-row">
-                <span class="vol-label">Volume</span>
-                <button id="trAudioToggleOv" onclick="trToggleAudio()" class="btn-sidebar-sm btn-monitor">&#128264; Enable</button>
-                <span class="vol-pct" id="trVolDisplayOv">100%</span>
+            <div class="audio-section">
+                <div class="audio-section-hdr hdr-allstar">
+                    <span class="section-icon">⚡</span> Allstar Audio
+                </div>
+                <div class="vol-row">
+                    <span class="vol-label">Volume</span>
+                    <button id="asMuteBtnOv" onclick="toggleMuteAllstar()" class="btn-sidebar-sm">Mute</button>
+                    <button id="btnAsAudioOv" onclick="toggleAllstarAudio(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
+                    <span class="vol-pct" id="asVolDisplayOv">100%</span>
+                </div>
+                <input type="range" class="vol-slider" id="asVolSliderOv" min="0" max="100" value="100"
+                       oninput="setAllstarVolume(this.value)">
+                <div style="margin-top:8px;">
+                    <button class="btn-ptt" id="btnPTTOv" disabled
+                            style="width:100%;font-size:11px;">&#127908; PTT — Hold to Talk</button>
+                </div>
             </div>
-            <input type="range" class="vol-slider" id="trVolSliderOv" min="0" max="100" value="100"
-                   oninput="setTrVolumeOv(this.value)">
+
+            <div class="audio-section">
+                <div class="audio-section-hdr hdr-scanner">
+                    <span class="section-icon">📡</span> Scanner Audio
+                </div>
+                <div class="vol-row">
+                    <span class="vol-label">Volume</span>
+                    <button id="trAudioToggleOv" onclick="trToggleAudio()" class="btn-sidebar-sm btn-monitor">&#128264; Enable</button>
+                    <span class="vol-pct" id="trVolDisplayOv">100%</span>
+                </div>
+                <input type="range" class="vol-slider" id="trVolSliderOv" min="0" max="100" value="100"
+                       oninput="setTrVolumeOv(this.value)">
+            </div>
         </div>
     </div>
 
