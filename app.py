@@ -1681,24 +1681,30 @@ HTML = '''
 
                 <!-- DMR STATUS BAR -->
                 <div class="collapse-panel" id="dmrSection">
-                    <div class="collapse-header" style="cursor:default;">
-                        <h3>&#128251; DMR</h3>
-                        <span id="dmrActiveCall" style="color:orange;font-size:13px;font-weight:bold;margin-left:10px;letter-spacing:1px;"></span>
-                        <span style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:6px;">
+                    <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
+                        <!-- Row 1: title + buttons -->
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <h3 style="margin:0;">&#128251; DMR</h3>
                             <span class="tx-pulse" id="txPulse"></span>
+                            <span id="dmrActiveCall" style="color:orange;font-size:13px;font-weight:bold;letter-spacing:1px;"></span>
+                            <span style="margin-left:auto;display:flex;gap:5px;">
+                                <button onclick="openQuickTuneModal()"
+                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                               padding:2px 7px;font-size:13px;cursor:pointer;"
+                                        title="Quick Tune">&#9733;</button>
+                                <button onclick="openDmrModal()"
+                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                               padding:2px 7px;font-size:13px;cursor:pointer;"
+                                        title="DMR Controls">&#9881;</button>
+                            </span>
+                        </div>
+                        <!-- Row 2: connection info -->
+                        <div style="display:flex;align-items:center;gap:6px;padding-top:5px;border-top:1px solid #222;">
                             <span class="mode-badge badge-unknown" id="modeValue">--</span>
                             <span class="conn-badge conn-offline" id="connState">OFFLINE</span>
-                            <span id="tgValue" style="color:lightgreen;font-size:11px;font-weight:bold;"></span>
-                            <span id="tgValueName" style="color:#6c6;font-size:10px;"></span>
-                        </span>
-                        <button onclick="openQuickTuneModal()"
-                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                       padding:2px 7px;font-size:13px;cursor:pointer;margin-right:4px;"
-                                title="Quick Tune">&#9733;</button>
-                        <button onclick="openDmrModal()"
-                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                       padding:2px 7px;font-size:13px;cursor:pointer;"
-                                title="DMR Controls">&#9881;</button>
+                            <span id="tgValue" style="color:lightgreen;font-size:13px;font-weight:bold;"></span>
+                            <span id="tgValueName" style="color:#6c6;font-size:11px;"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -1734,22 +1740,28 @@ HTML = '''
 
                 <!-- ALLSTAR STATUS BAR -->
                 <div class="collapse-panel" id="asSidebarSection">
-                    <div class="collapse-header" style="cursor:default;">
-                        <h3>&#9889; ALLSTAR</h3>
-                        <span style="display:flex;align-items:center;gap:5px;margin-left:auto;margin-right:6px;">
+                    <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
+                        <!-- Row 1: title + buttons -->
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <h3 style="margin:0;">&#9889; ALLSTAR</h3>
                             <span class="rx-dot" id="asRxDot" title="RX activity"></span>
+                            <span style="margin-left:auto;display:flex;gap:5px;">
+                                <button onclick="openAsQuickTuneModal()"
+                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                               padding:2px 7px;font-size:13px;cursor:pointer;"
+                                        title="Allstar Favorites">&#9733;</button>
+                                <button onclick="openAsModal()"
+                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                               padding:2px 7px;font-size:13px;cursor:pointer;"
+                                        title="Allstar Controls">&#9881;</button>
+                            </span>
+                        </div>
+                        <!-- Row 2: connection info -->
+                        <div style="display:flex;align-items:center;gap:6px;padding-top:5px;border-top:1px solid #222;">
                             <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
-                            <span id="asNodeBadge" style="color:#ccc;font-size:11px;letter-spacing:0;font-weight:bold;">--</span>
-                            <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:11px;font-weight:bold;">&#8594; <span id="asDirectLinkNode"></span></span>
-                        </span>
-                        <button onclick="openAsQuickTuneModal()"
-                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                       padding:2px 7px;font-size:13px;cursor:pointer;margin-right:4px;"
-                                title="Allstar Favorites">&#9733;</button>
-                        <button onclick="openAsModal()"
-                                style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                       padding:2px 7px;font-size:13px;cursor:pointer;"
-                                title="Allstar Controls">&#9881;</button>
+                            <span id="asNodeBadge" style="color:#ccc;font-size:13px;letter-spacing:0;font-weight:bold;">--</span>
+                            <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:13px;font-weight:bold;">&#8594; <span id="asDirectLinkNode"></span></span>
+                        </div>
                     </div>
                 </div>
 
