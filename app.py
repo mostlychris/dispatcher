@@ -5647,9 +5647,13 @@ def sdr_state():
 
 @app.route('/api/sdr/skip', methods=['POST'])
 def sdr_skip():
+    data = request.get_json(silent=True) or {}
+    payload = json.dumps(data).encode() if data else b''
+    headers = {'Content-Type': 'application/json'} if data else {}
     try:
         r = urllib.request.urlopen(
-            urllib.request.Request(_sdr_api_url('/api/skip'), method='POST', data=b''),
+            urllib.request.Request(_sdr_api_url('/api/skip'), method='POST',
+                                   data=payload, headers=headers),
             timeout=3)
         return jsonify({'ok': True}), r.status
     except Exception as e:
