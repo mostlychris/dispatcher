@@ -1020,6 +1020,14 @@ def _sdr_on_message(ws, raw):
             _sdr_state['banks']          = src.get('banks', {})
             _sdr_state['defaultSquelch'] = src.get('defaultSquelch')
             _sdr_state['defaultGain']    = src.get('defaultGain')
+            if t == 'state':
+                active_freq = src.get('activeFreq')
+                if active_freq:
+                    _sdr_state['freq'] = active_freq
+                    raw_label = labels.get(active_freq, active_freq)
+                    if isinstance(raw_label, dict):
+                        raw_label = raw_label.get('label', active_freq)
+                    _sdr_state['label'] = raw_label
         elif t == 'hold_update':
             _sdr_state['holdFreq'] = m.get('holdFreq')
     push_event({'event': 'sdr_' + t, **m})
