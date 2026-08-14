@@ -1497,7 +1497,7 @@ HTML = '''
 
         /* Audio controls overlay */
         #audioOverlayBtn {
-            position: fixed; bottom: 70px; right: 12px; z-index: 9000;
+            position: fixed; bottom: 70px; left: 12px; z-index: 9000;
             width: 44px; height: 44px; border-radius: 50%;
             background: #1a1a1a; border: 1px solid #555; color: #ccc;
             font-size: 20px; cursor: pointer; display: flex;
@@ -1506,7 +1506,7 @@ HTML = '''
         }
         #audioOverlayBtn:hover { background: #2a2a2a; border-color: #888; }
         @media (min-width: 601px) {
-            #audioOverlayBtn { bottom: 16px; }
+            #audioOverlayBtn { bottom: 16px; left: 12px; }
         }
         #audioOverlay {
             display: none; position: fixed; inset: 0; z-index: 50000;
@@ -3284,14 +3284,17 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             const names = Object.keys(banks || {});
             const show  = names.length > 1 || (names.length === 1 && names[0] !== 'Default');
             panel.style.display = show ? '' : 'none';
-            btns.innerHTML = names.sort().map(b => {
+            btns.innerHTML = '';
+            names.sort().forEach(b => {
                 const on = banks[b] !== false;
-                return '<button onclick="sdrToggleBank(' + JSON.stringify(b) + ',' + (on?'false':'true') + ')"'
-                    + ' style="font-size:10px;padding:2px 9px;border-radius:3px;cursor:pointer;'
+                const btn = document.createElement('button');
+                btn.textContent = b;
+                btn.style.cssText = 'font-size:10px;padding:2px 9px;border-radius:3px;cursor:pointer;'
                     + (on ? 'background:#002800;border:1px solid #00aa00;color:#4f4;'
-                          : 'background:#1a1a1a;border:1px solid #333;color:#555;') + '">'
-                    + escHtml(b) + '</button>';
-            }).join('');
+                          : 'background:#1a1a1a;border:1px solid #333;color:#555;');
+                btn.addEventListener('click', function() { sdrToggleBank(b, !on); });
+                btns.appendChild(btn);
+            });
         }
 
         function sdrToggleBank(bank, enabled) {
