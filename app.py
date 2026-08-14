@@ -2553,6 +2553,7 @@ HTML = '''
                     _sdrActive = false;
                     document.getElementById('sdrPulse').classList.remove('on');
                     document.getElementById('sdrDbBadge').textContent = '';
+                    _updateSdrDisplay();
                     _updateSdrAudioBtn();
                 } else if (data.event === 'sdr_signal') {
                     _onSdrSignal(data);
@@ -3092,6 +3093,21 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _sdrActive       = false;
         var _sdrAudioEl      = null;
         var _sdrVolume       = 100;
+        var _sdrCurrentFreq  = null;
+        var _sdrCurrentLabel = null;
+
+        function _updateSdrDisplay() {
+            const freqEl  = document.getElementById('sdrFreqBadge');
+            const labelEl = document.getElementById('sdrLabelBadge');
+            if (!freqEl || !labelEl) return;
+            if (_sdrActive && _sdrCurrentFreq) {
+                freqEl.textContent  = _sdrCurrentFreq;
+                labelEl.textContent = _sdrCurrentLabel || _sdrCurrentFreq;
+            } else {
+                freqEl.textContent  = '';
+                labelEl.textContent = 'SCANNING';
+            }
+        }
 
         function _initSdr() {
             _sdrAudioEl = new Audio();
@@ -3151,11 +3167,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function _onSdrState(d) {
             const connected = d.connected !== false;
             const offBadge  = document.getElementById('sdrOfflineBadge');
-            const section   = document.getElementById('sdrSection');
             if (offBadge) offBadge.style.display = connected ? 'none' : '';
-            document.getElementById('sdrFreqBadge').textContent  = connected ? (d.freq  || '--') : '--';
-            document.getElementById('sdrLabelBadge').textContent = connected ? (d.label || '--') : '--';
-            document.getElementById('sdrDbBadge').textContent    = '';
+            _sdrCurrentFreq  = connected ? (d.freq  || null) : null;
+            _sdrCurrentLabel = connected ? (d.label || null) : null;
+            _sdrActive       = connected ? !!d.active : false;
+            document.getElementById('sdrDbBadge').textContent = '';
+            document.getElementById('sdrPulse').classList.toggle('on', _sdrActive);
+            _updateSdrDisplay();
             const holdBadge = document.getElementById('sdrHoldBadge');
             if (holdBadge) holdBadge.style.display = d.holdFreq ? '' : 'none';
             const holdBtn = document.getElementById('sdrHoldBtn');
@@ -3168,19 +3186,20 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         function _onSdrFreqChange(m) {
-            document.getElementById('sdrFreqBadge').textContent  = m.freq  || '--';
-            document.getElementById('sdrLabelBadge').textContent = m.label || m.freq || '--';
-            document.getElementById('sdrDbBadge').textContent    = '';
-            document.getElementById('sdrPulse').classList.remove('on');
+            _sdrCurrentFreq  = m.freq  || null;
+            _sdrCurrentLabel = m.label || m.freq || null;
             _sdrActive = false;
+            document.getElementById('sdrDbBadge').textContent = '';
+            document.getElementById('sdrPulse').classList.remove('on');
+            _updateSdrDisplay();
             _updateSdrAudioBtn();
         }
 
         function _onSdrSignal(m) {
             _sdrActive = !!m.active;
             document.getElementById('sdrPulse').classList.toggle('on', _sdrActive);
-            if (m.db != null)
-                document.getElementById('sdrDbBadge').textContent = _sdrActive ? m.db + ' dB' : '';
+            document.getElementById('sdrDbBadge').textContent = _sdrActive && m.db != null ? m.db + ' dB' : '';
+            _updateSdrDisplay();
             _updateSdrAudioBtn();
         }
 
