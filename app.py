@@ -1959,8 +1959,14 @@ HTML = '''
                             <select id="trSystemFilter"
                                     style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
                                            font-size:11px;padding:2px 6px;margin-left:4px;"
-                                    onchange="renderTrCalls()">
+                                    onchange="_trSystemFilterChanged()">
                                 <option value="">All systems</option>
+                            </select>
+                            <select id="trTgFilter"
+                                    style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
+                                           font-size:11px;padding:2px 6px;"
+                                    onchange="renderTrCalls()">
+                                <option value="">All TGs</option>
                             </select>
                             <button onclick="openTrImportModal()"
                                     style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
@@ -4061,7 +4067,7 @@ registerProcessor('mic-decimator', MicDecimator);
                 _rebuildConsoleSystemSelect();
             }
 
-            renderTrCalls();
+            _trSystemFilterChanged();  // refresh TG dropdown with new call's TG
 
             if (_trAutoplay && _trAudioEnabled) _trEnqueue(call);
         }
@@ -4072,6 +4078,7 @@ registerProcessor('mic-decimator', MicDecimator);
             const v = parseInt(localStorage.getItem('trVolume') ?? '100');
             setTrVolume(v);
             _updateTrPauseUI();
+            _trSystemFilterChanged();  // populate TG dropdown on open
         }
         function closeTrModal() { document.getElementById('trModal').style.display = 'none'; }
         function closeTrModalIfBackdrop(e) { if (e.target===document.getElementById('trModal')) closeTrModal(); }
@@ -4269,7 +4276,7 @@ registerProcessor('mic-decimator', MicDecimator);
                 sysList.forEach(s => { _trSystems[s.short_name] = s.label; });
                 _rebuildSystemFilter();
                 _rebuildConsoleSystemSelect();
-                renderTrCalls();
+                _trSystemFilterChanged();
             } catch(e) { console.error('_fetchTrCalls:', e); }
         }
 
@@ -4302,10 +4309,36 @@ registerProcessor('mic-decimator', MicDecimator);
             _trStartPlay(call);
         }
 
+        function _trSystemFilterChanged() {
+            // Repopulate TG filter for the selected system, then re-render
+            const sys = document.getElementById('trSystemFilter').value;
+            const tgSel = document.getElementById('trTgFilter');
+            const prevTg = tgSel.value;
+            // Collect TGs from current call history for this system
+            const tgMap = {};
+            _trCalls.filter(c => !sys || c.system === sys).forEach(c => {
+                if (c.talkgroup != null) {
+                    const label = c.talkgroup_label || c.talkgroup_tag || ('TG ' + c.talkgroup);
+                    tgMap[c.talkgroup] = label;
+                }
+            });
+            const opts = ['<option value="">All TGs</option>'];
+            Object.keys(tgMap).sort((a,b) => tgMap[a].localeCompare(tgMap[b])).forEach(id => {
+                const sel = String(id) === prevTg ? ' selected' : '';
+                opts.push(`<option value="${escHtml(String(id))}"${sel}>${escHtml(tgMap[id])} (${id})</option>`);
+            });
+            tgSel.innerHTML = opts.join('');
+            renderTrCalls();
+        }
+
         function renderTrCalls() {
             const filter  = document.getElementById('trSystemFilter').value;
+            const tgFilter = document.getElementById('trTgFilter').value;
             const el      = document.getElementById('trCallLog');
-            const visible = _trCalls.filter(c => !filter || c.system === filter);
+            const visible = _trCalls.filter(c =>
+                (!filter || c.system === filter) &&
+                (!tgFilter || String(c.talkgroup) === tgFilter)
+            );
             if (!visible.length) {
                 el.innerHTML = '<div class="qt-empty">No calls received yet</div>';
                 return;
