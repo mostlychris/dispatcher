@@ -1863,7 +1863,7 @@ HTML = '''
                     <span class="vol-label">Audio Lag</span>
                     <span class="vol-pct" id="sdrLagDisplay">500 ms</span>
                 </div>
-                <input type="range" class="vol-slider" id="sdrLagSliderOv" min="0" max="2000" step="50" value="500"
+                <input type="range" class="vol-slider" id="sdrLagSliderOv" min="0" max="5000" step="50" value="500"
                        oninput="sdrSetLag(this.value)">
             </div>
         </div>
