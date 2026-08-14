@@ -890,14 +890,16 @@ import urllib.request
 import urllib.error
 
 _sdr_state = {
-    'connected': False,
-    'freq':      None,
-    'label':     None,
-    'active':    False,
-    'db':        None,
-    'holdFreq':  None,
-    'channels':  {},
-    'skipped':   [],
+    'connected':      False,
+    'freq':           None,
+    'label':          None,
+    'active':         False,
+    'db':             None,
+    'holdFreq':       None,
+    'channels':       {},   # merged: freq -> {label, squelch_rms, gain, pl}
+    'skipped':        [],
+    'defaultSquelch': None,
+    'defaultGain':    None,
 }
 _sdr_state_lock = threading.Lock()
 
@@ -956,6 +958,20 @@ def _sdr_on_close(ws, code, msg):
 def _sdr_on_error(ws, err):
     pass  # reconnect handled by run_forever restart
 
+def _sdr_merge_channels(labels, csq, cgain, cpl):
+    """Merge the scanner's separate channel dicts into one object per freq."""
+    merged = {}
+    for freq, lbl in labels.items():
+        entry = {'label': lbl if isinstance(lbl, str) else (lbl.get('label', freq) if isinstance(lbl, dict) else freq)}
+        if freq in csq:
+            entry['squelch_rms'] = csq[freq]
+        if freq in cgain:
+            entry['gain'] = cgain[freq]
+        if freq in cpl and cpl[freq]:
+            entry['pl'] = cpl[freq]
+        merged[freq] = entry
+    return merged
+
 def _sdr_on_message(ws, raw):
     import json as _json
     try:
@@ -974,10 +990,24 @@ def _sdr_on_message(ws, raw):
         elif t == 'signal':
             _sdr_state['active'] = m.get('active', False)
             _sdr_state['db']     = m.get('db')
-        elif t == 'channels_update':
-            _sdr_state['channels'] = m.get('channels', {})
-            _sdr_state['skipped']  = m.get('skipped', [])
-            _sdr_state['holdFreq'] = m.get('holdFreq')
+        elif t in ('channels_update', 'state'):
+            # 'state' arrives on initial connect; 'channels_update' on changes.
+            # Scanner sends channels/squelch/gain/pl as separate dicts.
+            if t == 'state':
+                # Full state wraps streams as a list
+                streams = m.get('streams', [])
+                src = streams[0] if streams else m
+            else:
+                src = m
+            labels  = src.get('channels', {})
+            csq     = src.get('channelSquelch', {})
+            cgain   = src.get('channelGain', {})
+            cpl     = src.get('channelPL', {})
+            _sdr_state['channels']       = _sdr_merge_channels(labels, csq, cgain, cpl)
+            _sdr_state['skipped']        = src.get('skipped', [])
+            _sdr_state['holdFreq']       = src.get('holdFreq')
+            _sdr_state['defaultSquelch'] = src.get('defaultSquelch')
+            _sdr_state['defaultGain']    = src.get('defaultGain')
         elif t == 'hold_update':
             _sdr_state['holdFreq'] = m.get('holdFreq')
     push_event({'event': 'sdr_' + t, **m})
