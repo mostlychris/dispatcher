@@ -1847,6 +1847,18 @@ HTML = '''
                 </div>
                 <input type="range" class="vol-slider" id="sdrVolSliderOv" min="0" max="100" value="100"
                        oninput="sdrSetVolume(this.value)">
+                <div class="vol-row" style="margin-top:6px;">
+                    <span class="vol-label">LP Cut</span>
+                    <span class="vol-pct" id="sdrLpDisplay">3.0 kHz</span>
+                </div>
+                <input type="range" class="vol-slider" id="sdrLpSliderOv" min="500" max="8000" step="100" value="3000"
+                       oninput="sdrSetLp(this.value)">
+                <div class="vol-row" style="margin-top:6px;">
+                    <span class="vol-label">HP Cut</span>
+                    <span class="vol-pct" id="sdrHpDisplay">Off</span>
+                </div>
+                <input type="range" class="vol-slider" id="sdrHpSliderOv" min="0" max="600" step="10" value="0"
+                       oninput="sdrSetHp(this.value)">
             </div>
         </div>
     </div>
@@ -3083,6 +3095,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _sdrActive       = false;
         var _sdrAudioEl      = null;
         var _sdrVolume       = 100;
+        var _sdrLp           = 3000;
+        var _sdrHp           = 0;
+        var _sdrCtx          = null;
+        var _sdrGainNode     = null;
+        var _sdrLpNode       = null;
+        var _sdrHpNode       = null;
         var _sdrCurrentFreq  = null;
         var _sdrCurrentLabel = null;
 
@@ -3101,9 +3119,30 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function _initSdr() {
             _sdrAudioEl = new Audio();
-            _sdrAudioEl.volume = _sdrVolume / 100;
+            _sdrAudioEl.crossOrigin = 'anonymous';
             const sv = parseInt(localStorage.getItem('sdrVolume') ?? '100');
-            sdrSetVolume(sv);
+            const lv = parseInt(localStorage.getItem('sdrLp')     ?? '3000');
+            const hv = parseInt(localStorage.getItem('sdrHp')     ?? '0');
+            _sdrVolume = sv; _sdrLp = lv; _sdrHp = hv;
+            _updateSdrFilterDisplays();
+        }
+
+        function _sdrEnsureCtx() {
+            if (_sdrCtx) return;
+            _sdrCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const src = _sdrCtx.createMediaElementSource(_sdrAudioEl);
+            _sdrHpNode = _sdrCtx.createBiquadFilter();
+            _sdrHpNode.type = 'highpass';
+            _sdrHpNode.frequency.value = _sdrHp > 0 ? _sdrHp : 10;
+            _sdrLpNode = _sdrCtx.createBiquadFilter();
+            _sdrLpNode.type = 'lowpass';
+            _sdrLpNode.frequency.value = _sdrLp;
+            _sdrGainNode = _sdrCtx.createGain();
+            _sdrGainNode.gain.value = _sdrVolume / 100;
+            src.connect(_sdrHpNode);
+            _sdrHpNode.connect(_sdrLpNode);
+            _sdrLpNode.connect(_sdrGainNode);
+            _sdrGainNode.connect(_sdrCtx.destination);
         }
 
         function sdrToggleAudio() {
@@ -3119,8 +3158,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function _sdrConnectAudio() {
             if (!_sdrAudioEl) return;
+            _sdrEnsureCtx();
             _sdrAudioEl.src = '/api/sdr/stream';
-            _sdrAudioEl.volume = _sdrVolume / 100;
+            if (_sdrCtx && _sdrCtx.state === 'suspended') _sdrCtx.resume();
             _sdrAudioEl.play().catch(() => {});
         }
 
@@ -3131,13 +3171,47 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             }
         }
 
+        function _updateSdrFilterDisplays() {
+            const lpLbl = document.getElementById('sdrLpDisplay');
+            const hpLbl = document.getElementById('sdrHpDisplay');
+            const lpSl  = document.getElementById('sdrLpSliderOv');
+            const hpSl  = document.getElementById('sdrHpSliderOv');
+            const volSl = document.getElementById('sdrVolSliderOv');
+            const volLbl = document.getElementById('sdrVolDisplayOv');
+            if (lpLbl) lpLbl.textContent = (_sdrLp / 1000).toFixed(1) + ' kHz';
+            if (hpLbl) hpLbl.textContent = _sdrHp > 0 ? _sdrHp + ' Hz' : 'Off';
+            if (lpSl)  lpSl.value  = _sdrLp;
+            if (hpSl)  hpSl.value  = _sdrHp;
+            if (volSl) volSl.value = _sdrVolume;
+            if (volLbl) volLbl.textContent = _sdrVolume + '%';
+        }
+
         function sdrSetVolume(val) {
             val = parseInt(val);
             _sdrVolume = val;
-            if (_sdrAudioEl) _sdrAudioEl.volume = val / 100;
+            if (_sdrGainNode) _sdrGainNode.gain.value = val / 100;
+            else if (_sdrAudioEl) _sdrAudioEl.volume = val / 100;
             document.getElementById('sdrVolDisplayOv').textContent = val + '%';
             document.getElementById('sdrVolSliderOv').value = val;
             localStorage.setItem('sdrVolume', val);
+        }
+
+        function sdrSetLp(val) {
+            val = parseInt(val);
+            _sdrLp = val;
+            if (_sdrLpNode) _sdrLpNode.frequency.value = val;
+            const lbl = document.getElementById('sdrLpDisplay');
+            if (lbl) lbl.textContent = (val / 1000).toFixed(1) + ' kHz';
+            localStorage.setItem('sdrLp', val);
+        }
+
+        function sdrSetHp(val) {
+            val = parseInt(val);
+            _sdrHp = val;
+            if (_sdrHpNode) _sdrHpNode.frequency.value = val > 0 ? val : 10;
+            const lbl = document.getElementById('sdrHpDisplay');
+            if (lbl) lbl.textContent = val > 0 ? val + ' Hz' : 'Off';
+            localStorage.setItem('sdrHp', val);
         }
 
         function _updateSdrAudioBtn() {
