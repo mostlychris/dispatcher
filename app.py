@@ -4028,8 +4028,11 @@ registerProcessor('mic-decimator', MicDecimator);
             // Status bar — show what's actually playing
             document.getElementById('trPulse').classList.add('on');
             document.getElementById('trSystemBadge').textContent = sys.toUpperCase() || '--';
+            const errHtml = (call.error_count > 0)
+                ? ' <span style="font-size:10px;color:#f88;font-weight:normal;">Err:' + call.error_count + '</span>'
+                : '';
             document.getElementById('trTgBadge').innerHTML =
-                escHtml(tgLabel) + ' <span style="font-size:11px;color:#aaa;font-weight:normal;">' + call.talkgroup + '</span>';
+                escHtml(tgLabel) + ' <span style="font-size:11px;color:#aaa;font-weight:normal;">' + call.talkgroup + '</span>' + errHtml;
 
             // Modal now-playing label
             document.getElementById('trNowPlaying').textContent =
@@ -4729,6 +4732,13 @@ def tr_call_upload():
     tg_desc  = f.get('talkgroupName', '')  or tg_lookup.get('description', '')
     tg_label = f.get('talkgroupLabel', '')
 
+    # Sum error count across all frequency slots
+    try:
+        freq_list = json.loads(f.get('frequencies', '[]'))
+        error_count = sum(int(fq.get('errorCount', 0)) for fq in freq_list)
+    except Exception:
+        error_count = 0
+
     # Save audio file
     audio_filename = None
     audio_file = request.files.get('audio')
@@ -4751,6 +4761,7 @@ def tr_call_upload():
         'emergency':             False,
         'encrypted':             False,
         'freq':                  freq,
+        'error_count':           error_count,
         'srcList':               src_list,
         'audio':                 audio_filename,
         'received':              time.time(),
