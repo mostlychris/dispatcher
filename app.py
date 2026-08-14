@@ -3330,7 +3330,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({freq: held ? null : f})});
         }
-        function openSdrModal()             { document.getElementById('sdrModal').style.display = 'flex'; }
+        function openSdrModal() {
+            document.getElementById('sdrModal').style.display = 'flex';
+            fetch('/api/sdr/state').then(r => r.json()).then(d => _renderSdrChannels(d)).catch(() => {});
+        }
         function closeSdrModal()            { document.getElementById('sdrModal').style.display = 'none'; }
         function closeSdrModalIfBackdrop(e) { if (e.target===document.getElementById('sdrModal')) closeSdrModal(); }
 
