@@ -1859,6 +1859,12 @@ HTML = '''
                 </div>
                 <input type="range" class="vol-slider" id="sdrHpSliderOv" min="0" max="600" step="10" value="0"
                        oninput="sdrSetHp(this.value)">
+                <div class="vol-row" style="margin-top:6px;">
+                    <span class="vol-label">Audio Lag</span>
+                    <span class="vol-pct" id="sdrLagDisplay">500 ms</span>
+                </div>
+                <input type="range" class="vol-slider" id="sdrLagSliderOv" min="0" max="2000" step="50" value="500"
+                       oninput="sdrSetLag(this.value)">
             </div>
         </div>
     </div>
@@ -3097,12 +3103,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _sdrVolume       = 100;
         var _sdrLp           = 3000;
         var _sdrHp           = 0;
+        var _sdrLag          = 500;   // ms: delay display activation to match audio buffer
         var _sdrCtx          = null;
         var _sdrGainNode     = null;
         var _sdrLpNode       = null;
         var _sdrHpNode       = null;
         var _sdrCurrentFreq  = null;
         var _sdrCurrentLabel = null;
+        var _sdrActivateTimer = null;
 
         function _updateSdrDisplay() {
             const freqEl  = document.getElementById('sdrFreqBadge');
@@ -3123,7 +3131,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             const sv = parseInt(localStorage.getItem('sdrVolume') ?? '100');
             const lv = parseInt(localStorage.getItem('sdrLp')     ?? '3000');
             const hv = parseInt(localStorage.getItem('sdrHp')     ?? '0');
-            _sdrVolume = sv; _sdrLp = lv; _sdrHp = hv;
+            const lagv = parseInt(localStorage.getItem('sdrLag')  ?? '500');
+            _sdrVolume = sv; _sdrLp = lv; _sdrHp = hv; _sdrLag = lagv;
             _updateSdrFilterDisplays();
         }
 
@@ -3172,17 +3181,21 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         function _updateSdrFilterDisplays() {
-            const lpLbl = document.getElementById('sdrLpDisplay');
-            const hpLbl = document.getElementById('sdrHpDisplay');
-            const lpSl  = document.getElementById('sdrLpSliderOv');
-            const hpSl  = document.getElementById('sdrHpSliderOv');
-            const volSl = document.getElementById('sdrVolSliderOv');
+            const lpLbl  = document.getElementById('sdrLpDisplay');
+            const hpLbl  = document.getElementById('sdrHpDisplay');
+            const lagLbl = document.getElementById('sdrLagDisplay');
+            const lpSl   = document.getElementById('sdrLpSliderOv');
+            const hpSl   = document.getElementById('sdrHpSliderOv');
+            const lagSl  = document.getElementById('sdrLagSliderOv');
+            const volSl  = document.getElementById('sdrVolSliderOv');
             const volLbl = document.getElementById('sdrVolDisplayOv');
-            if (lpLbl) lpLbl.textContent = (_sdrLp / 1000).toFixed(1) + ' kHz';
-            if (hpLbl) hpLbl.textContent = _sdrHp > 0 ? _sdrHp + ' Hz' : 'Off';
-            if (lpSl)  lpSl.value  = _sdrLp;
-            if (hpSl)  hpSl.value  = _sdrHp;
-            if (volSl) volSl.value = _sdrVolume;
+            if (lpLbl)  lpLbl.textContent  = (_sdrLp / 1000).toFixed(1) + ' kHz';
+            if (hpLbl)  hpLbl.textContent  = _sdrHp > 0 ? _sdrHp + ' Hz' : 'Off';
+            if (lagLbl) lagLbl.textContent = _sdrLag + ' ms';
+            if (lpSl)   lpSl.value   = _sdrLp;
+            if (hpSl)   hpSl.value   = _sdrHp;
+            if (lagSl)  lagSl.value  = _sdrLag;
+            if (volSl)  volSl.value  = _sdrVolume;
             if (volLbl) volLbl.textContent = _sdrVolume + '%';
         }
 
@@ -3212,6 +3225,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             const lbl = document.getElementById('sdrHpDisplay');
             if (lbl) lbl.textContent = val > 0 ? val + ' Hz' : 'Off';
             localStorage.setItem('sdrHp', val);
+        }
+
+        function sdrSetLag(val) {
+            val = parseInt(val);
+            _sdrLag = val;
+            const lbl = document.getElementById('sdrLagDisplay');
+            if (lbl) lbl.textContent = val + ' ms';
+            localStorage.setItem('sdrLag', val);
         }
 
         function _updateSdrAudioBtn() {
@@ -3260,11 +3281,26 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         function _onSdrSignal(m) {
-            _sdrActive = !!m.active;
-            document.getElementById('sdrPulse').classList.toggle('on', _sdrActive);
-            document.getElementById('sdrDbBadge').textContent = _sdrActive && m.db != null ? m.db + ' dB' : '';
-            _updateSdrDisplay();
-            _updateSdrAudioBtn();
+            const active = !!m.active;
+            const db = m.db;
+            if (active) {
+                // Delay display activation to match audio buffer latency
+                if (_sdrActivateTimer) clearTimeout(_sdrActivateTimer);
+                _sdrActivateTimer = setTimeout(function() {
+                    _sdrActive = true;
+                    document.getElementById('sdrPulse').classList.add('on');
+                    document.getElementById('sdrDbBadge').textContent = db != null ? db + ' dB' : '';
+                    _updateSdrDisplay();
+                    _updateSdrAudioBtn();
+                }, _sdrLag);
+            } else {
+                if (_sdrActivateTimer) { clearTimeout(_sdrActivateTimer); _sdrActivateTimer = null; }
+                _sdrActive = false;
+                document.getElementById('sdrPulse').classList.remove('on');
+                document.getElementById('sdrDbBadge').textContent = '';
+                _updateSdrDisplay();
+                _updateSdrAudioBtn();
+            }
         }
 
         function _sdrMergeChannels(m) {
