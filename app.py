@@ -3113,54 +3113,22 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function _sdrConnectAudio() {
             if (!_sdrAudioEl) return;
-            const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const audioWsUrl = wsProto + '//' + location.host + '/ws/sdr-audio';
-            // Use MediaSource if available for streaming PCM, otherwise fall back
-            // to a simple approach using the proxy WS
-            _sdrAudioEl.src = '';
-            // We'll use a simple approach: proxy WS feeds an AudioContext
-            if (_sdrAudioCtx) { try { _sdrAudioCtx.close(); } catch(e){} }
-            _sdrAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            _sdrGainNode = _sdrAudioCtx.createGain();
-            _sdrGainNode.gain.value = _sdrVolume / 100;
-            _sdrGainNode.connect(_sdrAudioCtx.destination);
-            var _sdrNextTime = 0;
-            _sdrWs = new WebSocket(audioWsUrl);
-            _sdrWs.binaryType = 'arraybuffer';
-            _sdrWs.onmessage = function(e) {
-                if (!_sdrAudioEnabled) return;
-                const int16 = new Int16Array(e.data);
-                const float32 = new Float32Array(int16.length);
-                for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
-                const buf = _sdrAudioCtx.createBuffer(1, float32.length, 24000);
-                buf.copyToChannel(float32, 0);
-                const src = _sdrAudioCtx.createBufferSource();
-                src.buffer = buf;
-                src.connect(_sdrGainNode);
-                // Schedule sequentially; keep a small ahead-buffer to absorb jitter
-                const now = _sdrAudioCtx.currentTime;
-                if (_sdrNextTime < now + 0.05) _sdrNextTime = now + 0.05;
-                src.start(_sdrNextTime);
-                _sdrNextTime += buf.duration;
-            };
-            _sdrWs.onclose = function() {
-                if (_sdrAudioEnabled) setTimeout(_sdrConnectAudio, 3000);
-            };
+            _sdrAudioEl.src = '/api/sdr/stream';
+            _sdrAudioEl.volume = _sdrVolume / 100;
+            _sdrAudioEl.play().catch(() => {});
         }
 
         function _sdrDisconnectAudio() {
-            if (_sdrWs) { try { _sdrWs.close(); } catch(e){} _sdrWs = null; }
-            if (_sdrAudioCtx) { try { _sdrAudioCtx.close(); } catch(e){} _sdrAudioCtx = null; }
+            if (_sdrAudioEl) {
+                _sdrAudioEl.pause();
+                _sdrAudioEl.src = '';
+            }
         }
-
-        var _sdrAudioCtx = null;
-        var _sdrGainNode = null;
-        var _sdrWs       = null;
 
         function sdrSetVolume(val) {
             val = parseInt(val);
             _sdrVolume = val;
-            if (_sdrGainNode) _sdrGainNode.gain.value = val / 100;
+            if (_sdrAudioEl) _sdrAudioEl.volume = val / 100;
             document.getElementById('sdrVolDisplayOv').textContent = val + '%';
             document.getElementById('sdrVolSliderOv').value = val;
             localStorage.setItem('sdrVolume', val);
@@ -5734,31 +5702,28 @@ def sdr_bank():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 502
 
-@sock.route('/ws/sdr-audio')
-def sdr_audio_proxy(ws):
-    """Proxy the scanner's raw PCM audio WebSocket to browser clients."""
+@app.route('/api/sdr/stream')
+def sdr_stream():
+    """Proxy the scanner's HTTP WAV audio stream to the browser."""
+    url = _sdr_api_url('/stream')
     try:
-        import websocket as _wsc
-    except ImportError:
-        return
-    sdr_ws_audio = _sdr_ws_url().replace('/ws', '/ws/audio')
-    try:
-        client = _wsc.create_connection(sdr_ws_audio, timeout=5)
-    except Exception:
-        return
-    try:
-        while True:
-            data = client.recv()
-            if data is None:
-                break
-            ws.send(data)
-    except Exception:
-        pass
-    finally:
+        req = urllib.request.Request(url)
+        r = urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
+    content_type = r.headers.get('Content-Type', 'audio/wav')
+    def generate():
         try:
-            client.close()
-        except Exception:
-            pass
+            while True:
+                chunk = r.read(4096)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            try: r.close()
+            except Exception: pass
+    return Response(generate(), content_type=content_type,
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 if __name__ == '__main__':
