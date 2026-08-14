@@ -55,3 +55,12 @@ TR_SYSTEMS = {
     # 'mysystem': 'My County P25',
     # 'fire':     'Fire Dispatch',
 }
+
+# -------------------------
+# SDR Scanner integration
+# -------------------------
+
+# Base URL of the rtl-airband-scanner app (no trailing slash).
+# The dispatcher connects to this host's /ws WebSocket to relay scanner
+# state events and proxies /ws/audio to browser clients.
+SDR_SCANNER_URL = 'http://172.31.10.192:8080'

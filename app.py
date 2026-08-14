@@ -110,6 +110,10 @@ try:
 except ImportError:
     # Map short_name → display label. Auto-populated from uploads if not set.
     TR_SYSTEMS = {}
+try:
+    from config import SDR_SCANNER_URL
+except ImportError:
+    SDR_SCANNER_URL = 'http://172.31.10.192:8080'
 
 
 FAVORITES_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
@@ -879,6 +883,114 @@ class AllstarManager:
 
 allstar_mgr = AllstarManager()
 
+# -------------------------
+# SDR SCANNER RELAY
+# -------------------------
+import urllib.request
+import urllib.error
+
+_sdr_state = {
+    'connected': False,
+    'freq':      None,
+    'label':     None,
+    'active':    False,
+    'db':        None,
+    'holdFreq':  None,
+    'channels':  {},
+    'skipped':   [],
+}
+_sdr_state_lock = threading.Lock()
+
+def _sdr_ws_url():
+    base = SDR_SCANNER_URL.rstrip('/')
+    return base.replace('http://', 'ws://').replace('https://', 'wss://') + '/ws'
+
+def _sdr_api_url(path):
+    return SDR_SCANNER_URL.rstrip('/') + path
+
+def _sdr_relay_loop():
+    """Background thread: connects to scanner /ws, relays events into dispatcher SSE."""
+    import json as _json
+    # Use websocket-client if available, else simple HTTP upgrade
+    try:
+        import websocket as _ws_lib
+        _HAS_WS = True
+    except ImportError:
+        _HAS_WS = False
+
+    while True:
+        if not _HAS_WS:
+            time.sleep(30)
+            continue
+        try:
+            ws = _ws_lib.WebSocketApp(
+                _sdr_ws_url(),
+                on_open=_sdr_on_open,
+                on_message=_sdr_on_message,
+                on_close=_sdr_on_close,
+                on_error=_sdr_on_error,
+            )
+            ws.run_forever(ping_interval=20, ping_timeout=10)
+        except Exception as e:
+            print(f'SDR relay error: {e}')
+        with _sdr_state_lock:
+            _sdr_state['connected'] = False
+        push_event({'event': 'sdr_state', **_sdr_state_snapshot()})
+        time.sleep(5)
+
+def _sdr_state_snapshot():
+    with _sdr_state_lock:
+        return dict(_sdr_state)
+
+def _sdr_on_open(ws):
+    with _sdr_state_lock:
+        _sdr_state['connected'] = True
+    push_event({'event': 'sdr_state', **_sdr_state_snapshot()})
+
+def _sdr_on_close(ws, code, msg):
+    with _sdr_state_lock:
+        _sdr_state['connected'] = False
+        _sdr_state['active']    = False
+    push_event({'event': 'sdr_state', **_sdr_state_snapshot()})
+
+def _sdr_on_error(ws, err):
+    pass  # reconnect handled by run_forever restart
+
+def _sdr_on_message(ws, raw):
+    import json as _json
+    try:
+        m = _json.loads(raw)
+    except Exception:
+        return
+    t = m.get('type', '')
+    with _sdr_state_lock:
+        if t == 'freq_change':
+            _sdr_state['freq']  = m.get('freq')
+            _sdr_state['label'] = m.get('label') or m.get('freq')
+            _sdr_state['active'] = False
+        elif t == 'freq_clear':
+            _sdr_state['active'] = False
+            _sdr_state['db']     = None
+        elif t == 'signal':
+            _sdr_state['active'] = m.get('active', False)
+            _sdr_state['db']     = m.get('db')
+        elif t == 'channels_update':
+            _sdr_state['channels'] = m.get('channels', {})
+            _sdr_state['skipped']  = m.get('skipped', [])
+            _sdr_state['holdFreq'] = m.get('holdFreq')
+        elif t == 'hold_update':
+            _sdr_state['holdFreq'] = m.get('holdFreq')
+    push_event({'event': 'sdr_' + t, **m})
+
+def _start_sdr_relay():
+    try:
+        import websocket  # noqa
+    except ImportError:
+        print('SDR relay disabled: install websocket-client (pip install websocket-client)')
+        return
+    t = threading.Thread(target=_sdr_relay_loop, daemon=True)
+    t.start()
+
 
 def tg_refresh_loop():
     while True:
@@ -892,6 +1004,7 @@ usrp_thread      = threading.Thread(target=usrp_listener,  daemon=True)
 tg_refresh_thread = threading.Thread(target=tg_refresh_loop, daemon=True)
 usrp_thread.start()
 tg_refresh_thread.start()
+_start_sdr_relay()
 
 HTML = '''
 <!DOCTYPE html>
@@ -1680,7 +1793,7 @@ HTML = '''
 
             <div class="audio-section">
                 <div class="audio-section-hdr hdr-scanner">
-                    <span class="section-icon">📡</span> Scanner Audio
+                    <span class="section-icon">📡</span> Trunk RX Audio
                 </div>
                 <div class="vol-row">
                     <span class="vol-label">Volume</span>
@@ -1689,6 +1802,19 @@ HTML = '''
                 </div>
                 <input type="range" class="vol-slider" id="trVolSliderOv" min="0" max="100" value="100"
                        oninput="setTrVolumeOv(this.value)">
+            </div>
+
+            <div class="audio-section">
+                <div class="audio-section-hdr" style="color:#7df;">
+                    <span class="section-icon">📡</span> SDR Scanner Audio
+                </div>
+                <div class="vol-row">
+                    <span class="vol-label">Volume</span>
+                    <button id="sdrAudioToggleOv" onclick="sdrToggleAudio()" class="btn-sidebar-sm btn-monitor">&#128264; Enable</button>
+                    <span class="vol-pct" id="sdrVolDisplayOv">100%</span>
+                </div>
+                <input type="range" class="vol-slider" id="sdrVolSliderOv" min="0" max="100" value="100"
+                       oninput="sdrSetVolume(this.value)">
             </div>
         </div>
     </div>
@@ -1699,7 +1825,9 @@ HTML = '''
         <button class="mob-btn btn-monitor" id="mobBtnAsMonitor"
                 onclick="toggleAllstarAudio(this)"><span style="font-size:16px;">&#128264;</span><span>Allstar</span></button>
         <button class="mob-btn btn-monitor" id="mobBtnTrAudio"
-                onclick="trToggleAudio()"><span style="font-size:16px;">&#128251;</span><span>Scanner</span></button>
+                onclick="trToggleAudio()"><span style="font-size:16px;">&#128251;</span><span>Trunk</span></button>
+        <button class="mob-btn btn-monitor" id="mobBtnSdrAudio"
+                onclick="sdrToggleAudio()"><span style="font-size:16px;">📡</span><span>SDR</span></button>
         <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled><span style="font-size:16px;">&#127908;</span><span>PTT</span></button>
     </div>
 
@@ -1891,12 +2019,12 @@ HTML = '''
                     </div>
                 </div>
 
-                <!-- SCANNER STATUS BAR -->
+                <!-- TRUNK RX STATUS BAR -->
                 <div class="collapse-panel" id="trSection">
                     <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
                         <!-- Row 1: title + buttons right-aligned -->
                         <div style="display:flex;align-items:center;gap:6px;">
-                            <h3 style="flex-shrink:0;margin:0;">&#128250; SCANNER</h3>
+                            <h3 style="flex-shrink:0;margin:0;">&#128250; TRUNK RX</h3>
                             <span style="margin-left:auto;display:flex;gap:5px;flex-shrink:0;">
                                 <button onclick="trSkip()" title="Skip current call"
                                         style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
@@ -1946,6 +2074,59 @@ HTML = '''
                     </div>
                 </div>
 
+                <!-- SDR SCANNER STATUS BAR -->
+                <div class="collapse-panel" id="sdrSection">
+                    <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
+                        <!-- Row 1: title + buttons right-aligned -->
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <h3 style="flex-shrink:0;margin:0;">📡 SDR</h3>
+                            <span id="sdrOfflineBadge" style="font-size:9px;font-weight:bold;
+                                  background:#2a0000;border:1px solid #660000;color:#f88;
+                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">OFFLINE</span>
+                            <span style="margin-left:auto;display:flex;gap:5px;flex-shrink:0;">
+                                <button onclick="sdrSkip()" title="Skip to next frequency"
+                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                               padding:2px 7px;font-size:10px;cursor:pointer;">⏭<span class="btn-label"> Skip</span></button>
+                                <button onclick="sdrHoldToggle()" id="sdrHoldBtn" title="Hold / unhold current frequency"
+                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                               padding:2px 7px;font-size:10px;cursor:pointer;">🔒<span class="btn-label"> Hold</span></button>
+                                <button onclick="openSdrModal()" title="SDR Channels"
+                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                               padding:2px 7px;font-size:10px;cursor:pointer;">⊞<span class="btn-label"> Channels</span></button>
+                            </span>
+                        </div>
+                        <!-- Row 2: pulse · freq · label · dB -->
+                        <div style="display:flex;align-items:center;gap:6px;min-width:0;padding-top:5px;border-top:1px solid #222;">
+                            <span class="tx-pulse" id="sdrPulse"></span>
+                            <span id="sdrFreqBadge" style="font-size:13px;color:#fff;font-weight:bold;
+                                  white-space:nowrap;flex-shrink:0;">--</span>
+                            <span id="sdrLabelBadge" style="font-size:14px;color:#fff;font-weight:bold;
+                                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">--</span>
+                            <span id="sdrDbBadge" style="font-size:10px;color:#888;flex-shrink:0;"></span>
+                            <span id="sdrHoldBadge" style="display:none;font-size:9px;font-weight:bold;
+                                  background:#003a00;border:1px solid #00aa00;color:#4f4;
+                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">HOLD</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SDR CHANNEL MODAL -->
+                <div id="sdrModal" onclick="closeSdrModalIfBackdrop(event)"
+                     style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                            align-items:center;justify-content:center;">
+                    <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                                padding:16px 20px;width:min(480px,96vw);max-height:90vh;
+                                display:flex;flex-direction:column;position:relative;
+                                box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+                        <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
+                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">📡 SDR CHANNELS</h3>
+                            <button onclick="closeSdrModal()"
+                                    style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">✕</button>
+                        </div>
+                        <div id="sdrChannelList" style="overflow-y:auto;flex:1;"></div>
+                    </div>
+                </div>
+
                 <!-- SCANNER CALL LOG MODAL -->
                 <div id="trModal" onclick="closeTrModalIfBackdrop(event)"
                      style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
@@ -1955,7 +2136,7 @@ HTML = '''
                                 max-height:90vh;display:flex;flex-direction:column;
                                 position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
                         <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
-                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128250; SCANNER</h3>
+                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128250; TRUNK RX</h3>
                             <select id="trSystemFilter"
                                     style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
                                            font-size:11px;padding:2px 6px;margin-left:4px;"
@@ -2261,6 +2442,21 @@ HTML = '''
                     if (lastHeardOpen) pollLastHeard();
                 } else if (data.event === 'tr_call') {
                     _onTrCall(data);
+                } else if (data.event === 'sdr_state') {
+                    _onSdrState(data);
+                } else if (data.event === 'sdr_freq_change') {
+                    _onSdrFreqChange(data);
+                } else if (data.event === 'sdr_freq_clear') {
+                    _sdrActive = false;
+                    document.getElementById('sdrPulse').classList.remove('on');
+                    document.getElementById('sdrDbBadge').textContent = '';
+                    _updateSdrAudioBtn();
+                } else if (data.event === 'sdr_signal') {
+                    _onSdrSignal(data);
+                } else if (data.event === 'sdr_channels_update') {
+                    _onSdrChannelsUpdate(data);
+                } else if (data.event === 'sdr_hold_update') {
+                    _onSdrChannelsUpdate(data);
                 }
             };
             es.onerror = function() { setTimeout(connectSSE, 5000); };
@@ -2788,6 +2984,190 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         // -------------------------
+        // ---- SDR SCANNER ----
+        var _sdrAudioEnabled = false;
+        var _sdrActive       = false;
+        var _sdrAudioEl      = null;
+        var _sdrVolume       = 100;
+
+        function _initSdr() {
+            _sdrAudioEl = new Audio();
+            _sdrAudioEl.volume = _sdrVolume / 100;
+            const sv = parseInt(localStorage.getItem('sdrVolume') ?? '100');
+            sdrSetVolume(sv);
+        }
+
+        function sdrToggleAudio() {
+            _sdrAudioEnabled = !_sdrAudioEnabled;
+            localStorage.setItem('sdrAudioEnabled', _sdrAudioEnabled ? '1' : '0');
+            if (_sdrAudioEnabled) {
+                _sdrConnectAudio();
+            } else {
+                _sdrDisconnectAudio();
+            }
+            _updateSdrAudioBtn();
+        }
+
+        function _sdrConnectAudio() {
+            if (!_sdrAudioEl) return;
+            const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const audioWsUrl = wsProto + '//' + location.host + '/ws/sdr-audio';
+            // Use MediaSource if available for streaming PCM, otherwise fall back
+            // to a simple approach using the proxy WS
+            _sdrAudioEl.src = '';
+            // We'll use a simple approach: proxy WS feeds an AudioContext
+            if (_sdrAudioCtx) { try { _sdrAudioCtx.close(); } catch(e){} }
+            _sdrAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            _sdrGainNode = _sdrAudioCtx.createGain();
+            _sdrGainNode.gain.value = _sdrVolume / 100;
+            _sdrGainNode.connect(_sdrAudioCtx.destination);
+            _sdrWs = new WebSocket(audioWsUrl);
+            _sdrWs.binaryType = 'arraybuffer';
+            _sdrWs.onmessage = function(e) {
+                if (!_sdrAudioEnabled) return;
+                const int16 = new Int16Array(e.data);
+                const float32 = new Float32Array(int16.length);
+                for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+                const buf = _sdrAudioCtx.createBuffer(1, float32.length, 24000);
+                buf.copyToChannel(float32, 0);
+                const src = _sdrAudioCtx.createBufferSource();
+                src.buffer = buf;
+                src.connect(_sdrGainNode);
+                src.start();
+            };
+            _sdrWs.onclose = function() {
+                if (_sdrAudioEnabled) setTimeout(_sdrConnectAudio, 3000);
+            };
+        }
+
+        function _sdrDisconnectAudio() {
+            if (_sdrWs) { try { _sdrWs.close(); } catch(e){} _sdrWs = null; }
+            if (_sdrAudioCtx) { try { _sdrAudioCtx.close(); } catch(e){} _sdrAudioCtx = null; }
+        }
+
+        var _sdrAudioCtx = null;
+        var _sdrGainNode = null;
+        var _sdrWs       = null;
+
+        function sdrSetVolume(val) {
+            val = parseInt(val);
+            _sdrVolume = val;
+            if (_sdrGainNode) _sdrGainNode.gain.value = val / 100;
+            document.getElementById('sdrVolDisplayOv').textContent = val + '%';
+            document.getElementById('sdrVolSliderOv').value = val;
+            localStorage.setItem('sdrVolume', val);
+        }
+
+        function _updateSdrAudioBtn() {
+            const streaming = _sdrAudioEnabled && _sdrActive;
+            ['mobBtnSdrAudio', 'sdrAudioToggleOv'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.classList.toggle('active', _sdrAudioEnabled);
+                el.classList.toggle('streaming', streaming);
+            });
+            const mob = document.getElementById('mobBtnSdrAudio');
+            if (mob) mob.innerHTML = '<span style="font-size:16px;">📡</span><span>SDR</span>';
+            const ov = document.getElementById('sdrAudioToggleOv');
+            if (ov) ov.textContent = _sdrAudioEnabled ? '🔊 Enable' : '🔇 Muted';
+        }
+
+        function _onSdrState(d) {
+            const connected = d.connected !== false;
+            const offBadge  = document.getElementById('sdrOfflineBadge');
+            const section   = document.getElementById('sdrSection');
+            if (offBadge) offBadge.style.display = connected ? 'none' : '';
+            document.getElementById('sdrFreqBadge').textContent  = connected ? (d.freq  || '--') : '--';
+            document.getElementById('sdrLabelBadge').textContent = connected ? (d.label || '--') : '--';
+            document.getElementById('sdrDbBadge').textContent    = '';
+            const holdBadge = document.getElementById('sdrHoldBadge');
+            if (holdBadge) holdBadge.style.display = d.holdFreq ? '' : 'none';
+            const holdBtn = document.getElementById('sdrHoldBtn');
+            if (holdBtn) {
+                holdBtn.style.background  = d.holdFreq ? '#003a00' : '#1a1a1a';
+                holdBtn.style.borderColor = d.holdFreq ? '#00aa00' : '#333';
+                holdBtn.style.color       = d.holdFreq ? '#4f4'    : '#777';
+            }
+            if (d.channels) _renderSdrChannels(d);
+        }
+
+        function _onSdrFreqChange(m) {
+            document.getElementById('sdrFreqBadge').textContent  = m.freq  || '--';
+            document.getElementById('sdrLabelBadge').textContent = m.label || m.freq || '--';
+            document.getElementById('sdrDbBadge').textContent    = '';
+            document.getElementById('sdrPulse').classList.remove('on');
+            _sdrActive = false;
+            _updateSdrAudioBtn();
+        }
+
+        function _onSdrSignal(m) {
+            _sdrActive = !!m.active;
+            document.getElementById('sdrPulse').classList.toggle('on', _sdrActive);
+            if (m.db != null)
+                document.getElementById('sdrDbBadge').textContent = _sdrActive ? m.db + ' dB' : '';
+            _updateSdrAudioBtn();
+        }
+
+        function _onSdrChannelsUpdate(m) {
+            const holdBadge = document.getElementById('sdrHoldBadge');
+            if (holdBadge) holdBadge.style.display = m.holdFreq ? '' : 'none';
+            const holdBtn = document.getElementById('sdrHoldBtn');
+            if (holdBtn) {
+                holdBtn.style.background  = m.holdFreq ? '#003a00' : '#1a1a1a';
+                holdBtn.style.borderColor = m.holdFreq ? '#00aa00' : '#333';
+                holdBtn.style.color       = m.holdFreq ? '#4f4'    : '#777';
+            }
+            _renderSdrChannels(m);
+        }
+
+        function _renderSdrChannels(d) {
+            const el = document.getElementById('sdrChannelList');
+            if (!el) return;
+            const channels = d.channels || {};
+            const skipped  = new Set(d.skipped  || []);
+            const holdFreq = d.holdFreq || null;
+            const freqs = Object.keys(channels).sort((a,b) => parseFloat(a)-parseFloat(b));
+            if (!freqs.length) { el.innerHTML = '<div style="color:#666;padding:8px;">No channels configured</div>'; return; }
+            el.innerHTML = freqs.map(f => {
+                const label = typeof channels[f] === 'object' ? (channels[f].label || f) : channels[f];
+                const skp   = skipped.has(f);
+                const held  = holdFreq === f;
+                return `<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;
+                                    border-bottom:1px solid #2a2a2a;">
+                    <span style="font-size:12px;font-weight:bold;color:${held?'#4f4':'#ccc'};min-width:80px;">${escHtml(f)}</span>
+                    <span style="flex:1;font-size:12px;color:${skp?'#555':'#aaa'};
+                                 text-decoration:${skp?'line-through':'none'};">${escHtml(String(label))}</span>
+                    <button onclick="sdrSkipChannel('${escHtml(f)}')"
+                            style="font-size:10px;padding:2px 7px;background:${skp?'#2a1000':'#1a1a1a'};
+                                   border:1px solid ${skp?'#663300':'#333'};color:${skp?'#f84':'#777'};
+                                   border-radius:3px;cursor:pointer;"
+                            title="${skp?'Include in scan':'Skip frequency'}">${skp?'▶ Include':'⊘ Skip'}</button>
+                    <button onclick="sdrHoldFreq('${escHtml(f)}')"
+                            style="font-size:10px;padding:2px 7px;background:${held?'#003a00':'#1a1a1a'};
+                                   border:1px solid ${held?'#00aa00':'#333'};color:${held?'#4f4':'#777'};
+                                   border-radius:3px;cursor:pointer;"
+                            title="${held?'Release hold':'Hold this frequency'}">${held?'🔓 Release':'🔒 Hold'}</button>
+                </div>`;
+            }).join('');
+        }
+
+        function sdrSkip()    { fetch('/api/sdr/skip',   {method:'POST'}); }
+        function sdrHoldToggle() {
+            const held = document.getElementById('sdrHoldBadge').style.display !== 'none';
+            fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({freq: held ? null : document.getElementById('sdrFreqBadge').textContent})});
+        }
+        function sdrSkipChannel(f) { fetch('/api/sdr/skip', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({freq:f})}); }
+        function sdrHoldFreq(f) {
+            const held = document.getElementById('sdrHoldBadge').style.display !== 'none'
+                      && document.getElementById('sdrFreqBadge').textContent === f;
+            fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({freq: held ? null : f})});
+        }
+        function openSdrModal()             { document.getElementById('sdrModal').style.display = 'flex'; }
+        function closeSdrModal()            { document.getElementById('sdrModal').style.display = 'none'; }
+        function closeSdrModalIfBackdrop(e) { if (e.target===document.getElementById('sdrModal')) closeSdrModal(); }
+
         // ---- Wake Lock ----
         var _wakeLock = null;
         (function _initWakeLock() {
@@ -4374,6 +4754,8 @@ registerProcessor('mic-decimator', MicDecimator);
         applyStoredVolume();
         applyStoredFilters();
         _fetchTrCalls();
+        _initSdr();
+        fetch('/api/sdr/state').then(r=>r.json()).then(_onSdrState).catch(()=>{});
         log('Dispatcher ready', 'ok');
         // Populate device list on load (labels appear only after mic permission granted via Test or PTT)
         populateMicDevices().catch(() => {});
@@ -4944,6 +5326,97 @@ def allstar_tx_ws(ws):
                 allstar_mgr.send_voice(data)
     except Exception:
         pass
+
+
+# -------------------------
+# SDR SCANNER PROXY ENDPOINTS
+# -------------------------
+
+@app.route('/api/sdr/state')
+def sdr_state():
+    return jsonify(_sdr_state_snapshot())
+
+@app.route('/api/sdr/skip', methods=['POST'])
+def sdr_skip():
+    try:
+        r = urllib.request.urlopen(
+            urllib.request.Request(_sdr_api_url('/api/skip'), method='POST', data=b''),
+            timeout=3)
+        return jsonify({'ok': True}), r.status
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 502
+
+@app.route('/api/sdr/resume', methods=['POST'])
+def sdr_resume():
+    try:
+        r = urllib.request.urlopen(
+            urllib.request.Request(_sdr_api_url('/api/resume'), method='POST', data=b''),
+            timeout=3)
+        return jsonify({'ok': True}), r.status
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 502
+
+@app.route('/api/sdr/hold', methods=['POST'])
+def sdr_hold():
+    data = request.get_json() or {}
+    payload = json.dumps(data).encode()
+    try:
+        req = urllib.request.Request(
+            _sdr_api_url('/api/hold'), method='POST', data=payload,
+            headers={'Content-Type': 'application/json'})
+        r = urllib.request.urlopen(req, timeout=3)
+        return jsonify({'ok': True}), r.status
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 502
+
+@app.route('/api/sdr/channel', methods=['PUT'])
+def sdr_channel_put():
+    data = request.get_json() or {}
+    payload = json.dumps(data).encode()
+    try:
+        req = urllib.request.Request(
+            _sdr_api_url('/api/channel'), method='PUT', data=payload,
+            headers={'Content-Type': 'application/json'})
+        r = urllib.request.urlopen(req, timeout=3)
+        return jsonify({'ok': True}), r.status
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 502
+
+@app.route('/api/sdr/channel/<freq>', methods=['DELETE'])
+def sdr_channel_delete(freq):
+    try:
+        req = urllib.request.Request(
+            _sdr_api_url(f'/api/channel/{freq}'), method='DELETE', data=b'')
+        r = urllib.request.urlopen(req, timeout=3)
+        return jsonify({'ok': True}), r.status
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 502
+
+@sock.route('/ws/sdr-audio')
+def sdr_audio_proxy(ws):
+    """Proxy the scanner's raw PCM audio WebSocket to browser clients."""
+    try:
+        import websocket as _wsc
+    except ImportError:
+        return
+    sdr_ws_audio = _sdr_ws_url().replace('/ws', '/ws/audio')
+    try:
+        client = _wsc.create_connection(sdr_ws_audio, timeout=5)
+    except Exception:
+        return
+    try:
+        while True:
+            data = client.recv()
+            if data is None:
+                break
+            ws.send(data)
+    except Exception:
+        pass
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':
