@@ -1496,18 +1496,7 @@ HTML = '''
         .mobile-action-bar { display: none; }
 
         /* Audio controls overlay */
-        #audioOverlayBtn {
-            position: fixed; bottom: 70px; left: 12px; z-index: 9000;
-            width: 44px; height: 44px; border-radius: 50%;
-            background: #1a1a1a; border: 1px solid #555; color: #ccc;
-            font-size: 20px; cursor: pointer; display: flex;
-            align-items: center; justify-content: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-        }
         #audioOverlayBtn:hover { background: #2a2a2a; border-color: #888; }
-        @media (min-width: 601px) {
-            #audioOverlayBtn { bottom: 16px; left: 12px; }
-        }
         #audioOverlay {
             display: none; position: fixed; inset: 0; z-index: 50000;
             background: rgba(0,0,0,0.6);
@@ -1679,6 +1668,9 @@ HTML = '''
     <div class="header-bar">
         <h1>&#9889; RADIO DISPATCHER</h1>
         <span style="display:flex;align-items:center;gap:10px;">
+            <button id="audioOverlayBtn" onclick="toggleAudioOverlay()" title="Audio controls"
+                    style="background:#1a1a1a;border:1px solid #333;color:#ccc;border-radius:5px;
+                           padding:3px 9px;font-size:14px;cursor:pointer;">&#127911;</button>
             <button id="wakeLockBtn" onclick="toggleWakeLock()" title="Keep screen awake"
                     style="background:#1a1a1a;border:1px solid #333;color:#666;border-radius:5px;
                            padding:3px 9px;font-size:12px;cursor:pointer;display:none;">&#9728;</button>
@@ -1777,8 +1769,6 @@ HTML = '''
     <!-- MOBILE BOTTOM ACTION BAR (must be before <script> so getElementById works at parse time) -->
     <div id="nodeToastContainer"></div>
 
-    <!-- Audio controls overlay (accessible at any screen size) -->
-    <button id="audioOverlayBtn" onclick="toggleAudioOverlay()" title="Audio controls">&#127911;</button>
     <div id="audioOverlay" onclick="closeAudioOverlayIfBackdrop(event)">
         <div id="audioOverlayPanel">
             <button id="audioOverlayCloseBtn" onclick="toggleAudioOverlay()">&#10005;</button>
