@@ -3284,15 +3284,22 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             const active = !!m.active;
             const db = m.db;
             if (active) {
-                // Delay display activation to match audio buffer latency
-                if (_sdrActivateTimer) clearTimeout(_sdrActivateTimer);
-                _sdrActivateTimer = setTimeout(function() {
-                    _sdrActive = true;
-                    document.getElementById('sdrPulse').classList.add('on');
+                // Update dB live regardless of display lag
+                if (_sdrActive) {
                     document.getElementById('sdrDbBadge').textContent = db != null ? db + ' dB' : '';
-                    _updateSdrDisplay();
-                    _updateSdrAudioBtn();
-                }, _sdrLag);
+                    return; // already displayed, nothing more to do
+                }
+                // First active signal — start lag timer once
+                if (!_sdrActivateTimer) {
+                    _sdrActivateTimer = setTimeout(function() {
+                        _sdrActivateTimer = null;
+                        _sdrActive = true;
+                        document.getElementById('sdrPulse').classList.add('on');
+                        document.getElementById('sdrDbBadge').textContent = db != null ? db + ' dB' : '';
+                        _updateSdrDisplay();
+                        _updateSdrAudioBtn();
+                    }, _sdrLag);
+                }
             } else {
                 if (_sdrActivateTimer) { clearTimeout(_sdrActivateTimer); _sdrActivateTimer = null; }
                 _sdrActive = false;
