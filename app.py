@@ -896,8 +896,9 @@ _sdr_state = {
     'active':         False,
     'db':             None,
     'holdFreq':       None,
-    'channels':       {},   # merged: freq -> {label, squelch_rms, gain, pl}
+    'channels':       {},   # merged: freq -> {label, squelch_rms, gain, pl, bank, modulation, bandwidth, hp_filter}
     'skipped':        [],
+    'banks':          {},   # bank_name -> bool (enabled)
     'defaultSquelch': None,
     'defaultGain':    None,
 }
@@ -958,7 +959,7 @@ def _sdr_on_close(ws, code, msg):
 def _sdr_on_error(ws, err):
     pass  # reconnect handled by run_forever restart
 
-def _sdr_merge_channels(labels, csq, cgain, cpl):
+def _sdr_merge_channels(labels, csq, cgain, cpl, cbank, cmod, cbw, chpf):
     """Merge the scanner's separate channel dicts into one object per freq."""
     merged = {}
     for freq, lbl in labels.items():
@@ -969,6 +970,14 @@ def _sdr_merge_channels(labels, csq, cgain, cpl):
             entry['gain'] = cgain[freq]
         if freq in cpl and cpl[freq]:
             entry['pl'] = cpl[freq]
+        if freq in cbank and cbank[freq]:
+            entry['bank'] = cbank[freq]
+        if freq in cmod and cmod[freq]:
+            entry['modulation'] = cmod[freq]
+        if freq in cbw and cbw[freq]:
+            entry['bandwidth'] = cbw[freq]
+        if freq in chpf and chpf[freq]:
+            entry['hp_filter'] = chpf[freq]
         merged[freq] = entry
     return merged
 
@@ -992,20 +1001,23 @@ def _sdr_on_message(ws, raw):
             _sdr_state['db']     = m.get('db')
         elif t in ('channels_update', 'state'):
             # 'state' arrives on initial connect; 'channels_update' on changes.
-            # Scanner sends channels/squelch/gain/pl as separate dicts.
             if t == 'state':
-                # Full state wraps streams as a list
                 streams = m.get('streams', [])
                 src = streams[0] if streams else m
             else:
                 src = m
             labels  = src.get('channels', {})
-            csq     = src.get('channelSquelch', {})
-            cgain   = src.get('channelGain', {})
-            cpl     = src.get('channelPL', {})
-            _sdr_state['channels']       = _sdr_merge_channels(labels, csq, cgain, cpl)
+            csq     = src.get('channelSquelch',    {})
+            cgain   = src.get('channelGain',        {})
+            cpl     = src.get('channelPL',          {})
+            cbank   = src.get('channelBank',        {})
+            cmod    = src.get('channelModulation',  {})
+            cbw     = src.get('channelBandwidth',   {})
+            chpf    = src.get('channelHpFilter',    {})
+            _sdr_state['channels']       = _sdr_merge_channels(labels, csq, cgain, cpl, cbank, cmod, cbw, chpf)
             _sdr_state['skipped']        = src.get('skipped', [])
             _sdr_state['holdFreq']       = src.get('holdFreq')
+            _sdr_state['banks']          = src.get('banks', {})
             _sdr_state['defaultSquelch'] = src.get('defaultSquelch')
             _sdr_state['defaultGain']    = src.get('defaultGain')
         elif t == 'hold_update':
@@ -2157,40 +2169,52 @@ HTML = '''
                             <button onclick="closeSdrModal()"
                                     style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;">✕</button>
                         </div>
+                        <!-- Bank toggles (populated by JS) -->
+                        <div id="sdrBankPanel" style="display:none;margin-bottom:8px;flex-shrink:0;">
+                            <div style="font-size:9px;color:#556;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px;">Scan Banks</div>
+                            <div id="sdrBankBtns" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+                        </div>
                         <!-- Add channel form (hidden by default) -->
                         <div id="sdrAddForm" style="display:none;background:#222;border-radius:6px;padding:10px;margin-bottom:10px;flex-shrink:0;">
                             <div style="font-size:11px;color:#aaa;margin-bottom:8px;font-weight:bold;letter-spacing:1px;">ADD CHANNEL</div>
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
-                                <div>
-                                    <div style="font-size:10px;color:#888;margin-bottom:2px;">Frequency (MHz)</div>
+                                <div><div style="font-size:10px;color:#888;margin-bottom:2px;">Frequency (MHz)</div>
                                     <input id="sdrAddFreq" type="text" placeholder="446.000"
-                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;
-                                                  border-radius:3px;padding:4px 6px;font-size:12px;">
-                                </div>
-                                <div>
-                                    <div style="font-size:10px;color:#888;margin-bottom:2px;">Label</div>
+                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;border-radius:3px;padding:4px 6px;font-size:12px;"></div>
+                                <div><div style="font-size:10px;color:#888;margin-bottom:2px;">Label</div>
                                     <input id="sdrAddLabel" type="text" placeholder="Channel name"
-                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;
-                                                  border-radius:3px;padding:4px 6px;font-size:12px;">
-                                </div>
-                                <div>
-                                    <div style="font-size:10px;color:#888;margin-bottom:2px;">Squelch RMS (0.0–1.0)</div>
+                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;border-radius:3px;padding:4px 6px;font-size:12px;"></div>
+                                <div><div style="font-size:10px;color:#888;margin-bottom:2px;">Bank</div>
+                                    <input id="sdrAddBank" type="text" placeholder="e.g. Police, Fire"
+                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;border-radius:3px;padding:4px 6px;font-size:12px;"></div>
+                                <div><div style="font-size:10px;color:#888;margin-bottom:2px;">Mode</div>
+                                    <select id="sdrAddMode" style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;border-radius:3px;padding:4px 6px;font-size:12px;">
+                                        <option value="">FM (default)</option>
+                                        <option value="fm">FM — Land Mobile (±5 kHz)</option>
+                                        <option value="nfm">NFM — Narrow FM (±2.5 kHz)</option>
+                                        <option value="am">AM</option>
+                                    </select></div>
+                                <div><div style="font-size:10px;color:#888;margin-bottom:2px;">Channel Width (kHz)</div>
+                                    <select id="sdrAddBW" style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;border-radius:3px;padding:4px 6px;font-size:12px;">
+                                        <option value="">Auto</option>
+                                        <option value="6.25">6.25 kHz (Narrowband)</option>
+                                        <option value="8.33">8.33 kHz (Aviation)</option>
+                                        <option value="12.5">12.5 kHz (NFM)</option>
+                                        <option value="25">25 kHz (FM Land Mobile)</option>
+                                        <option value="30">30 kHz (FM)</option>
+                                    </select></div>
+                                <div><div style="font-size:10px;color:#888;margin-bottom:2px;">CTCSS / PL Tone (Hz)</div>
+                                    <input id="sdrAddPL" type="number" placeholder="blank = off" step="0.1" min="0"
+                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;border-radius:3px;padding:4px 6px;font-size:12px;"></div>
+                                <div><div style="font-size:10px;color:#888;margin-bottom:2px;">Sub-audio Filter (Hz)</div>
+                                    <input id="sdrAddHPF" type="number" placeholder="blank = off" step="0.1" min="0" max="1000"
+                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;border-radius:3px;padding:4px 6px;font-size:12px;"></div>
+                                <div><div style="font-size:10px;color:#888;margin-bottom:2px;">Squelch RMS (0.0–1.0)</div>
                                     <input id="sdrAddSq" type="number" placeholder="default" step="0.001" min="0" max="1"
-                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;
-                                                  border-radius:3px;padding:4px 6px;font-size:12px;">
-                                </div>
-                                <div>
-                                    <div style="font-size:10px;color:#888;margin-bottom:2px;">Gain (dB or "auto")</div>
+                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;border-radius:3px;padding:4px 6px;font-size:12px;"></div>
+                                <div><div style="font-size:10px;color:#888;margin-bottom:2px;">Gain (dB or "auto")</div>
                                     <input id="sdrAddGain" type="text" placeholder="auto"
-                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;
-                                                  border-radius:3px;padding:4px 6px;font-size:12px;">
-                                </div>
-                                <div>
-                                    <div style="font-size:10px;color:#888;margin-bottom:2px;">PL Tone (Hz, 0=off)</div>
-                                    <input id="sdrAddPL" type="number" placeholder="0" step="0.1" min="0"
-                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;
-                                                  border-radius:3px;padding:4px 6px;font-size:12px;">
-                                </div>
+                                           style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;color:#ddd;border-radius:3px;padding:4px 6px;font-size:12px;"></div>
                             </div>
                             <div style="display:flex;gap:6px;">
                                 <button onclick="sdrAddChannel()"
@@ -2205,7 +2229,6 @@ HTML = '''
                         <div id="sdrChannelList" style="overflow-y:auto;flex:1;"></div>
                     </div>
                 </div>
-                <!-- SDR edit channel inline form template (rendered per-row by JS) -->
 
                 <!-- SCANNER CALL LOG MODAL -->
                 <div id="trModal" onclick="closeTrModalIfBackdrop(event)"
@@ -3193,6 +3216,37 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _updateSdrAudioBtn();
         }
 
+        function _sdrMergeChannels(m) {
+            // The scanner sends separate dicts; merge them into per-channel objects.
+            const labels = m.channels        || {};
+            const csq    = m.channelSquelch  || {};
+            const cgain  = m.channelGain     || {};
+            const cpl    = m.channelPL       || {};
+            const cbank  = m.channelBank     || {};
+            const cmod   = m.channelModulation || {};
+            const cbw    = m.channelBandwidth  || {};
+            const chpf   = m.channelHpFilter   || {};
+            const merged = {};
+            Object.keys(labels).forEach(f => {
+                const lbl = labels[f];
+                const entry = {label: typeof lbl === 'string' ? lbl : (lbl && lbl.label ? lbl.label : f)};
+                if (f in csq)   entry.squelch_rms = csq[f];
+                if (f in cgain) entry.gain        = cgain[f];
+                if (cpl[f])     entry.pl          = cpl[f];
+                if (cbank[f])   entry.bank        = cbank[f];
+                if (cmod[f])    entry.modulation  = cmod[f];
+                if (cbw[f])     entry.bandwidth   = cbw[f];
+                if (chpf[f])    entry.hp_filter   = chpf[f];
+                merged[f] = entry;
+            });
+            return {
+                channels: merged,
+                skipped:  m.skipped  || [],
+                holdFreq: m.holdFreq || null,
+                banks:    m.banks    || {},
+            };
+        }
+
         function _onSdrChannelsUpdate(m) {
             const holdBadge = document.getElementById('sdrHoldBadge');
             if (holdBadge) holdBadge.style.display = m.holdFreq ? '' : 'none';
@@ -3202,14 +3256,65 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 holdBtn.style.borderColor = m.holdFreq ? '#00aa00' : '#333';
                 holdBtn.style.color       = m.holdFreq ? '#4f4'    : '#777';
             }
-            _renderSdrChannels(m);
+            _renderSdrChannels(_sdrMergeChannels(m));
         }
 
         var _sdrEditFreq = null;
-        var _sdrLastChannelData = {channels:{}, skipped:[], holdFreq:null};
+        var _sdrLastChannelData = {channels:{}, skipped:[], holdFreq:null, banks:{}};
+
+        var _SDR_MODE_LABELS = {'':'FM (default)', 'fm':'FM Land Mobile', 'nfm':'NFM', 'am':'AM'};
+        var _SDR_MODE_OPTS = [
+            ['', 'FM (default)'],
+            ['fm', 'FM — Land Mobile (±5 kHz)'],
+            ['nfm', 'NFM — Narrow FM (±2.5 kHz)'],
+            ['am', 'AM'],
+        ];
+        var _SDR_BW_OPTS = [
+            ['', 'Auto'],
+            ['6.25', '6.25 kHz'],
+            ['8.33', '8.33 kHz'],
+            ['12.5', '12.5 kHz'],
+            ['25', '25 kHz'],
+            ['30', '30 kHz'],
+        ];
+
+        function _sdrModeSelect(id, val) {
+            return '<select id="' + id + '" style="width:100%;background:#111;border:1px solid #444;color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;">'
+                + _SDR_MODE_OPTS.map(o => '<option value="' + o[0] + '"' + (o[0]===val?' selected':'') + '>' + o[1] + '</option>').join('')
+                + '</select>';
+        }
+        function _sdrBwSelect(id, val) {
+            const sval = val != null ? String(val) : '';
+            return '<select id="' + id + '" style="width:100%;background:#111;border:1px solid #444;color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;">'
+                + _SDR_BW_OPTS.map(o => '<option value="' + o[0] + '"' + (o[0]===sval?' selected':'') + '>' + o[1] + '</option>').join('')
+                + '</select>';
+        }
+
+        function _renderSdrBanks(banks) {
+            const panel = document.getElementById('sdrBankPanel');
+            const btns  = document.getElementById('sdrBankBtns');
+            if (!panel || !btns) return;
+            const names = Object.keys(banks || {});
+            const show  = names.length > 1 || (names.length === 1 && names[0] !== 'Default');
+            panel.style.display = show ? '' : 'none';
+            btns.innerHTML = names.sort().map(b => {
+                const on = banks[b] !== false;
+                return '<button onclick="sdrToggleBank(' + JSON.stringify(b) + ',' + (on?'false':'true') + ')"'
+                    + ' style="font-size:10px;padding:2px 9px;border-radius:3px;cursor:pointer;'
+                    + (on ? 'background:#002800;border:1px solid #00aa00;color:#4f4;'
+                          : 'background:#1a1a1a;border:1px solid #333;color:#555;') + '">'
+                    + escHtml(b) + '</button>';
+            }).join('');
+        }
+
+        function sdrToggleBank(bank, enabled) {
+            fetch('/api/sdr/bank', {method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({bank, enabled})});
+        }
 
         function _renderSdrChannels(d) {
             _sdrLastChannelData = d;
+            _renderSdrBanks(d.banks || {});
             const el = document.getElementById('sdrChannelList');
             if (!el) return;
             const channels = d.channels || {};
@@ -3224,70 +3329,74 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const sqRms = isObj && ch.squelch_rms != null ? ch.squelch_rms : '';
                 const gain  = isObj && ch.gain        != null ? ch.gain        : '';
                 const pl    = isObj && ch.pl          != null ? ch.pl          : '';
+                const bank  = isObj && ch.bank        ? ch.bank : '';
+                const mod   = isObj && ch.modulation  ? ch.modulation : '';
+                const bw    = isObj && ch.bandwidth   != null ? String(ch.bandwidth) : '';
+                const hpf   = isObj && ch.hp_filter   != null ? ch.hp_filter : '';
                 const skp   = skipped.has(f);
                 const held  = holdFreq === f;
                 const editing = _sdrEditFreq === f;
                 const rowBg = held ? '#001a00' : (skp ? '#1a1000' : 'transparent');
-                const rowHtml = editing ? `
+                const ef = escHtml(f);
+                if (editing) return `
                     <div style="padding:8px 4px;border-bottom:1px solid #2a2a2a;background:#1a1a2a;border-radius:4px;">
                         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-                            <span style="font-size:12px;font-weight:bold;color:#7af;min-width:80px;">${escHtml(f)}</span>
+                            <span style="font-size:12px;font-weight:bold;color:#7af;min-width:80px;">${ef}</span>
                             <span style="font-size:10px;color:#555;">Editing</span>
                         </div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
                             <label style="font-size:10px;color:#777;">Label
-                                <input id="sdrELabel_${escHtml(f)}" value="${escHtml(String(label))}"
-                                    style="display:block;width:100%;background:#111;border:1px solid #444;
-                                           color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;margin-top:2px;">
-                            </label>
-                            <label style="font-size:10px;color:#777;">Squelch RMS (0.0–1.0)
-                                <input id="sdrESq_${escHtml(f)}" value="${escHtml(String(sqRms))}" placeholder="default"
-                                    style="display:block;width:100%;background:#111;border:1px solid #444;
-                                           color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;margin-top:2px;">
-                            </label>
+                                <input id="sdrELabel_${ef}" value="${escHtml(String(label))}"
+                                    style="display:block;width:100%;background:#111;border:1px solid #444;color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;margin-top:2px;"></label>
+                            <label style="font-size:10px;color:#777;">Bank
+                                <input id="sdrEBank_${ef}" value="${escHtml(bank)}" placeholder="e.g. Police"
+                                    style="display:block;width:100%;background:#111;border:1px solid #444;color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;margin-top:2px;"></label>
+                            <label style="font-size:10px;color:#777;">Mode<div style="margin-top:2px;">${_sdrModeSelect('sdrEMode_'+ef, mod)}</div></label>
+                            <label style="font-size:10px;color:#777;">Channel Width<div style="margin-top:2px;">${_sdrBwSelect('sdrEBw_'+ef, bw)}</div></label>
+                            <label style="font-size:10px;color:#777;">CTCSS / PL Tone (Hz)
+                                <input id="sdrEPl_${ef}" value="${escHtml(String(pl))}" placeholder="blank = off" type="number" step="0.1" min="0"
+                                    style="display:block;width:100%;background:#111;border:1px solid #444;color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;margin-top:2px;"></label>
+                            <label style="font-size:10px;color:#777;">Sub-audio Filter (Hz)
+                                <input id="sdrEHpf_${ef}" value="${escHtml(String(hpf))}" placeholder="blank = off" type="number" step="0.1" min="0" max="1000"
+                                    style="display:block;width:100%;background:#111;border:1px solid #444;color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;margin-top:2px;"></label>
+                            <label style="font-size:10px;color:#777;">Squelch RMS
+                                <input id="sdrESq_${ef}" value="${escHtml(String(sqRms))}" placeholder="default" type="number" step="0.001" min="0" max="1"
+                                    style="display:block;width:100%;background:#111;border:1px solid #444;color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;margin-top:2px;"></label>
                             <label style="font-size:10px;color:#777;">Gain (dB or auto)
-                                <input id="sdrEGain_${escHtml(f)}" value="${escHtml(String(gain))}" placeholder="auto"
-                                    style="display:block;width:100%;background:#111;border:1px solid #444;
-                                           color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;margin-top:2px;">
-                            </label>
-                            <label style="font-size:10px;color:#777;">PL Tone (Hz)
-                                <input id="sdrEPl_${escHtml(f)}" value="${escHtml(String(pl))}" placeholder="none"
-                                    style="display:block;width:100%;background:#111;border:1px solid #444;
-                                           color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;margin-top:2px;">
-                            </label>
+                                <input id="sdrEGain_${ef}" value="${escHtml(String(gain))}" placeholder="auto"
+                                    style="display:block;width:100%;background:#111;border:1px solid #444;color:#ccc;border-radius:3px;padding:3px 5px;font-size:11px;box-sizing:border-box;margin-top:2px;"></label>
                         </div>
                         <div style="display:flex;gap:6px;">
-                            <button onclick="sdrSaveChannel('${escHtml(f)}')"
-                                    style="font-size:11px;padding:3px 12px;background:#003a00;border:1px solid #00aa00;
-                                           color:#4f4;border-radius:3px;cursor:pointer;">Save</button>
+                            <button onclick="sdrSaveChannel('${ef}')"
+                                    style="font-size:11px;padding:3px 12px;background:#003a00;border:1px solid #00aa00;color:#4f4;border-radius:3px;cursor:pointer;">Save</button>
                             <button onclick="sdrCancelEdit()"
-                                    style="font-size:11px;padding:3px 12px;background:#1a1a1a;border:1px solid #333;
-                                           color:#777;border-radius:3px;cursor:pointer;">Cancel</button>
-                            <button onclick="sdrDeleteChannel('${escHtml(f)}')"
-                                    style="font-size:11px;padding:3px 12px;background:#3a0000;border:1px solid #aa0000;
-                                           color:#f44;border-radius:3px;cursor:pointer;margin-left:auto;">Delete</button>
+                                    style="font-size:11px;padding:3px 12px;background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;cursor:pointer;">Cancel</button>
+                            <button onclick="sdrDeleteChannel('${ef}')"
+                                    style="font-size:11px;padding:3px 12px;background:#3a0000;border:1px solid #aa0000;color:#f44;border-radius:3px;cursor:pointer;margin-left:auto;">Delete</button>
                         </div>
-                    </div>` : `
-                    <div style="display:flex;align-items:center;gap:6px;padding:6px 4px;
-                                border-bottom:1px solid #2a2a2a;background:${rowBg};">
-                        <span style="font-size:12px;font-weight:bold;color:${held?'#4f4':'#ccc'};min-width:80px;">${escHtml(f)}</span>
-                        <span style="flex:1;font-size:12px;color:${skp?'#555':'#aaa'};
-                                     text-decoration:${skp?'line-through':'none'};">${escHtml(String(label))}</span>
-                        <button onclick="sdrSkipChannel('${escHtml(f)}')"
-                                style="font-size:10px;padding:2px 7px;background:${skp?'#2a1000':'#1a1a1a'};
-                                       border:1px solid ${skp?'#663300':'#333'};color:${skp?'#f84':'#777'};
-                                       border-radius:3px;cursor:pointer;"
-                                title="${skp?'Include in scan':'Skip frequency'}">${skp?'▶':'⊘'}</button>
-                        <button onclick="sdrHoldFreq('${escHtml(f)}')"
-                                style="font-size:10px;padding:2px 7px;background:${held?'#003a00':'#1a1a1a'};
-                                       border:1px solid ${held?'#00aa00':'#333'};color:${held?'#4f4':'#777'};
-                                       border-radius:3px;cursor:pointer;"
-                                title="${held?'Release hold':'Hold this frequency'}">${held?'🔓':'🔒'}</button>
-                        <button onclick="sdrEditChannel('${escHtml(f)}')"
-                                style="font-size:10px;padding:2px 7px;background:#1a1a2a;border:1px solid #334;
-                                       color:#7af;border-radius:3px;cursor:pointer;" title="Edit">✎</button>
                     </div>`;
-                return rowHtml;
+                const badges = [
+                    bank ? '<span style="font-size:9px;color:#5a8aaa;background:#0a1824;border:1px solid #1a3040;border-radius:2px;padding:1px 4px;">' + escHtml(bank) + '</span>' : '',
+                    mod  ? '<span style="font-size:9px;color:#a87;padding:0 2px;">' + escHtml(_SDR_MODE_LABELS[mod]||mod) + '</span>' : '',
+                    bw   ? '<span style="font-size:9px;color:#778;padding:0 2px;">' + escHtml(bw) + ' kHz</span>' : '',
+                    pl   ? '<span style="font-size:9px;color:#a7f;padding:0 2px;">PL ' + escHtml(String(pl)) + '</span>' : '',
+                ].filter(Boolean).join('');
+                return `
+                    <div style="display:flex;align-items:center;gap:6px;padding:6px 4px;border-bottom:1px solid #2a2a2a;background:${rowBg};">
+                        <span style="font-size:12px;font-weight:bold;color:${held?'#4f4':'#ccc'};min-width:80px;">${ef}</span>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:12px;color:${skp?'#555':'#aaa'};text-decoration:${skp?'line-through':'none'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(String(label))}</div>
+                            ${badges ? '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">' + badges + '</div>' : ''}
+                        </div>
+                        <button onclick="sdrSkipChannel('${ef}')"
+                                style="font-size:10px;padding:2px 7px;background:${skp?'#2a1000':'#1a1a1a'};border:1px solid ${skp?'#663300':'#333'};color:${skp?'#f84':'#777'};border-radius:3px;cursor:pointer;flex-shrink:0;"
+                                title="${skp?'Include in scan':'Skip frequency'}">${skp?'▶':'⊘'}</button>
+                        <button onclick="sdrHoldFreq('${ef}')"
+                                style="font-size:10px;padding:2px 7px;background:${held?'#003a00':'#1a1a1a'};border:1px solid ${held?'#00aa00':'#333'};color:${held?'#4f4':'#777'};border-radius:3px;cursor:pointer;flex-shrink:0;"
+                                title="${held?'Release hold':'Hold this frequency'}">${held?'🔓':'🔒'}</button>
+                        <button onclick="sdrEditChannel('${ef}')"
+                                style="font-size:10px;padding:2px 7px;background:#1a1a2a;border:1px solid #334;color:#7af;border-radius:3px;cursor:pointer;flex-shrink:0;" title="Edit">✎</button>
+                    </div>`;
             }).join('');
         }
 
@@ -3295,15 +3404,24 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function sdrCancelEdit()   { _sdrEditFreq = null; _renderSdrChannels(_sdrLastChannelData); }
 
         function sdrSaveChannel(f) {
-            const label  = document.getElementById('sdrELabel_'  + f)?.value.trim();
-            const sqRms  = document.getElementById('sdrESq_'     + f)?.value.trim();
-            const gain   = document.getElementById('sdrEGain_'   + f)?.value.trim();
-            const pl     = document.getElementById('sdrEPl_'     + f)?.value.trim();
+            const ef = f;
+            const label  = document.getElementById('sdrELabel_' + ef)?.value.trim();
+            const bank   = document.getElementById('sdrEBank_'  + ef)?.value.trim();
+            const mod    = document.getElementById('sdrEMode_'  + ef)?.value;
+            const bw     = document.getElementById('sdrEBw_'    + ef)?.value;
+            const pl     = document.getElementById('sdrEPl_'    + ef)?.value.trim();
+            const hpf    = document.getElementById('sdrEHpf_'   + ef)?.value.trim();
+            const sqRms  = document.getElementById('sdrESq_'    + ef)?.value.trim();
+            const gain   = document.getElementById('sdrEGain_'  + ef)?.value.trim();
             const body = {freq: f};
-            if (label) body.label = label;
-            if (sqRms) body.squelch_rms = parseFloat(sqRms);
-            if (gain)  body.gain = gain;
-            if (pl)    body.pl = parseFloat(pl);
+            if (label)       body.label       = label;
+            if (bank != null) body.bank        = bank;
+            if (mod  != null) body.modulation  = mod;
+            if (bw)           body.bandwidth   = parseFloat(bw);
+            if (pl)           body.pl          = parseFloat(pl);  else body.pl = 0;
+            if (hpf)          body.hp_filter   = parseFloat(hpf); else body.hp_filter = 0;
+            if (sqRms)        body.squelch_rms = parseFloat(sqRms);
+            if (gain)         body.gain        = gain;
             fetch('/api/sdr/channel', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
                 .then(() => { _sdrEditFreq = null; });
         }
@@ -3326,22 +3444,34 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function sdrAddChannel() {
             const freq  = document.getElementById('sdrAddFreq')?.value.trim();
             const label = document.getElementById('sdrAddLabel')?.value.trim();
+            const bank  = document.getElementById('sdrAddBank')?.value.trim();
+            const mod   = document.getElementById('sdrAddMode')?.value;
+            const bw    = document.getElementById('sdrAddBW')?.value;
+            const pl    = document.getElementById('sdrAddPL')?.value.trim();
+            const hpf   = document.getElementById('sdrAddHPF')?.value.trim();
             const sqRms = document.getElementById('sdrAddSq')?.value.trim();
             const gain  = document.getElementById('sdrAddGain')?.value.trim();
-            const pl    = document.getElementById('sdrAddPL')?.value.trim();
             if (!freq) { alert('Frequency is required'); return; }
             const body = {freq};
-            if (label) body.label = label;
+            if (label) body.label       = label;
+            if (bank)  body.bank        = bank;
+            if (mod)   body.modulation  = mod;
+            if (bw)    body.bandwidth   = parseFloat(bw);
+            if (pl)    body.pl          = parseFloat(pl);
+            if (hpf)   body.hp_filter   = parseFloat(hpf);
             if (sqRms) body.squelch_rms = parseFloat(sqRms);
-            if (gain)  body.gain = gain;
-            if (pl)    body.pl = parseFloat(pl);
+            if (gain)  body.gain        = gain;
             fetch('/api/sdr/channel', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
                 .then(r => {
                     if (r.ok) {
-                        ['sdrAddFreq','sdrAddLabel','sdrAddSq','sdrAddGain','sdrAddPL'].forEach(id => {
+                        ['sdrAddFreq','sdrAddLabel','sdrAddBank','sdrAddSq','sdrAddGain','sdrAddPL','sdrAddHPF'].forEach(id => {
                             const el = document.getElementById(id);
                             if (el) el.value = '';
                         });
+                        const mEl = document.getElementById('sdrAddMode');
+                        if (mEl) mEl.value = '';
+                        const bEl = document.getElementById('sdrAddBW');
+                        if (bEl) bEl.value = '';
                         sdrHideAddForm();
                     }
                 });
@@ -5586,6 +5716,19 @@ def sdr_channel_delete(freq):
     try:
         req = urllib.request.Request(
             _sdr_api_url(f'/api/channel/{freq}'), method='DELETE', data=b'')
+        r = urllib.request.urlopen(req, timeout=3)
+        return jsonify({'ok': True}), r.status
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 502
+
+@app.route('/api/sdr/bank', methods=['POST'])
+def sdr_bank():
+    data = request.get_json() or {}
+    payload = json.dumps(data).encode()
+    try:
+        req = urllib.request.Request(
+            _sdr_api_url('/api/bank'), method='POST', data=payload,
+            headers={'Content-Type': 'application/json'})
         r = urllib.request.urlopen(req, timeout=3)
         return jsonify({'ok': True}), r.status
     except Exception as e:
