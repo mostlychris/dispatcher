@@ -4299,8 +4299,12 @@ registerProcessor('mic-decimator', MicDecimator);
 
         function _playTrCall(call) {
             if (!call.audio) return;
-            const filter = document.getElementById('trSystemFilter').value;
-            const visible = _trCalls.filter(c => !filter || c.system === filter);
+            const sysFilter = document.getElementById('trSystemFilter').value;
+            const tgFilter  = document.getElementById('trTgFilter').value;
+            const visible = _trCalls.filter(c =>
+                (!sysFilter || c.system === sysFilter) &&
+                (!tgFilter  || String(c.talkgroup) === tgFilter)
+            );
             const idx = visible.findIndex(c => c.id === call.id);
             // Queue calls newer than the clicked one (lower indices), oldest-first
             _trQueue = (idx > 0 ? visible.slice(0, idx).reverse() : [])
