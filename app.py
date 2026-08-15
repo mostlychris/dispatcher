@@ -2136,9 +2136,12 @@ HTML = '''
                                   background:#2a0000;border:1px solid #660000;color:#f88;
                                   border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">OFFLINE</span>
                             <span style="margin-left:auto;display:flex;gap:5px;flex-shrink:0;">
-                                <button onclick="sdrSkip()" title="Skip to next frequency"
+                                <button onclick="sdrSkip()" title="Advance to next frequency"
                                         style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;">⏭<span class="btn-label"> Skip</span></button>
+                                               padding:2px 7px;font-size:10px;cursor:pointer;">⏭<span class="btn-label"> Next</span></button>
+                                <button onclick="sdrBarSkipToggle()" id="sdrSkipBtn" title="Skip / unskip current frequency"
+                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                               padding:2px 7px;font-size:10px;cursor:pointer;">⊘<span class="btn-label"> Skip</span></button>
                                 <button onclick="sdrHoldToggle()" id="sdrHoldBtn" title="Hold / unhold current frequency"
                                         style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
                                                padding:2px 7px;font-size:10px;cursor:pointer;">🔒<span class="btn-label"> Hold</span></button>
@@ -3145,6 +3148,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 freqEl.textContent  = '';
                 labelEl.textContent = 'SCANNING';
             }
+            _updateSdrSkipBtn();
         }
 
         function _initSdr() {
@@ -3442,6 +3446,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function _renderSdrChannels(d) {
             _sdrLastChannelData = d;
+            _updateSdrSkipBtn();
             _renderSdrBanks(d.banks || {});
             const el = document.getElementById('sdrChannelList');
             if (!el) return;
@@ -3606,6 +3611,21 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         function sdrSkip()    { fetch('/api/sdr/resume', {method:'POST'}); }
+        function sdrBarSkipToggle() {
+            const f = _sdrCurrentFreq || _sdrHoldFreq;
+            if (!f) return;
+            sdrSkipChannel(f);
+        }
+        function _updateSdrSkipBtn() {
+            const btn = document.getElementById('sdrSkipBtn');
+            if (!btn) return;
+            const f = _sdrCurrentFreq || _sdrHoldFreq;
+            const skipped = f && (_sdrLastChannelData.skipped || []).includes(f);
+            btn.style.background   = skipped ? '#2a1000' : '#1a1a1a';
+            btn.style.borderColor  = skipped ? '#663300' : '#333';
+            btn.style.color        = skipped ? '#f84'    : '#777';
+            btn.title = skipped ? 'Unskip current frequency' : 'Skip current frequency';
+        }
         function sdrHoldToggle() {
             // Scanner toggles hold when sent the same freq — send held freq to release, current freq to hold
             const target = _sdrHoldFreq || _sdrCurrentFreq;
