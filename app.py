@@ -3607,16 +3607,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function sdrSkip()    { fetch('/api/sdr/skip',   {method:'POST'}); }
         function sdrHoldToggle() {
-            const held = document.getElementById('sdrHoldBadge').style.display !== 'none';
             fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({freq: held ? null : document.getElementById('sdrFreqBadge').textContent})});
+                body: JSON.stringify({freq: _sdrHoldFreq ? null : (_sdrCurrentFreq || null)})});
         }
         function sdrSkipChannel(f) { fetch('/api/sdr/skip', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({freq:f})}); }
         function sdrHoldFreq(f) {
-            const held = document.getElementById('sdrHoldBadge').style.display !== 'none'
-                      && document.getElementById('sdrFreqBadge').textContent === f;
             fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({freq: held ? null : f})});
+                body: JSON.stringify({freq: _sdrHoldFreq === f ? null : f})});
         }
         function openSdrModal() {
             document.getElementById('sdrModal').style.display = 'flex';
