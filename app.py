@@ -3115,6 +3115,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _sdrHpNode        = null;
         var _sdrCurrentFreq   = null;
         var _sdrCurrentLabel  = null;
+        var _sdrHoldFreq      = null;
         var _sdrActivateTimer = null;
         var _sdrClearTimer    = null;
         // Lag measurement (mirrors scanner app's _audioLagMs logic)
@@ -3135,6 +3136,11 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (_sdrActive && _sdrCurrentFreq) {
                 freqEl.textContent  = _sdrCurrentFreq;
                 labelEl.textContent = _sdrCurrentLabel || _sdrCurrentFreq;
+            } else if (_sdrHoldFreq) {
+                // Show held freq even when signal is inactive
+                const heldLabel = (_sdrLastChannelData.channels[_sdrHoldFreq] || {}).label || _sdrHoldFreq;
+                freqEl.textContent  = _sdrHoldFreq;
+                labelEl.textContent = heldLabel + ' 🔒';
             } else {
                 freqEl.textContent  = '';
                 labelEl.textContent = 'SCANNING';
@@ -3260,6 +3266,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _sdrCurrentFreq  = connected ? (d.freq  || null) : null;
             _sdrCurrentLabel = connected ? (d.label || null) : null;
             _sdrActive       = connected ? !!d.active : false;
+            _sdrHoldFreq     = connected ? (d.holdFreq || null) : null;
             document.getElementById('sdrDbBadge').textContent = '';
             document.getElementById('sdrPulse').classList.toggle('on', _sdrActive);
             _updateSdrDisplay();
@@ -3368,7 +3375,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             }
             if (m.event === 'sdr_hold_update') {
                 // hold_update only carries holdFreq — patch cache and re-render
-                _sdrLastChannelData.holdFreq = m.holdFreq || null;
+                _sdrHoldFreq = m.holdFreq || null;
+                _sdrLastChannelData.holdFreq = _sdrHoldFreq;
+                _updateSdrDisplay();
                 _renderSdrChannels(_sdrLastChannelData);
             } else {
                 _renderSdrChannels(_sdrMergeChannels(m));
