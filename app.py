@@ -3607,13 +3607,17 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function sdrSkip()    { fetch('/api/sdr/skip',   {method:'POST'}); }
         function sdrHoldToggle() {
+            // Scanner toggles hold when sent the same freq — send held freq to release, current freq to hold
+            const target = _sdrHoldFreq || _sdrCurrentFreq;
+            if (!target) return;
             fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({freq: _sdrHoldFreq ? null : (_sdrCurrentFreq || null)})});
+                body: JSON.stringify({freq: target})});
         }
         function sdrSkipChannel(f) { fetch('/api/sdr/skip', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({freq:f})}); }
         function sdrHoldFreq(f) {
+            // Sending the same freq toggles hold off; sending a different freq switches hold
             fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({freq: _sdrHoldFreq === f ? null : f})});
+                body: JSON.stringify({freq: f})});
         }
         function openSdrModal() {
             document.getElementById('sdrModal').style.display = 'flex';
