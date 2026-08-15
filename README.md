@@ -1,6 +1,6 @@
 # Radio Dispatcher Console
 
-A web-based dispatcher console for HamVoIP / AllStar repeater nodes running DVSwitch. Provides real-time monitoring of DMR and analog activity, talkgroup tuning, network switching, and Allstar node control — all from a browser on your local network.
+A web-based dispatcher console for HamVoIP / AllStar repeater nodes running DVSwitch. Provides real-time monitoring of DMR and analog activity, talkgroup tuning, network switching, Allstar node control, Trunk Recorder call playback, and RTL-SDR scanner integration — all from a browser on your local network.
 
 ---
 
@@ -17,7 +17,65 @@ A web-based dispatcher console for HamVoIP / AllStar repeater nodes running DVSw
 - **DMR and Allstar favorites** — save and recall talkgroups (per network) and Allstar nodes, persisted across restarts
 - **Node connect/disconnect toasts** — centered popup alerts for Allstar node link/unlink events with configurable duration and optional audio chimes
 - **DMR talkgroup change toasts** — popup alert when the active talkgroup changes
-- **Floating audio controls** — accessible at any screen size via an overlay button; controls volume, HP/LP filters, squelch tail, and Allstar volume
+- **Trunk Recorder integration** — receives call uploads from TR, plays audio in-browser with a scrollable call log, auto-play mode, per-system display labels
+- **RTL-SDR scanner integration** — live relay of an rtl-airband-scanner instance with full channel management, audio playback, and synchronized display (see below)
+- **Audio controls overlay** — accessible via the 🎧 button in the title bar; per-source volume, LP/HP filters, and squelch tail
+
+---
+
+## RTL-SDR Scanner Integration
+
+The dispatcher connects to a separate [rtl-airband-scanner](https://github.com/mostlychris/rtl-scanner) instance over its WebSocket control API and HTTP audio stream, relaying everything to the browser.
+
+### Scanner bar
+
+The SDR bar shows the current scanner state at a glance:
+
+| Element | Meaning |
+|---|---|
+| Pulse dot | Green when squelch is open (signal active) |
+| Frequency | Active channel frequency in MHz |
+| Label | Channel label; shows `🔒` suffix when held |
+| **SCANNING** | No active signal / scanner is sweeping |
+| dB badge | Signal level relative to threshold |
+| HOLD badge | Displayed when scanner is locked to a frequency |
+
+### Scanner bar buttons
+
+| Button | Action |
+|---|---|
+| ⏭ Next | Force immediate advance to next channel |
+| ⊘ Skip | Toggle current frequency in/out of scan rotation (highlights orange when skipped) |
+| 🔒 Hold | Lock scanner to current frequency; click again to release |
+| ⊞ Channels | Open channel management modal |
+
+### Channel management modal
+
+- **Add** — add a new channel with frequency, label, bank, mode, channel width, CTCSS/PL tone, sub-audio HPF, squelch RMS, and gain
+- **Edit** — inline edit any channel field
+- **Skip toggle** (⊘/▶) — include or exclude a channel from the scan rotation
+- **Hold toggle** (🔒/🔓) — lock or release hold on a specific channel
+- **Delete** — remove a channel
+- **Scan banks** — enable/disable scan banks; bank toggle buttons appear automatically when more than one bank is defined
+
+### Audio
+
+SDR audio is streamed as WAV via the dispatcher's HTTP proxy and played through the Web Audio API with:
+
+- **Volume** slider
+- **LP Cut** — low-pass filter cutoff (500 Hz – 8 kHz, default 3 kHz)
+- **HP Cut** — high-pass filter cutoff (0 – 600 Hz, default off)
+
+Display activation is automatically synchronized to audio playback using the scanner's `audio_stats` stream — no manual lag adjustment needed. The display shows the active channel when you hear it, and clears when the audio tail drains.
+
+### Configuration
+
+```python
+# Base URL of the rtl-airband-scanner app (no trailing slash)
+SDR_SCANNER_URL = 'http://192.168.1.100:8080'
+```
+
+The dispatcher connects to `SDR_SCANNER_URL/ws` for control events and proxies `SDR_SCANNER_URL/stream` for audio.
 
 ---
 
@@ -26,9 +84,10 @@ A web-based dispatcher console for HamVoIP / AllStar repeater nodes running DVSw
 - Python 3.10+
 - HamVoIP / Asterisk node with DVSwitch (MMDVM Bridge, Analog Bridge, STFU)
 - IAX2 peer configured in `/etc/asterisk/iax.conf` (for Allstar section)
+- `websocket-client` Python package (for SDR scanner relay)
 
 ```bash
-pip install flask flask-sock
+pip install flask flask-sock websocket-client
 ```
 
 ---
@@ -90,6 +149,17 @@ MMDVM_SERVICE         = 'mmdvm_bridge.service'
 
 # DVSwitchPlayer WebSocket port (browser-side audio player)
 DVSWITCHPLAYER_PORT = 8080
+
+# Trunk Recorder
+TR_API_KEY  = 'CHANGE_ME'
+TR_AUDIO_DIR = '/var/lib/dispatcher/tr-audio'
+TR_MAX_CALLS = 5000
+TR_SYSTEMS = {
+    # 'mysystem': 'My County P25',
+}
+
+# RTL-SDR scanner (no trailing slash)
+SDR_SCANNER_URL = 'http://192.168.1.100:8080'
 ```
 
 Generate a random `API_KEY`:
@@ -148,7 +218,7 @@ TR_SYSTEMS = {
 1. Audio file is saved to `TR_AUDIO_DIR`
 2. Call metadata is added to the in-memory ring buffer (newest first, max `TR_MAX_CALLS`)
 3. An SSE event is pushed to all connected browsers
-4. The Scanner status bar flashes and updates with system + talkgroup
+4. The Trunk status bar flashes and updates with system + talkgroup
 5. If **Auto-play** is enabled, audio plays immediately in the browser
 
 ### Audio storage
@@ -180,28 +250,23 @@ The entire application is a single file (`app.py`) — a Flask server with the c
 
 ### UI layout
 
-Both the DMR and Allstar sections are **status bars with icon-button modals** rather than collapsible panels:
-
-| Section | Status bar shows | ⚙ Controls modal | ★ Quick Tune modal |
-|---|---|---|---|
-| DMR | TX pulse, mode badge, connection state, active TG | Network switch, TG tune, favorites management | Scrollable favorites grid + recent tune history |
-| Allstar | RX dot, connection badge, local node, linked node | Connect/disconnect/audio, PTT/mic, node linking, command, connected nodes, alert config | Saved node favorites with add/remove and quick-connect |
+| Section | Status bar shows | Controls |
+|---|---|---|
+| DMR | TX pulse, mode badge, connection state, active TG | Network switch, TG tune, favorites |
+| Allstar | RX dot, connection badge, local node, linked node | Connect/disconnect, PTT, node linking, DTMF |
+| Trunk Recorder | Call pulse, system, talkgroup, duration | Auto-play toggle, volume, call log |
+| SDR Scanner | Signal pulse, frequency, label, dB, HOLD badge | Next, Skip, Hold, Channels modal |
 
 ### Backend layers
 
 | Component | Description |
 |---|---|
-| `usrp_listener()` | Daemon thread; binds UDP 31002, receives USRP PTT packets from Analog Bridge, pushes `tx_start`/`tx_end` SSE events |
+| `usrp_listener()` | Daemon thread; binds UDP 31002, receives USRP PTT packets from Analog Bridge |
 | `tg_refresh_loop()` | Daemon thread; reloads TG name lists from `/tmp` every 5 minutes |
-| `AllstarManager` | Wraps `IAX2Client`; handles connect/disconnect, fans PCM audio to WebSocket listeners, parses `L` TEXT frames for connected-node list |
-| `IAX2Client` (`iax2.py`) | Self-contained IAX2 client — NEW → CALLTOKEN → AUTHREQ/AUTHREP (MD5) → ACCEPT; sends DTMF as TEXT frames; decodes ulaw PCM |
-| SSE stream (`/api/stream`) | Fan-out queue per browser client; pushes real-time TX events |
-
-### Mode detection
-
-`current_mode` is updated by `get_status()` based on which service is running:
-- `stfu.service` active → **BrandMeister**
-- `mmdvm_bridge.service` active → **TGIF**
+| `AllstarManager` | Wraps `IAX2Client`; handles connect/disconnect, fans PCM audio to WebSocket listeners |
+| `IAX2Client` (`iax2.py`) | Self-contained IAX2 client — NEW → CALLTOKEN → AUTHREQ/AUTHREP (MD5) → ACCEPT |
+| `_sdr_relay_loop()` | Daemon thread; maintains WebSocket connection to scanner, relays events to SSE clients, mirrors scanner state |
+| SSE stream (`/api/stream`) | Fan-out queue per browser client; pushes real-time events for all sources |
 
 ### Data files
 
@@ -212,20 +277,6 @@ Both the DMR and Allstar sections are **status bars with icon-button modals** ra
 | `last_state.json` | Last tuned TG, network, and time (survives restarts) |
 | `tg_names_cache.json` | Snapshot of TG names from last successful load |
 
-### Runtime paths
-
-| Path | Used for |
-|---|---|
-| `/tmp/ABInfo_31001.json` | Active mode detection |
-| `/tmp/TGList_BM.txt` | BrandMeister TG name list |
-| `/tmp/TGList_TGIF.txt` | TGIF TG name list |
-| `/tmp/TGIF_node_list.txt` | TGIF node list |
-| `/var/lib/mmdvm/DMRIds.dat` | DMR ID → callsign lookup |
-| `/var/log/mmdvm/MMDVM_Bridge-{date}.log` | Last-heard and TX detection |
-| `/var/log/dvswitch/Analog_Bridge-{date}.log` | Last-heard |
-| `/var/log/dvswitch/STFU.log` | Last-heard (BM) |
-| `/var/log/dispatcher-watchdog.log` | Watchdog restart events |
-
 ---
 
 ## API Reference
@@ -233,7 +284,7 @@ Both the DMR and Allstar sections are **status bars with icon-button modals** ra
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/` | Single-page UI |
-| GET | `/api/stream` | SSE stream (`tx_start` / `tx_end` events) |
+| GET | `/api/stream` | SSE stream (all real-time events) |
 | GET | `/api/status` | Mode, active TG, service states, connection state |
 | GET | `/api/lastheard` | 20 most recent heard entries |
 | GET | `/api/log/<key>` | Tail log; keys: `mmdvm`, `analog`, `stfu`, `watchdog`; `?lines=N` (max 500) |
@@ -263,6 +314,14 @@ Both the DMR and Allstar sections are **status bars with icon-button modals** ra
 | GET | `/api/tr/calls` | Recent TR call list (newest first, max `TR_MAX_CALLS`) |
 | GET | `/api/tr/systems` | Registered TR systems with display labels |
 | GET | `/api/tr/audio/<filename>` | Serve a stored TR audio file |
+| GET | `/api/sdr/state` | Current SDR scanner state snapshot |
+| GET | `/api/sdr/stream` | Proxied WAV audio stream from scanner |
+| POST | `/api/sdr/skip` | Toggle frequency in/out of scan rotation `{freq}` |
+| POST | `/api/sdr/resume` | Force immediate scan advance (next channel) |
+| POST | `/api/sdr/hold` | Toggle hold on a frequency `{freq}` |
+| PUT | `/api/sdr/channel` | Add or edit a channel |
+| DELETE | `/api/sdr/channel/<freq>` | Remove a channel |
+| POST | `/api/sdr/bank` | Enable/disable a scan bank `{bank, enabled}` |
 
 Endpoints marked *requires X-Api-Key* must include the header `X-Api-Key: <your API_KEY>`.
 
