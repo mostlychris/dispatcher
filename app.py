@@ -3605,7 +3605,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 });
         }
 
-        function sdrSkip()    { fetch('/api/sdr/skip',   {method:'POST'}); }
+        function sdrSkip()    { fetch('/api/sdr/resume', {method:'POST'}); }
         function sdrHoldToggle() {
             // Scanner toggles hold when sent the same freq — send held freq to release, current freq to hold
             const target = _sdrHoldFreq || _sdrCurrentFreq;
