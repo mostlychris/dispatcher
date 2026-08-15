@@ -3366,7 +3366,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 holdBtn.style.borderColor = m.holdFreq ? '#00aa00' : '#333';
                 holdBtn.style.color       = m.holdFreq ? '#4f4'    : '#777';
             }
-            _renderSdrChannels(_sdrMergeChannels(m));
+            if (m.event === 'sdr_hold_update') {
+                // hold_update only carries holdFreq — patch cache and re-render
+                _sdrLastChannelData.holdFreq = m.holdFreq || null;
+                _renderSdrChannels(_sdrLastChannelData);
+            } else {
+                _renderSdrChannels(_sdrMergeChannels(m));
+            }
         }
 
         var _sdrEditFreq = null;
