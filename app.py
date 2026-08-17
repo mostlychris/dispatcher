@@ -2120,6 +2120,7 @@ HTML = '''
                             <span id="trSkippedBadge" style="display:none;font-size:9px;font-weight:bold;
                                   background:#1a1a1a;border:1px solid #666;color:#aaa;
                                   border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">SKIPPED</span>
+                            <span id="trTimeBadge" style="font-size:10px;color:#666;flex-shrink:0;"></span>
                             <span id="trSystemBadge" style="font-size:10px;color:#888;font-weight:bold;
                                   letter-spacing:0.5px;flex-shrink:0;text-align:right;">--</span>
                         </div>
@@ -4902,6 +4903,10 @@ registerProcessor('mic-decimator', MicDecimator);
             // Status bar — show what's actually playing
             document.getElementById('trPulse').classList.add('on');
             document.getElementById('trSystemBadge').textContent = sys.toUpperCase() || '--';
+            const callTime = call.start_time
+                ? new Date(call.start_time * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})
+                : '';
+            document.getElementById('trTimeBadge').textContent = callTime;
             const errHtml = (call.error_count > 0)
                 ? ' <span style="font-size:10px;color:#f88;font-weight:normal;">Err:' + call.error_count + '</span>'
                 : '';
@@ -4916,6 +4921,7 @@ registerProcessor('mic-decimator', MicDecimator);
         // Wire audio ended event
         document.getElementById('trAudio').addEventListener('ended', function() {
             document.getElementById('trPulse').classList.remove('on');
+            document.getElementById('trTimeBadge').textContent = '';
             _trLastCall = _trPlaying || _trLastCall;
             _trPlaying = null;
             _updateTrAudioBtn();
