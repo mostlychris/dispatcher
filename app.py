@@ -2161,6 +2161,9 @@ HTML = '''
                             <span id="sdrHoldBadge" style="display:none;font-size:9px;font-weight:bold;
                                   background:#003a00;border:1px solid #00aa00;color:#4f4;
                                   border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">HOLD</span>
+                            <button id="sdrBarEditBtn" onclick="sdrBarEditCurrent()" title="Edit current channel"
+                                    style="display:none;background:#1a1a2a;border:1px solid #334;color:#7af;
+                                           border-radius:3px;padding:1px 7px;font-size:10px;cursor:pointer;">✎</button>
                         </div>
                     </div>
                 </div>
@@ -3149,6 +3152,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 labelEl.textContent = 'SCANNING';
             }
             _updateSdrSkipBtn();
+            const editBtn = document.getElementById('sdrBarEditBtn');
+            if (editBtn) editBtn.style.display = (_sdrCurrentFreq || _sdrHoldFreq) ? '' : 'none';
         }
 
         function _initSdr() {
@@ -3639,6 +3644,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({freq: f})});
         }
+        function sdrBarEditCurrent() {
+            const f = _sdrCurrentFreq || _sdrHoldFreq;
+            if (!f) return;
+            openSdrModal();
+            // Wait for modal to render then trigger inline edit
+            setTimeout(function() { sdrEditChannel(f); }, 50);
+        }
         function openSdrModal() {
             document.getElementById('sdrModal').style.display = 'flex';
             fetch('/api/sdr/state').then(r => r.json()).then(d => _renderSdrChannels(d)).catch(() => {});
@@ -3984,7 +3996,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         async function quickConnectNode(node) {
             closeAsQuickTuneModal();
-            openAsModal();
 
             // Unlink the first connected node only — downstream nodes drop automatically
             const firstLinked = _asDirectLink && _asDirectLink[0];
