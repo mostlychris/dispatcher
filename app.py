@@ -3801,8 +3801,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function quickTune(tg) {
             document.getElementById('tgInput').value = tg;
             tuneTG();
-            const open = document.getElementById('quickTuneModal').style.display === 'flex';
-            if (open) setTimeout(loadQuickTune, 300);
+            closeQuickTuneModal();
         }
 
         async function saveFavorite() {
