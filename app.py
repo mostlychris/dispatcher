@@ -1599,6 +1599,8 @@ HTML = '''
                 box-sizing: border-box !important;
                 overflow-x: hidden !important;
             }
+            /* Ensure nothing inside a modal can widen it */
+            .modal-panel * { max-width: 100%; }
             .modal-panel table { font-size: 10px; }
             .modal-panel th, .modal-panel td { padding: 3px 4px !important; }
             .modal-header-row {
@@ -2255,11 +2257,11 @@ HTML = '''
                 <!-- SCANNER CALL LOG MODAL -->
                 <div id="trModal" onclick="closeTrModalIfBackdrop(event)"
                      style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
-                            align-items:center;justify-content:center;">
+                            align-items:center;justify-content:center;overflow:hidden;">
                     <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
-                                padding:16px 20px;width:min(560px,96vw);
+                                padding:16px 20px;width:min(560px,96vw);box-sizing:border-box;
                                 max-height:90vh;display:flex;flex-direction:column;
-                                position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+                                position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);overflow:hidden;">
                         <div class="modal-header-row" style="display:flex;align-items:center;flex-wrap:wrap;margin-bottom:10px;flex-shrink:0;gap:6px;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128250; TRUNK RX</h3>
                             <select id="trSystemFilter"
