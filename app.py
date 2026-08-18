@@ -1427,6 +1427,9 @@ HTML = '''
             gap: 10px;
             margin-bottom: 10px;
         }
+        @media (max-width: 480px) {
+            .qt-grid { grid-template-columns: 1fr; }
+        }
         .qt-section-label {
             font-size: 9px; color: #999;
             letter-spacing: 1px; margin-bottom: 5px;
