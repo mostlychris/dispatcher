@@ -2260,17 +2260,17 @@ HTML = '''
                                 padding:16px 20px;width:min(560px,96vw);
                                 max-height:90vh;display:flex;flex-direction:column;
                                 position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
+                        <div class="modal-header-row" style="display:flex;align-items:center;flex-wrap:wrap;margin-bottom:10px;flex-shrink:0;gap:6px;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128250; TRUNK RX</h3>
                             <select id="trSystemFilter"
                                     style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
-                                           font-size:11px;padding:2px 6px;margin-left:4px;"
+                                           font-size:11px;padding:2px 6px;max-width:110px;"
                                     onchange="_trSystemFilterChanged()">
                                 <option value="">All systems</option>
                             </select>
                             <select id="trTgFilter"
                                     style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
-                                           font-size:11px;padding:2px 6px;"
+                                           font-size:11px;padding:2px 6px;max-width:110px;"
                                     onchange="renderTrCalls()">
                                 <option value="">All TGs</option>
                             </select>
@@ -2282,7 +2282,7 @@ HTML = '''
                                 <input type="checkbox" id="trAutoplayChk" onchange="saveTrPrefs()"> Auto-play
                             </label>
                             <button onclick="closeTrModal()"
-                                    style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;margin-left:4px;">&#10005;</button>
+                                    style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;flex-shrink:0;">&#10005;</button>
                         </div>
                         <!-- Audio player + controls -->
                         <div style="margin-bottom:10px;flex-shrink:0;" id="trPlayerWrap">
