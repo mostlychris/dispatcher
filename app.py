@@ -2262,29 +2262,33 @@ HTML = '''
                                 padding:16px 20px;width:min(560px,96vw);box-sizing:border-box;
                                 max-height:90vh;display:flex;flex-direction:column;
                                 position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);overflow:hidden;">
-                        <div class="modal-header-row" style="display:flex;align-items:center;flex-wrap:wrap;margin-bottom:10px;flex-shrink:0;gap:6px;">
-                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128250; TRUNK RX</h3>
-                            <select id="trSystemFilter"
-                                    style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
-                                           font-size:11px;padding:2px 6px;max-width:110px;"
-                                    onchange="_trSystemFilterChanged()">
-                                <option value="">All systems</option>
-                            </select>
-                            <select id="trTgFilter"
-                                    style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
-                                           font-size:11px;padding:2px 6px;max-width:110px;"
-                                    onchange="renderTrCalls()">
-                                <option value="">All TGs</option>
-                            </select>
-                            <button onclick="openTrImportModal()"
-                                    style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                           padding:2px 7px;font-size:11px;cursor:pointer;white-space:nowrap;"
-                                    title="Import RadioReference talkgroup CSV">&#128196; TG Import</button>
-                            <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;margin-left:auto;cursor:pointer;">
-                                <input type="checkbox" id="trAutoplayChk" onchange="saveTrPrefs()"> Auto-play
-                            </label>
-                            <button onclick="closeTrModal()"
-                                    style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;flex-shrink:0;">&#10005;</button>
+                        <div style="flex-shrink:0;margin-bottom:10px;">
+                            <div style="display:flex;align-items:center;margin-bottom:6px;">
+                                <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128250; TRUNK RX</h3>
+                                <button onclick="closeTrModal()"
+                                        style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;flex-shrink:0;">&#10005;</button>
+                            </div>
+                            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+                                <select id="trSystemFilter"
+                                        style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
+                                               font-size:11px;padding:2px 6px;flex:1;min-width:80px;max-width:140px;"
+                                        onchange="_trSystemFilterChanged()">
+                                    <option value="">All systems</option>
+                                </select>
+                                <select id="trTgFilter"
+                                        style="background:#111;border:1px solid #444;color:#ccc;border-radius:4px;
+                                               font-size:11px;padding:2px 6px;flex:1;min-width:80px;max-width:140px;"
+                                        onchange="renderTrCalls()">
+                                    <option value="">All TGs</option>
+                                </select>
+                                <button onclick="openTrImportModal()"
+                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
+                                               padding:2px 7px;font-size:11px;cursor:pointer;white-space:nowrap;"
+                                        title="Import RadioReference talkgroup CSV">&#128196; TG Import</button>
+                                <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;cursor:pointer;margin-left:auto;">
+                                    <input type="checkbox" id="trAutoplayChk" onchange="saveTrPrefs()"> Auto-play
+                                </label>
+                            </div>
                         </div>
                         <!-- Audio player + controls -->
                         <div style="margin-bottom:10px;flex-shrink:0;" id="trPlayerWrap">
