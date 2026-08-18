@@ -1596,6 +1596,8 @@ HTML = '''
                 max-height: 88vh !important;
                 padding: 10px 10px !important;
                 border-radius: 8px !important;
+                box-sizing: border-box !important;
+                overflow-x: hidden !important;
             }
             .modal-panel table { font-size: 10px; }
             .modal-panel th, .modal-panel td { padding: 3px 4px !important; }
@@ -2425,7 +2427,7 @@ HTML = '''
                      style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
                             align-items:center;justify-content:center;">
                     <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
-                                padding:16px 20px;width:min(480px,94vw);
+                                padding:16px 20px;width:min(480px,94vw);box-sizing:border-box;overflow:hidden;
                                 max-height:85vh;display:flex;flex-direction:column;
                                 position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
                         <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;position:sticky;top:0;background:#1a1a1a;z-index:1;padding-bottom:8px;border-bottom:1px solid #333;">
