@@ -2054,7 +2054,7 @@ HTML = '''
                                 padding:16px 20px;width:min(400px,94vw);
                                 max-height:85vh;display:flex;flex-direction:column;
                                 position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
+                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;position:sticky;top:0;background:#1a1a1a;z-index:1;padding-bottom:8px;border-bottom:1px solid #333;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9733; ALLSTAR FAVORITES</h3>
                             <button onclick="closeAsQuickTuneModal()"
                                     style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
@@ -2425,7 +2425,7 @@ HTML = '''
                                 padding:16px 20px;width:min(480px,94vw);
                                 max-height:85vh;display:flex;flex-direction:column;
                                 position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;">
+                        <div class="modal-header-row" style="display:flex;align-items:center;margin-bottom:12px;flex-shrink:0;position:sticky;top:0;background:#1a1a1a;z-index:1;padding-bottom:8px;border-bottom:1px solid #333;">
                             <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#9733; QUICK TUNE</h3>
                             <button onclick="closeQuickTuneModal()"
                                     style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#10005;</button>
