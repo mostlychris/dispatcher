@@ -2095,6 +2095,10 @@ HTML = '''
                                         style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
                                                padding:2px 7px;font-size:10px;cursor:pointer;"
                                         title="Lock to current system">&#128274;<span class="btn-label"> Lock Sys</span></button>
+                                <button onclick="trReplay()" id="trReplayBtn"
+                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                               padding:2px 7px;font-size:10px;cursor:pointer;"
+                                        title="Replay last call">↩<span class="btn-label"> Replay</span></button>
                                 <button onclick="trPauseToggle()" id="trPauseBtn"
                                         style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
                                                padding:2px 7px;font-size:10px;cursor:pointer;"
@@ -4860,6 +4864,12 @@ registerProcessor('mic-decimator', MicDecimator);
                 _trSkippedTimer = setTimeout(() => { badge.style.display = 'none'; }, 2500);
             }
             setTimeout(_trDequeue, 300);
+        }
+
+        function trReplay() {
+            const target = _trLastCall;
+            if (!target) return;
+            _playTrCall(target);
         }
 
         function trAvoid() {
