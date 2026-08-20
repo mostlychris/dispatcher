@@ -3536,7 +3536,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     pl   ? '<span style="font-size:9px;color:#a7f;padding:0 2px;">PL ' + escHtml(String(pl)) + '</span>' : '',
                 ].filter(Boolean).join('');
                 return `
-                    <div style="display:flex;align-items:center;gap:6px;padding:6px 4px;border-bottom:1px solid #2a2a2a;background:${rowBg};">
+                    <div style="display:flex;align-items:center;gap:6px;padding:6px 4px;border-bottom:1px solid #2a2a2a;background:${rowBg};cursor:pointer;"
+                         onclick="if(!event.target.closest('button')){sdrTuneAndHold('${ef}');}">
                         <span style="font-size:12px;font-weight:bold;color:${held?'#4f4':'#ccc'};min-width:80px;">${ef}</span>
                         <div style="flex:1;min-width:0;">
                             <div style="font-size:12px;color:${skp?'#555':'#aaa'};text-decoration:${skp?'line-through':'none'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(String(label))}</div>
@@ -3659,6 +3660,18 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             // Sending the same freq toggles hold off; sending a different freq switches hold
             fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({freq: f})});
+        }
+        async function sdrTuneAndHold(f) {
+            // If already held on a different freq, release it first, then hold the target.
+            // The scanner toggles hold: same freq = release, different freq = hold.
+            if (_sdrHoldFreq && _sdrHoldFreq !== f) {
+                await fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({freq: _sdrHoldFreq})});
+            }
+            if (_sdrHoldFreq !== f) {
+                await fetch('/api/sdr/hold', {method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({freq: f})});
+            }
         }
         function sdrBarEditCurrent() {
             const f = _sdrCurrentFreq || _sdrHoldFreq;
