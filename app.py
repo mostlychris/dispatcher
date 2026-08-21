@@ -1171,45 +1171,29 @@ HTML = '''
 
         /* Glass theme — per-section tints */
         body[data-theme="glass"] #dmrSection {
-            background: linear-gradient(135deg, rgba(0,80,200,0.12) 0%, rgba(255,255,255,0.04) 100%);
+            background: rgba(0,80,200,0.10);
             border-color: rgba(0,120,255,0.2);
         }
-        body[data-theme="glass"] #dmrSection .collapse-header {
-            background: linear-gradient(90deg, rgba(0,80,200,0.18) 0%, rgba(255,255,255,0.04) 100%);
-        }
-        body[data-theme="glass"] #dmrSection .collapse-header:hover {
-            background: linear-gradient(90deg, rgba(0,80,200,0.26) 0%, rgba(255,255,255,0.06) 100%);
-        }
+        body[data-theme="glass"] #dmrSection .collapse-header       { background: rgba(0,80,200,0.16); }
+        body[data-theme="glass"] #dmrSection .collapse-header:hover  { background: rgba(0,80,200,0.24); }
         body[data-theme="glass"] #asSidebarSection {
-            background: linear-gradient(135deg, rgba(0,160,80,0.10) 0%, rgba(255,255,255,0.04) 100%);
+            background: rgba(0,160,80,0.09);
             border-color: rgba(0,200,80,0.18);
         }
-        body[data-theme="glass"] #asSidebarSection .collapse-header {
-            background: linear-gradient(90deg, rgba(0,140,60,0.16) 0%, rgba(255,255,255,0.04) 100%);
-        }
-        body[data-theme="glass"] #asSidebarSection .collapse-header:hover {
-            background: linear-gradient(90deg, rgba(0,140,60,0.24) 0%, rgba(255,255,255,0.06) 100%);
-        }
+        body[data-theme="glass"] #asSidebarSection .collapse-header       { background: rgba(0,140,60,0.15); }
+        body[data-theme="glass"] #asSidebarSection .collapse-header:hover  { background: rgba(0,140,60,0.23); }
         body[data-theme="glass"] #trSection {
-            background: linear-gradient(135deg, rgba(140,0,220,0.10) 0%, rgba(255,255,255,0.04) 100%);
+            background: rgba(140,0,220,0.09);
             border-color: rgba(160,60,255,0.18);
         }
-        body[data-theme="glass"] #trSection .collapse-header {
-            background: linear-gradient(90deg, rgba(120,0,200,0.16) 0%, rgba(255,255,255,0.04) 100%);
-        }
-        body[data-theme="glass"] #trSection .collapse-header:hover {
-            background: linear-gradient(90deg, rgba(120,0,200,0.24) 0%, rgba(255,255,255,0.06) 100%);
-        }
+        body[data-theme="glass"] #trSection .collapse-header       { background: rgba(120,0,200,0.15); }
+        body[data-theme="glass"] #trSection .collapse-header:hover  { background: rgba(120,0,200,0.23); }
         body[data-theme="glass"] #sdrSection {
-            background: linear-gradient(135deg, rgba(0,180,200,0.10) 0%, rgba(255,255,255,0.04) 100%);
+            background: rgba(0,180,200,0.09);
             border-color: rgba(0,210,230,0.18);
         }
-        body[data-theme="glass"] #sdrSection .collapse-header {
-            background: linear-gradient(90deg, rgba(0,160,180,0.16) 0%, rgba(255,255,255,0.04) 100%);
-        }
-        body[data-theme="glass"] #sdrSection .collapse-header:hover {
-            background: linear-gradient(90deg, rgba(0,160,180,0.24) 0%, rgba(255,255,255,0.06) 100%);
-        }
+        body[data-theme="glass"] #sdrSection .collapse-header       { background: rgba(0,160,180,0.15); }
+        body[data-theme="glass"] #sdrSection .collapse-header:hover  { background: rgba(0,160,180,0.23); }
 
         /* Glass theme — per-section mobile button active colors (override the generic active rule) */
         body[data-theme="glass"] #mobBtnDmrMonitor.active:not(.streaming) { background: rgba(0,60,180,0.35);  color: #8cf; border-color: rgba(0,100,255,0.5); }
