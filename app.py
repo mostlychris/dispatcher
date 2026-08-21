@@ -1686,6 +1686,9 @@ HTML = '''
             <button id="audioOverlayBtn" onclick="toggleAudioOverlay()" title="Audio controls"
                     style="background:#1a1a1a;border:1px solid #333;color:#ccc;border-radius:5px;
                            padding:3px 9px;font-size:14px;cursor:pointer;">&#127911;</button>
+            <button onclick="openSettingsModal()" title="Settings"
+                    style="background:#1a1a1a;border:1px solid #333;color:#ccc;border-radius:5px;
+                           padding:3px 9px;font-size:14px;cursor:pointer;">&#9881;</button>
             <button id="wakeLockBtn" onclick="toggleWakeLock()" title="Keep screen awake"
                     style="background:#1a1a1a;border:1px solid #333;color:#666;border-radius:5px;
                            padding:3px 9px;font-size:12px;cursor:pointer;display:none;">&#9728;</button>
@@ -2483,6 +2486,78 @@ HTML = '''
         </div>
     </div>
 
+    <!-- SETTINGS MODAL -->
+    <div id="settingsModal" onclick="if(event.target===this)closeSettingsModal()"
+         style="display:none;position:fixed;inset:0;z-index:60000;background:rgba(0,0,0,0.7);
+                align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0;">
+        <div style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                    width:min(520px,96vw);box-sizing:border-box;padding:20px;
+                    margin:auto;box-shadow:0 8px 32px rgba(0,0,0,0.8);">
+            <!-- Header -->
+            <div style="display:flex;align-items:center;margin-bottom:20px;">
+                <h2 style="margin:0;font-size:15px;color:#aaa;letter-spacing:1px;">&#9881; SETTINGS</h2>
+                <button onclick="closeSettingsModal()"
+                        style="margin-left:auto;background:none;border:none;color:#888;font-size:22px;cursor:pointer;">&#10005;</button>
+            </div>
+
+            <!-- APPEARANCE -->
+            <div style="margin-bottom:24px;">
+                <div style="font-size:9px;color:#666;letter-spacing:1.5px;margin-bottom:10px;
+                            border-bottom:1px solid #2a2a2a;padding-bottom:6px;">APPEARANCE</div>
+                <div style="color:#777;font-size:11px;">
+                    Theme selection coming soon. Currently using <strong style="color:#aaa;">Classic</strong>.
+                </div>
+            </div>
+
+            <!-- LOGS -->
+            <div style="margin-bottom:24px;">
+                <div style="font-size:9px;color:#666;letter-spacing:1.5px;margin-bottom:10px;
+                            border-bottom:1px solid #2a2a2a;padding-bottom:6px;">LOGS &amp; HISTORY</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <button onclick="closeSettingsModal();openDispatchModal()"
+                            style="background:#111;border:1px solid #333;color:#aaa;border-radius:5px;
+                                   padding:8px 14px;font-size:12px;cursor:pointer;flex:1;min-width:130px;">
+                        &#128225; Dispatch Log
+                    </button>
+                    <button onclick="closeSettingsModal();openLastHeardModal()"
+                            style="background:#111;border:1px solid #333;color:#aaa;border-radius:5px;
+                                   padding:8px 14px;font-size:12px;cursor:pointer;flex:1;min-width:130px;">
+                        &#128251; Last Heard
+                    </button>
+                    <button onclick="closeSettingsModal();openLogModal()"
+                            style="background:#111;border:1px solid #333;color:#aaa;border-radius:5px;
+                                   padding:8px 14px;font-size:12px;cursor:pointer;flex:1;min-width:130px;">
+                        &#128203; Log Viewer
+                    </button>
+                </div>
+            </div>
+
+            <!-- SERVICES -->
+            <div style="margin-bottom:8px;">
+                <div style="font-size:9px;color:#666;letter-spacing:1.5px;margin-bottom:10px;
+                            border-bottom:1px solid #2a2a2a;padding-bottom:6px;">SERVICES</div>
+                <div style="font-size:10px;color:#555;margin-bottom:8px;">Restart requires a valid API key configured on the server.</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <button onclick="action('/api/restart','Restarting STFU...')"
+                            style="background:#1a0a0a;border:1px solid #442222;color:#cc6666;border-radius:5px;
+                                   padding:8px 14px;font-size:12px;cursor:pointer;flex:1;min-width:130px;">
+                        &#8634; Restart STFU
+                    </button>
+                    <button onclick="action('/api/restart_ab','Restarting Analog Bridge...')"
+                            style="background:#1a0a0a;border:1px solid #442222;color:#cc6666;border-radius:5px;
+                                   padding:8px 14px;font-size:12px;cursor:pointer;flex:1;min-width:130px;">
+                        &#8634; Restart Analog
+                    </button>
+                    <button onclick="action('/api/restart_mmdvm','Restarting MMDVM...')"
+                            style="background:#1a0a0a;border:1px solid #442222;color:#cc6666;border-radius:5px;
+                                   padding:8px 14px;font-size:12px;cursor:pointer;flex:1;min-width:130px;">
+                        &#8634; Restart MMDVM
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- DISPATCH LOG MODAL -->
     <div id="dispatchLogModal" onclick="if(event.target===this)closeDispatchModal()"
          style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
@@ -3087,6 +3162,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function closeDmrModalIfBackdrop(e) {
             if (e.target === document.getElementById('dmrModal')) closeDmrModal();
         }
+
+        function openSettingsModal()  { document.getElementById('settingsModal').style.display = 'flex'; }
+        function closeSettingsModal() { document.getElementById('settingsModal').style.display = 'none'; }
 
         function openDispatchModal()  { document.getElementById('dispatchLogModal').style.display = 'flex'; }
         function closeDispatchModal() { document.getElementById('dispatchLogModal').style.display = 'none'; }
