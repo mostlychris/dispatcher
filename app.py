@@ -1210,8 +1210,14 @@ HTML = '''
         .conn-active   { background: #0a2a0a; color: #4f4; }
         .rx-dot { display:none; }
         /* ---- SECTION ACTIVE STRIP ---- */
-        .collapse-panel.rx-active > .collapse-header {
-            box-shadow: inset 0 -3px 0 lime;
+        .collapse-panel.rx-active > .collapse-header { position: relative; }
+        .collapse-panel.rx-active > .collapse-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 10px; right: 10px;
+            height: 3px;
+            background: lime;
+            border-radius: 3px;
         }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
         .collapse-panel.as-rx { transition: box-shadow 0.3s; }
