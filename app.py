@@ -1195,61 +1195,8 @@ HTML = '''
         .header-time   { font-size: 11px; color: var(--text-muted); }
 
         /* ---- MAIN LAYOUT ---- */
-        .app-body { display: grid; grid-template-columns: 260px 1fr; gap: 0; height: calc(100vh - 37px); transition: grid-template-columns 0.25s ease; }
-        .app-body.sidebar-collapsed { grid-template-columns: 0px 1fr; }
-        @media (max-width: 600px) {
-            .app-body, .app-body.sidebar-collapsed { grid-template-columns: 1fr !important; }
-        }
+        .app-body { display: grid; grid-template-columns: 1fr; gap: 0; height: calc(100vh - 37px); }
 
-        /* ---- LEFT SIDEBAR ---- */
-        .sidebar {
-            background: var(--bg-panel);
-            border-right: 1px solid var(--border-subtle);
-            padding: 10px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            position: relative;
-            min-width: 0;
-            transition: padding 0.25s ease;
-        }
-        .app-body.sidebar-collapsed .sidebar { padding: 0; border-right: none; }
-        .sidebar-toggle {
-            position: fixed;
-            top: 50%;
-            left: 260px;
-            transform: translateY(-50%);
-            transition: background 0.15s;
-            z-index: 100;
-            width: 16px;
-            height: 48px;
-            background: #2a2a2a;
-            border: 1px solid #444;
-            border-radius: 0 4px 4px 0;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #888;
-            font-size: 10px;
-            transition: left 0.25s ease, background 0.15s;
-            user-select: none;
-        }
-        .sidebar-toggle:hover { background: #383838; color: #ccc; }
-        .app-body.sidebar-collapsed .sidebar-toggle { left: 0px; border-radius: 0 4px 4px 0; }
-
-        .sidebar-section {
-            background: #1a1a1a;
-            border-radius: 6px;
-            padding: 10px;
-            border: 1px solid #2e2e2e;
-        }
-        .sidebar-section h3 {
-            font-size: 13px; color: #bbb;
-            letter-spacing: 1px; margin-bottom: 8px;
-            text-transform: uppercase;
-        }
 
         .stat-row {
             display: flex; justify-content: space-between;
@@ -1274,7 +1221,6 @@ HTML = '''
         .rx-dot.lit  { background:#4f4; box-shadow: 0 0 6px #4f4; animation: rx-pulse 0.6s ease-out; }
         @keyframes rx-pulse { 0%{box-shadow:0 0 10px #4f4;} 100%{box-shadow:0 0 4px #4f4;} }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
-        .sidebar-section.as-rx { background: #001833; border-radius: 6px; box-shadow: 0 0 10px #0077ff; transition: background 0.3s, box-shadow 0.3s; }
         .collapse-panel.as-rx { box-shadow: 0 0 10px #0077ff; transition: box-shadow 0.3s; }
         .collapse-panel.as-rx .collapse-header { background: #0055cc; transition: background 0.3s; }
         .collapse-panel.as-rx .collapse-header:hover { background: #0066ee; }
@@ -1364,14 +1310,12 @@ HTML = '''
         button.btn-monitor.active { background: #006600; color: #fff; border-color: #00aa00; font-weight: bold; }
         button.btn-monitor.active.streaming { background: #0055cc; color: #fff; border-color: #0055cc; font-weight: bold; box-shadow: 0 0 10px #0077ff; }
         /* Section-matched idle-active for named monitor buttons */
-        #btnMonitor.active,    #btnMonitorOv.active    { background: #002266; color: #7af; border-color: #0055cc; }
-        #btnAsAudio.active,    #btnAsAudioOv.active,
-        #btnAsAudioSidebar.active                      { background: #003a18; color: #6f6; border-color: #00aa44; }
+        #btnMonitor.active                             { background: #002266; color: #7af; border-color: #0055cc; }
+        #btnAsAudio.active, #btnAsAudioSidebar.active  { background: #003a18; color: #6f6; border-color: #00aa44; }
         #trAudioToggleOv.active                        { background: #220044; color: #c8f; border-color: #8800cc; }
         #sdrAudioToggleOv.active                       { background: #00303a; color: #4df; border-color: #00aabb; }
-        #btnMonitor.active.streaming,    #btnMonitorOv.active.streaming,
-        #btnAsAudio.active.streaming,    #btnAsAudioOv.active.streaming,
-        #btnAsAudioSidebar.active.streaming,
+        #btnMonitor.active.streaming,
+        #btnAsAudio.active.streaming, #btnAsAudioSidebar.active.streaming,
         #trAudioToggleOv.active.streaming,
         #sdrAudioToggleOv.active.streaming             { background: #0055cc; color: #fff; border-color: #0055cc; box-shadow: 0 0 10px #0077ff; }
         button:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -1387,14 +1331,14 @@ HTML = '''
         .btn-sidebar-sm.btn-monitor:hover { background: #222; color: #aaa; }
         .btn-sidebar-sm.btn-monitor.active { background: #006600; color: #fff; border-color: #00aa00; font-weight: bold; }
         .btn-sidebar-sm.btn-monitor.active.streaming { background: #0055cc; color: #fff; border-color: #0055cc; font-weight: bold; box-shadow: 0 0 10px #0077ff; }
-        #btnMonitor.btn-sidebar-sm.active,     #btnMonitorOv.btn-sidebar-sm.active    { background: #002266; color: #7af; border-color: #0055cc; }
-        #btnAsAudioSidebar.btn-sidebar-sm.active, #btnAsAudioOv.btn-sidebar-sm.active { background: #003a18; color: #6f6; border-color: #00aa44; }
-        #trAudioToggleOv.btn-sidebar-sm.active                                         { background: #220044; color: #c8f; border-color: #8800cc; }
-        #sdrAudioToggleOv.btn-sidebar-sm.active                                        { background: #00303a; color: #4df; border-color: #00aabb; }
-        #btnMonitor.btn-sidebar-sm.active.streaming,     #btnMonitorOv.btn-sidebar-sm.active.streaming,
-        #btnAsAudioSidebar.btn-sidebar-sm.active.streaming, #btnAsAudioOv.btn-sidebar-sm.active.streaming,
+        #btnMonitor.btn-sidebar-sm.active                  { background: #002266; color: #7af; border-color: #0055cc; }
+        #btnAsAudioSidebar.btn-sidebar-sm.active           { background: #003a18; color: #6f6; border-color: #00aa44; }
+        #trAudioToggleOv.btn-sidebar-sm.active             { background: #220044; color: #c8f; border-color: #8800cc; }
+        #sdrAudioToggleOv.btn-sidebar-sm.active            { background: #00303a; color: #4df; border-color: #00aabb; }
+        #btnMonitor.btn-sidebar-sm.active.streaming,
+        #btnAsAudioSidebar.btn-sidebar-sm.active.streaming,
         #trAudioToggleOv.btn-sidebar-sm.active.streaming,
-        #sdrAudioToggleOv.btn-sidebar-sm.active.streaming { background: #0055cc; color: #fff; border-color: #0055cc; box-shadow: 0 0 10px #0077ff; }
+        #sdrAudioToggleOv.btn-sidebar-sm.active.streaming  { background: #0055cc; color: #fff; border-color: #0055cc; box-shadow: 0 0 10px #0077ff; }
         .btn-restart-sm {
             font-size: 10px; padding: 2px 7px;
             border-radius: 3px; border: 1px solid #5a2020;
@@ -1720,9 +1664,7 @@ HTML = '''
 
         @media (max-width: 600px) {
             /* Layout: single column, sidebar hidden */
-            .app-body, .app-body.sidebar-collapsed { grid-template-columns: 1fr !important; }
-            .sidebar         { display: none !important; }
-            .sidebar-toggle  { display: none !important; }
+
 
             /* Panels fill the screen */
             .content  { overflow-y: auto; }
@@ -1866,92 +1808,6 @@ HTML = '''
 
     <div class="app-body" id="appBody">
 
-        <div class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Toggle audio panel">&#10094;</div>
-
-        <!-- SIDEBAR -->
-        <div class="sidebar">
-
-
-            <!-- DMR AUDIO -->
-            <div class="sidebar-section">
-                <h3>DMR Audio</h3>
-                <div class="vol-row">
-                    <span class="vol-label">Volume</span>
-                    <button id="dmrMuteBtn" onclick="toggleMuteDmr()" class="btn-sidebar-sm">Mute</button>
-                    <button id="btnMonitor" onclick="toggleMonitor(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
-                    <span class="vol-pct" id="volDisplay">100%</span>
-                </div>
-                <input type="range" class="vol-slider" id="volSlider"
-                       min="0" max="100" value="100"
-                       oninput="setVolume(this.value)">
-                <div class="vol-row" style="margin-top:8px;">
-                    <span class="vol-label">High Pass</span>
-                    <span class="vol-pct" id="hpfDisplay" style="color:#fa8;">OFF</span>
-                </div>
-                <input type="range" class="hpf-slider" id="hpfSlider"
-                       min="100" max="600" step="10" value="220"
-                       oninput="setHpFilter(this.value)">
-                <div class="vol-row" style="margin-top:8px;">
-                    <span class="vol-label">Presence</span>
-                    <span class="vol-pct" id="presDisplay" style="color:lime;">0 dB</span>
-                </div>
-                <input type="range" class="pres-slider" id="presSlider"
-                       min="0" max="12" step="0.5" value="0"
-                       oninput="setPresence(this.value)">
-                <div class="vol-row" style="margin-top:8px;">
-                    <span class="vol-label">Noise Gate</span>
-                    <label style="cursor:pointer; color:#ddd; font-size:11px;">
-                        <input type="checkbox" id="gateToggle" onchange="setGate(this.checked)"> Enable
-                    </label>
-                </div>
-                <div id="audioStats" style="font-size:10px; color:#999; margin-top:8px;">Buffer: -- | Underruns: --</div>
-            </div>
-
-            <!-- ALLSTAR AUDIO -->
-            <div class="sidebar-section">
-                <h3>Allstar Audio</h3>
-                <div class="vol-row">
-                    <span class="vol-label">Volume</span>
-                    <button id="asMuteBtn" onclick="toggleMuteAllstar()" class="btn-sidebar-sm">Mute</button>
-                    <button id="btnAsAudioSidebar" onclick="toggleAllstarAudio(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
-                    <span class="vol-pct" id="asVolDisplay">100%</span>
-                </div>
-                <input type="range" class="vol-slider" id="asVolSlider"
-                       min="0" max="100" value="100"
-                       oninput="setAllstarVolume(this.value)">
-                <div style="margin-top:8px;">
-                    <button class="btn-ptt" id="btnPTTSidebar" disabled
-                            style="width:100%;font-size:11px;">&#127908; PTT — Hold to Talk</button>
-                </div>
-                <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
-                    <span class="vol-label" style="flex-shrink:0;">Level</span>
-                    <div style="flex:1;height:8px;background:#111;border:1px solid #333;border-radius:4px;overflow:hidden;">
-                        <div id="micMeterBar" style="height:100%;width:0%;background:#00cc44;border-radius:4px;transition:width 0.05s;"></div>
-                    </div>
-                    <button id="btnMicTest" class="btn-sidebar-sm" style="flex-shrink:0;font-size:10px;padding:2px 5px;" onclick="testMic()">Test</button>
-                </div>
-            </div>
-
-            <!-- RESTART BUTTONS -->
-            <div class="sidebar-section">
-                <h3>Tools</h3>
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <button class="btn-sidebar-sm" onclick="openDispatchModal()">&#128225; Dispatch Log</button>
-                    <button class="btn-sidebar-sm" onclick="openLastHeardModal()">&#128251; Last Heard</button>
-                    <button class="btn-sidebar-sm" onclick="openLogModal()">&#128203; Log Viewer</button>
-                </div>
-            </div>
-
-            <div class="sidebar-section">
-                <h3>Services</h3>
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <button id="btnRestart"   class="btn-restart-sm" onclick="action('/api/restart',       'Restarting STFU...')">&#8634; Restart STFU</button>
-                    <button id="btnRestartAB" class="btn-restart-sm" onclick="action('/api/restart_ab',    'Restarting Analog Bridge...')">&#8634; Restart Analog</button>
-                    <button id="btnRestartMM" class="btn-restart-sm" onclick="action('/api/restart_mmdvm', 'Restarting MMDVM...')">&#8634; Restart MMDVM</button>
-                </div>
-            </div>
-        </div>
-
     <!-- MOBILE BOTTOM ACTION BAR (must be before <script> so getElementById works at parse time) -->
     <div id="nodeToastContainer"></div>
 
@@ -1965,30 +1821,31 @@ HTML = '''
                 </div>
                 <div class="vol-row">
                     <span class="vol-label">Volume</span>
-                    <button id="dmrMuteBtnOv" onclick="toggleMuteDmr()" class="btn-sidebar-sm">Mute</button>
-                    <button id="btnMonitorOv" onclick="toggleMonitor(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
-                    <span class="vol-pct" id="volDisplayOv">100%</span>
+                    <button id="dmrMuteBtn" onclick="toggleMuteDmr()" class="btn-sidebar-sm">Mute</button>
+                    <button id="btnMonitor" onclick="toggleMonitor(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
+                    <span class="vol-pct" id="volDisplay">100%</span>
                 </div>
-                <input type="range" class="vol-slider" id="volSliderOv" min="0" max="100" value="100"
+                <input type="range" class="vol-slider" id="volSlider" min="0" max="100" value="100"
                        oninput="setVolume(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
                     <span class="vol-label">High Pass</span>
-                    <span class="vol-pct" id="hpfDisplayOv" style="color:#fa8;">OFF</span>
+                    <span class="vol-pct" id="hpfDisplay" style="color:#fa8;">OFF</span>
                 </div>
-                <input type="range" class="hpf-slider" id="hpfSliderOv" min="100" max="600" step="10" value="220"
+                <input type="range" class="hpf-slider" id="hpfSlider" min="100" max="600" step="10" value="220"
                        oninput="setHpFilter(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
                     <span class="vol-label">Presence</span>
-                    <span class="vol-pct" id="presDisplayOv" style="color:lime;">0 dB</span>
+                    <span class="vol-pct" id="presDisplay" style="color:lime;">0 dB</span>
                 </div>
-                <input type="range" class="pres-slider" id="presSliderOv" min="0" max="12" step="0.5" value="0"
+                <input type="range" class="pres-slider" id="presSlider" min="0" max="12" step="0.5" value="0"
                        oninput="setPresence(this.value)">
                 <div class="vol-row" style="margin-top:8px;">
                     <span class="vol-label">Noise Gate</span>
                     <label style="cursor:pointer; color:#ddd; font-size:11px;">
-                        <input type="checkbox" id="gateToggleOv" onchange="setGate(this.checked)"> Enable
+                        <input type="checkbox" id="gateToggle" onchange="setGate(this.checked)"> Enable
                     </label>
                 </div>
+                <div id="audioStats" style="font-size:10px;color:#999;margin-top:8px;">Buffer: -- | Underruns: --</div>
             </div>
 
             <div class="audio-section">
@@ -1997,15 +1854,22 @@ HTML = '''
                 </div>
                 <div class="vol-row">
                     <span class="vol-label">Volume</span>
-                    <button id="asMuteBtnOv" onclick="toggleMuteAllstar()" class="btn-sidebar-sm">Mute</button>
-                    <button id="btnAsAudioOv" onclick="toggleAllstarAudio(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
-                    <span class="vol-pct" id="asVolDisplayOv">100%</span>
+                    <button id="asMuteBtn" onclick="toggleMuteAllstar()" class="btn-sidebar-sm">Mute</button>
+                    <button id="btnAsAudioSidebar" onclick="toggleAllstarAudio(this)" class="btn-sidebar-sm btn-monitor">&#128264; Monitor</button>
+                    <span class="vol-pct" id="asVolDisplay">100%</span>
                 </div>
-                <input type="range" class="vol-slider" id="asVolSliderOv" min="0" max="100" value="100"
+                <input type="range" class="vol-slider" id="asVolSlider" min="0" max="100" value="100"
                        oninput="setAllstarVolume(this.value)">
                 <div style="margin-top:8px;">
                     <button class="btn-ptt" id="btnPTTOv" disabled
                             style="width:100%;font-size:11px;">&#127908; PTT — Hold to Talk</button>
+                </div>
+                <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+                    <span class="vol-label" style="flex-shrink:0;">Mic Level</span>
+                    <div style="flex:1;height:8px;background:#111;border:1px solid #333;border-radius:4px;overflow:hidden;">
+                        <div id="micMeterBar" style="height:100%;width:0%;background:#00cc44;border-radius:4px;transition:width 0.05s;"></div>
+                    </div>
+                    <button id="btnMicTest" class="btn-sidebar-sm" style="flex-shrink:0;font-size:10px;padding:2px 5px;" onclick="testMic()">Test</button>
                 </div>
             </div>
 
@@ -2895,76 +2759,14 @@ HTML = '''
             localStorage.setItem('rxVolume', val);
         }
 
-        const SIDEBAR_W = 260;
-        function _applySidebarState(collapsed) {
-            const body = document.getElementById('appBody');
-            const btn  = document.getElementById('sidebarToggle');
-            const w = collapsed ? 0 : SIDEBAR_W;
-            body.style.gridTemplateColumns = w + 'px 1fr';
-            if (btn) { btn.style.left = w + 'px'; btn.innerHTML = collapsed ? '&#10095;' : '&#10094;'; }
-        }
-        function toggleSidebar() {
-            const body = document.getElementById('appBody');
-            const collapsed = body.classList.toggle('sidebar-collapsed');
-            _applySidebarState(collapsed);
-            localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '');
-        }
-        // Restore sidebar state on load
-        (function() {
-            const collapsed = !!localStorage.getItem('sidebarCollapsed');
-            if (collapsed) document.getElementById('appBody').classList.add('sidebar-collapsed');
-            _applySidebarState(collapsed);
-        })();
 
         // ── Audio overlay ────────────────────────────────────────────
         function toggleAudioOverlay() {
-            const ov = document.getElementById('audioOverlay');
-            const opening = !ov.classList.contains('open');
-            ov.classList.toggle('open', opening);
-            if (opening) _syncAudioOverlay();
+            document.getElementById('audioOverlay').classList.toggle('open');
         }
         function closeAudioOverlayIfBackdrop(e) {
             if (e.target === document.getElementById('audioOverlay')) toggleAudioOverlay();
         }
-
-        // Copy current slider/checkbox values from sidebar into overlay (or vice-versa).
-        function _syncAudioOverlay() {
-            [['volSlider','volSliderOv'], ['hpfSlider','hpfSliderOv'],
-             ['presSlider','presSliderOv'], ['asVolSlider','asVolSliderOv']].forEach(([src, dst]) => {
-                const s = document.getElementById(src), d = document.getElementById(dst);
-                if (s && d) d.value = s.value;
-            });
-            [['volDisplay','volDisplayOv'], ['hpfDisplay','hpfDisplayOv'],
-             ['presDisplay','presDisplayOv'], ['asVolDisplay','asVolDisplayOv']].forEach(([src, dst]) => {
-                const s = document.getElementById(src), d = document.getElementById(dst);
-                if (s && d) d.textContent = s.textContent;
-            });
-            const gc = document.getElementById('gateToggle'), go = document.getElementById('gateToggleOv');
-            if (gc && go) go.checked = gc.checked;
-            // Sync monitor/mute button states
-            ['btnMonitor','btnAsAudioSidebar'].forEach((sid, i) => {
-                const ovId = ['btnMonitorOv','btnAsAudioOv'][i];
-                const s = document.getElementById(sid), d = document.getElementById(ovId);
-                if (s && d) { d.className = s.className; }
-            });
-        }
-
-        // Keep overlay display labels in sync when sidebar sliders change.
-        function _syncOverlayDisplays() {
-            [['volDisplay','volDisplayOv'], ['hpfDisplay','hpfDisplayOv'],
-             ['presDisplay','presDisplayOv'], ['asVolDisplay','asVolDisplayOv']].forEach(([src, dst]) => {
-                const s = document.getElementById(src), d = document.getElementById(dst);
-                if (s && d && d.textContent !== s.textContent) d.textContent = s.textContent;
-            });
-            [['volSlider','volSliderOv'], ['hpfSlider','hpfSliderOv'],
-             ['presSlider','presSliderOv'], ['asVolSlider','asVolSliderOv']].forEach(([src, dst]) => {
-                const s = document.getElementById(src), d = document.getElementById(dst);
-                if (s && d && d.value !== s.value) d.value = s.value;
-            });
-        }
-        setInterval(function() {
-            if (document.getElementById('audioOverlay').classList.contains('open')) _syncOverlayDisplays();
-        }, 200);
 
         function toggleMuteDmr() {
             _dmrMuted = !_dmrMuted;
@@ -3243,7 +3045,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         var dvsp = null;
         function _syncDmrMonitorBtns(active) {
-            ['btnMonitor', 'mobBtnDmrMonitor', 'btnMonitorOv'].forEach(id => {
+            ['btnMonitor', 'mobBtnDmrMonitor'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('active', active);
             });
@@ -4042,8 +3844,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         const API_KEY = '{{ api_key }}';
 
         function setButtons(disabled) {
-            ['btnTGIF','btnBM','btnRestart','btnRestartAB','btnRestartMM'].forEach(id => {
-                document.getElementById(id).disabled = disabled;
+            ['btnTGIF','btnBM'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = disabled;
             });
         }
 
@@ -4213,7 +4016,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 document.getElementById('headerTime').textContent = timestamp();
                 const dmrBtn = document.getElementById('btnMonitor');
                 const dmrRxAndMonitoring = d.conn_state === 'rx' && dmrBtn.classList.contains('active');
-                ['btnMonitor', 'mobBtnDmrMonitor', 'btnMonitorOv'].forEach(id => {
+                ['btnMonitor', 'mobBtnDmrMonitor'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.classList.toggle('streaming', dmrRxAndMonitoring && el.classList.contains('active'));
                 });
@@ -4573,7 +4376,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         function _syncAsAudioBtns(active) {
-            ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor', 'btnAsAudioOv'].forEach(id => {
+            ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('active', active);
             });
@@ -4654,7 +4457,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 if (nowActive && !wasActive) log('Allstar RX: signal on node ' + (d.node || '--'), 'ok');
                 if (!nowActive && wasActive) log('Allstar RX: signal cleared', 'info');
                 if (asSec) asSec.classList.toggle('as-rx', nowActive);
-                ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor', 'btnAsAudioOv'].forEach(id => {
+                ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.classList.toggle('streaming', !!(d.state === 'connected' && d.active) && el.classList.contains('active'));
                 });
@@ -4664,7 +4467,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const connected = (d.state === 'connected');
                 if (btnConn) btnConn.disabled = (d.state === 'connected' || d.state === 'connecting');
                 if (btnDisc) btnDisc.disabled = (d.state === 'idle' || d.state === 'error');
-                ['btnPTT', 'btnPTTSidebar', 'mobBtnPTT', 'btnPTTOv'].forEach(id => {
+                ['btnPTT', 'mobBtnPTT', 'btnPTTOv'].forEach(id => {
                     const b = document.getElementById(id);
                     if (b) b.disabled = !connected;
                 });
@@ -4872,7 +4675,7 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         function _setPTTKeyed(keyed) {
-            ['btnPTT', 'btnPTTSidebar', 'mobBtnPTT', 'btnPTTOv'].forEach(id => {
+            ['btnPTT', 'mobBtnPTT', 'btnPTTOv'].forEach(id => {
                 const b = document.getElementById(id);
                 if (b) b.classList.toggle('keyed', keyed);
             });
@@ -5621,7 +5424,6 @@ registerProcessor('mic-decimator', MicDecimator);
         // Populate device list on load (labels appear only after mic permission granted via Test or PTT)
         populateMicDevices().catch(() => {});
         _wirePTTButton('btnPTT');
-        _wirePTTButton('btnPTTSidebar');
         _wirePTTButton('mobBtnPTT');
         _wirePTTButton('btnPTTOv');
         // Auto-connect to the configured Allstar node
