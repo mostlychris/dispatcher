@@ -1363,6 +1363,17 @@ HTML = '''
         button.btn-monitor:hover { background: #222; color: #aaa; }
         button.btn-monitor.active { background: #006600; color: #fff; border-color: #00aa00; font-weight: bold; }
         button.btn-monitor.active.streaming { background: #0055cc; color: #fff; border-color: #0055cc; font-weight: bold; box-shadow: 0 0 10px #0077ff; }
+        /* Section-matched idle-active for named monitor buttons */
+        #btnMonitor.active,    #btnMonitorOv.active    { background: #002266; color: #7af; border-color: #0055cc; }
+        #btnAsAudio.active,    #btnAsAudioOv.active,
+        #btnAsAudioSidebar.active                      { background: #003a18; color: #6f6; border-color: #00aa44; }
+        #trAudioToggleOv.active                        { background: #220044; color: #c8f; border-color: #8800cc; }
+        #sdrAudioToggleOv.active                       { background: #00303a; color: #4df; border-color: #00aabb; }
+        #btnMonitor.active.streaming,    #btnMonitorOv.active.streaming,
+        #btnAsAudio.active.streaming,    #btnAsAudioOv.active.streaming,
+        #btnAsAudioSidebar.active.streaming,
+        #trAudioToggleOv.active.streaming,
+        #sdrAudioToggleOv.active.streaming             { background: #0055cc; color: #fff; border-color: #0055cc; box-shadow: 0 0 10px #0077ff; }
         button:disabled { opacity: 0.35; cursor: not-allowed; }
         .btn-sidebar-sm {
             font-size: 10px; padding: 2px 7px;
@@ -1376,6 +1387,14 @@ HTML = '''
         .btn-sidebar-sm.btn-monitor:hover { background: #222; color: #aaa; }
         .btn-sidebar-sm.btn-monitor.active { background: #006600; color: #fff; border-color: #00aa00; font-weight: bold; }
         .btn-sidebar-sm.btn-monitor.active.streaming { background: #0055cc; color: #fff; border-color: #0055cc; font-weight: bold; box-shadow: 0 0 10px #0077ff; }
+        #btnMonitor.btn-sidebar-sm.active,     #btnMonitorOv.btn-sidebar-sm.active    { background: #002266; color: #7af; border-color: #0055cc; }
+        #btnAsAudioSidebar.btn-sidebar-sm.active, #btnAsAudioOv.btn-sidebar-sm.active { background: #003a18; color: #6f6; border-color: #00aa44; }
+        #trAudioToggleOv.btn-sidebar-sm.active                                         { background: #220044; color: #c8f; border-color: #8800cc; }
+        #sdrAudioToggleOv.btn-sidebar-sm.active                                        { background: #00303a; color: #4df; border-color: #00aabb; }
+        #btnMonitor.btn-sidebar-sm.active.streaming,     #btnMonitorOv.btn-sidebar-sm.active.streaming,
+        #btnAsAudioSidebar.btn-sidebar-sm.active.streaming, #btnAsAudioOv.btn-sidebar-sm.active.streaming,
+        #trAudioToggleOv.btn-sidebar-sm.active.streaming,
+        #sdrAudioToggleOv.btn-sidebar-sm.active.streaming { background: #0055cc; color: #fff; border-color: #0055cc; box-shadow: 0 0 10px #0077ff; }
         .btn-restart-sm {
             font-size: 10px; padding: 2px 7px;
             border-radius: 3px; border: 1px solid #5a2020;
@@ -1809,6 +1828,16 @@ HTML = '''
             }
             .mobile-action-bar .mob-btn.active   { background: #006600; color: #fff; border-color: #00aa00; }
             .mobile-action-bar .mob-btn.active.streaming { background: #0055cc; color: #fff; border-color: #0077ff; box-shadow: 0 0 8px #0077ff; }
+            /* Section-matched idle-active colors */
+            #mobBtnDmrMonitor.active             { background: #002266; color: #7af; border-color: #0055cc; }
+            #mobBtnAsMonitor.active              { background: #003a18; color: #6f6; border-color: #00aa44; }
+            #mobBtnTrAudio.active                { background: #220044; color: #c8f; border-color: #8800cc; }
+            #mobBtnSdrAudio.active               { background: #00303a; color: #4df; border-color: #00aabb; }
+            /* Streaming overrides section color — stays blue for all */
+            #mobBtnDmrMonitor.active.streaming,
+            #mobBtnAsMonitor.active.streaming,
+            #mobBtnTrAudio.active.streaming,
+            #mobBtnSdrAudio.active.streaming     { background: #0055cc; color: #fff; border-color: #0077ff; box-shadow: 0 0 8px #0077ff; }
             .mobile-action-bar .mob-btn.mob-ptt  { background: #1a1a1a; color: #888; border-color: #444; font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
             .mobile-action-bar .mob-btn:disabled { opacity: 0.35; }
