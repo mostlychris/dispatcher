@@ -4918,11 +4918,7 @@ registerProcessor('mic-decimator', MicDecimator);
                 el.classList.toggle('streaming', playing);
             });
             const mob = document.getElementById('mobBtnTrAudio');
-            if (mob) {
-                mob.innerHTML = _trAudioEnabled
-                    ? '<span style="font-size:16px;">&#128251;</span><span>Trunk</span>'
-                    : '<span style="font-size:16px;">&#128263;</span><span>Trunk</span>';
-            }
+            if (mob) mob.textContent = 'Trunk';
             const ov = document.getElementById('trAudioToggleOv');
             if (ov) ov.textContent = _trAudioEnabled ? '🔊 Enable' : '🔇 Muted';
         }
