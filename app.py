@@ -1144,20 +1144,20 @@ HTML = '''
         }
         body[data-theme="glass"] {
             --bg-body:        #0e1520;
-            --bg-header:      rgba(255,255,255,0.06);
-            --bg-panel:       rgba(255,255,255,0.08);
-            --bg-header-bar:  rgba(255,255,255,0.10);
-            --bg-input:       rgba(0,0,0,0.25);
-            --border:         rgba(255,255,255,0.18);
-            --border-panel:   rgba(255,255,255,0.18);
-            --border-subtle:  rgba(255,255,255,0.10);
+            --bg-header:      rgba(255,255,255,0.03);
+            --bg-panel:       rgba(255,255,255,0.04);
+            --bg-header-bar:  rgba(255,255,255,0.06);
+            --bg-input:       rgba(0,0,0,0.20);
+            --border:         rgba(255,255,255,0.10);
+            --border-panel:   rgba(255,255,255,0.10);
+            --border-subtle:  rgba(255,255,255,0.06);
             --text-primary:   #f0f0f0;
             --text-secondary: #d0d0d0;
             --text-muted:     #999;
-            --collapse-hover: rgba(255,255,255,0.08);
+            --collapse-hover: rgba(255,255,255,0.06);
             --radius-panel:   16px;
             --panel-shadow:   0 4px 30px rgba(0,0,0,0.15);
-            --panel-blur:     blur(3.9px);
+            --panel-blur:     blur(6px);
             --mob-bar-bg:      rgba(10,10,20,0.6);
             --mob-bar-border:  rgba(255,255,255,0.12);
             --mob-btn-bg:      rgba(255,255,255,0.07);
@@ -1167,7 +1167,7 @@ HTML = '''
             --mob-active-clr:  #fff;
             --mob-active-bdr:  rgba(255,255,255,0.15);
         }
-        body[data-theme="glass"] { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%) fixed; }
+        body[data-theme="glass"] { background: linear-gradient(135deg, #0d1b2a 0%, #1b2a4a 40%, #0f3460 100%) fixed; }
 
         body { background: var(--bg-body); color: #fff; font-family: monospace; font-size: 13px; }
 
