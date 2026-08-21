@@ -3411,7 +3411,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 el.classList.toggle('streaming', streaming);
             });
             const mob = document.getElementById('mobBtnSdrAudio');
-            if (mob) mob.innerHTML = '<span style="font-size:16px;">📡</span><span>SDR</span>';
+            if (mob) mob.textContent = 'SDR';
             const ov = document.getElementById('sdrAudioToggleOv');
             if (ov) ov.textContent = _sdrAudioEnabled ? '🔊 Enable' : '🔇 Muted';
         }
