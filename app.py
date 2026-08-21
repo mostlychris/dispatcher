@@ -1145,61 +1145,29 @@ HTML = '''
         body[data-theme="glass"] {
             --bg-body:        #0e1520;
             --bg-header:      rgba(255,255,255,0.06);
-            --bg-panel:       rgba(255,255,255,0.05);
-            --bg-header-bar:  rgba(255,255,255,0.07);
-            --bg-input:       rgba(0,0,0,0.3);
-            --border:         rgba(255,255,255,0.12);
-            --border-panel:   rgba(255,255,255,0.08);
-            --border-subtle:  rgba(255,255,255,0.06);
-            --text-primary:   #e8eef8;
-            --text-secondary: #c0ccdc;
-            --text-muted:     #7a8aaa;
+            --bg-panel:       rgba(88,87,87,0.29);
+            --bg-header-bar:  rgba(88,87,87,0.38);
+            --bg-input:       rgba(0,0,0,0.25);
+            --border:         rgba(88,87,87,0.95);
+            --border-panel:   rgba(88,87,87,0.95);
+            --border-subtle:  rgba(88,87,87,0.5);
+            --text-primary:   #f0f0f0;
+            --text-secondary: #d0d0d0;
+            --text-muted:     #999;
             --collapse-hover: rgba(255,255,255,0.08);
-            --radius-panel:   14px;
-            --panel-shadow:   0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
-            --panel-blur:     blur(12px);
-            --mob-bar-bg:      rgba(14,21,32,0.85);
-            --mob-bar-border:  rgba(255,255,255,0.12);
-            --mob-btn-bg:      rgba(255,255,255,0.07);
-            --mob-btn-border:  rgba(255,255,255,0.14);
-            --mob-btn-color:   #c0ccdc;
-            --mob-active-bg:   rgba(0,100,40,0.4);
-            --mob-active-clr:  #7e7;
-            --mob-active-bdr:  rgba(0,180,80,0.5);
+            --radius-panel:   16px;
+            --panel-shadow:   0 4px 30px rgba(0,0,0,0.1);
+            --panel-blur:     blur(3.9px);
+            --mob-bar-bg:      rgba(30,30,30,0.75);
+            --mob-bar-border:  rgba(88,87,87,0.95);
+            --mob-btn-bg:      rgba(88,87,87,0.29);
+            --mob-btn-border:  rgba(88,87,87,0.95);
+            --mob-btn-color:   #ddd;
+            --mob-active-bg:   rgba(60,120,60,0.55);
+            --mob-active-clr:  #afa;
+            --mob-active-bdr:  rgba(80,180,80,0.8);
         }
-        body[data-theme="glass"] { background: linear-gradient(135deg, #0e1520 0%, #0a1018 50%, #101824 100%) fixed; }
-
-        /* Glass theme — per-section tints */
-        body[data-theme="glass"] #dmrSection {
-            background: rgba(0,80,200,0.10);
-            border-color: rgba(0,120,255,0.2);
-        }
-        body[data-theme="glass"] #dmrSection .collapse-header       { background: rgba(0,80,200,0.16); }
-        body[data-theme="glass"] #dmrSection .collapse-header:hover  { background: rgba(0,80,200,0.24); }
-        body[data-theme="glass"] #asSidebarSection {
-            background: rgba(0,160,80,0.09);
-            border-color: rgba(0,200,80,0.18);
-        }
-        body[data-theme="glass"] #asSidebarSection .collapse-header       { background: rgba(0,140,60,0.15); }
-        body[data-theme="glass"] #asSidebarSection .collapse-header:hover  { background: rgba(0,140,60,0.23); }
-        body[data-theme="glass"] #trSection {
-            background: rgba(140,0,220,0.09);
-            border-color: rgba(160,60,255,0.18);
-        }
-        body[data-theme="glass"] #trSection .collapse-header       { background: rgba(120,0,200,0.15); }
-        body[data-theme="glass"] #trSection .collapse-header:hover  { background: rgba(120,0,200,0.23); }
-        body[data-theme="glass"] #sdrSection {
-            background: rgba(0,180,200,0.09);
-            border-color: rgba(0,210,230,0.18);
-        }
-        body[data-theme="glass"] #sdrSection .collapse-header       { background: rgba(0,160,180,0.15); }
-        body[data-theme="glass"] #sdrSection .collapse-header:hover  { background: rgba(0,160,180,0.23); }
-
-        /* Glass theme — per-section mobile button active colors (override the generic active rule) */
-        body[data-theme="glass"] #mobBtnDmrMonitor.active:not(.streaming) { background: rgba(0,60,180,0.35);  color: #8cf; border-color: rgba(0,100,255,0.5); }
-        body[data-theme="glass"] #mobBtnAsMonitor.active:not(.streaming)  { background: rgba(0,140,60,0.25);  color: #7e7; border-color: rgba(0,180,80,0.45); }
-        body[data-theme="glass"] #mobBtnTrAudio.active:not(.streaming)    { background: rgba(120,0,200,0.28); color: #d9f; border-color: rgba(160,60,255,0.45); }
-        body[data-theme="glass"] #mobBtnSdrAudio.active:not(.streaming)   { background: rgba(0,160,180,0.22); color: #5ef; border-color: rgba(0,200,220,0.4); }
+        body[data-theme="glass"] { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%) fixed; }
 
         body { background: var(--bg-body); color: #fff; font-family: monospace; font-size: 13px; }
 
