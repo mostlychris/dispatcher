@@ -1212,9 +1212,7 @@ HTML = '''
         .rx-dot.lit  { background:#4f4; box-shadow: 0 0 6px #4f4; animation: rx-pulse 0.6s ease-out; }
         @keyframes rx-pulse { 0%{box-shadow:0 0 10px #4f4;} 100%{box-shadow:0 0 4px #4f4;} }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
-        .collapse-panel.as-rx { box-shadow: 0 0 10px #0077ff; transition: box-shadow 0.3s; }
-        .collapse-panel.as-rx .collapse-header { background: #0055cc; transition: background 0.3s; }
-        .collapse-panel.as-rx .collapse-header:hover { background: #0066ee; }
+        .collapse-panel.as-rx { transition: box-shadow 0.3s; }
         .status-strip { display:flex; align-items:center; gap:14px; padding:6px 12px; background:#1a1a1a; flex-wrap:wrap; }
         .strip-label { font-size:9px; color:#888; letter-spacing:1px; text-transform:uppercase; flex-shrink:0; }
         .strip-item { display:flex; align-items:center; gap:4px; font-size:10px; color:#bbb; }
@@ -1234,16 +1232,9 @@ HTML = '''
         .svc-text-on  { color: lime; font-size: 11px; }
         .svc-text-off { color: #999; font-size: 11px; }
 
-        /* ---- ACTIVE TX IN SIDEBAR ---- */
-        #dmrSection.active {
-            background: #001833;
-            border-color: #004488;
-            box-shadow: 0 0 10px #0077ff;
-        }
-        #dmrSection.active .collapse-header { background: #0055cc; transition: background 0.3s; }
-        #dmrSection.active .collapse-header:hover { background: #0066ee; }
+        /* ---- ACTIVE RX INDICATOR (dot only, no background change) ---- */
         .tx-pulse {
-            width: 7px; height: 7px; border-radius: 50%;
+            width: 9px; height: 9px; border-radius: 50%;
             background: #333; flex-shrink: 0;
         }
         .tx-pulse.on {
