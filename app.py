@@ -1210,14 +1210,9 @@ HTML = '''
         .conn-active   { background: #0a2a0a; color: #4f4; }
         .rx-dot { display:none; }
         /* ---- SECTION ACTIVE STRIP ---- */
-        .collapse-panel.rx-active > .collapse-header { position: relative; overflow: hidden; }
-        .collapse-panel.rx-active > .collapse-header::after {
-            content: '';
-            position: absolute;
-            bottom: 0; left: 6px; right: 6px;
-            height: 3px;
-            background: lime;
-            border-radius: 2px 2px 0 0;
+        .collapse-panel.rx-active > .collapse-header {
+            box-shadow: inset 0 -3px 0 lime;
+            border-radius: var(--radius-panel) var(--radius-panel) 4px 4px;
         }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
         .collapse-panel.as-rx { transition: box-shadow 0.3s; }
@@ -1933,7 +1928,7 @@ HTML = '''
                         <!-- Row 2: connection info -->
                         <div style="display:flex;align-items:center;gap:6px;padding-top:5px;border-top:1px solid #222;">
                             <span class="mode-badge badge-unknown" id="modeValue">--</span>
-                            <span class="conn-badge conn-offline" id="connState">OFFLINE</span>
+
                             <span id="tgValue" style="color:lightgreen;font-size:13px;font-weight:bold;"></span>
                             <span id="tgValueName" style="color:#6c6;font-size:11px;"></span>
                         </div>
@@ -2672,8 +2667,6 @@ HTML = '''
                     document.getElementById('txCallsign').textContent    = cs;
                     document.getElementById('txDetail').textContent      = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
                     document.getElementById('txTime').textContent        = 'Since ' + data.started;
-                    const connEl = document.getElementById('connState');
-                    if (connEl) { connEl.textContent = 'RX'; connEl.className = 'conn-badge conn-rx'; }
                     log('TX: ' + cs + ' → TG ' + data.tg, 'ok');
                     if (data.tg !== _activeDmrTg) {
                         if (_activeDmrTg) _showDmrToast(_activeDmrTg, _activeDmrTgName, null, 'disconnect');
@@ -2689,8 +2682,6 @@ HTML = '''
                     document.getElementById('txCallsign').textContent    = 'STANDBY';
                     document.getElementById('txDetail').textContent      = '—';
                     document.getElementById('txTime').innerHTML          = '&nbsp;';
-                    const connEl = document.getElementById('connState');
-                    if (connEl) { connEl.textContent = 'READY'; connEl.className = 'conn-badge conn-idle'; }
                     if (lastHeardOpen) pollLastHeard();
                 } else if (data.event === 'tr_call') {
                     _onTrCall(data);
@@ -3970,14 +3961,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     d.mode === 'BrandMeister' ? 'badge-bm'   : 'badge-unknown'
                 );
 
-                const connEl    = document.getElementById('connState');
-                const connLabel = {rx:'RX', idle:'READY', starting:'STARTING', offline:'OFFLINE'};
-                connEl.textContent = d.status_source === 'cached'
-                    ? 'LAST KNOWN'
-                    : (connLabel[d.conn_state] || '--');
-                connEl.className = 'conn-badge ' + (
-                    d.status_source === 'cached' ? 'conn-cached' : 'conn-' + d.conn_state
-                );
 
                 // Keep header color and pulse in sync with poll — SSE is real-time but
                 // can miss events on reconnect; the poll corrects any drift.
