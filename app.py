@@ -1065,19 +1065,92 @@ HTML = '''
     <script type="text/javascript" src="/static/pcm-player.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0d0d0d; color: #fff; font-family: monospace; font-size: 13px; }
+        /* ---- THEME VARIABLES ---- */
+        body {
+            --bg-body:        #0d0d0d;
+            --bg-header:      #1a1a1a;
+            --bg-panel:       #141414;
+            --bg-header-bar:  #1a1a1a;
+            --bg-input:       #111;
+            --border:         #2a2a2a;
+            --border-panel:   #1f1f1f;
+            --border-subtle:  #222;
+            --text-primary:   #ddd;
+            --text-secondary: #bbb;
+            --text-muted:     #888;
+            --collapse-hover: #1f1f1f;
+            --radius-panel:   6px;
+            --panel-shadow:   none;
+            --panel-blur:     none;
+        }
+        body[data-theme="midnight"] {
+            --bg-body:        #000000;
+            --bg-header:      #0a0a0a;
+            --bg-panel:       #0d0d0d;
+            --bg-header-bar:  #0a0a0a;
+            --bg-input:       #080808;
+            --border:         #1a1a1a;
+            --border-panel:   #1a1a1a;
+            --border-subtle:  #181818;
+            --text-primary:   #e8e8e8;
+            --text-secondary: #cccccc;
+            --text-muted:     #666;
+            --collapse-hover: #141414;
+            --radius-panel:   8px;
+            --panel-shadow:   0 2px 8px rgba(0,0,0,0.6);
+            --panel-blur:     none;
+        }
+        body[data-theme="warm"] {
+            --bg-body:        #0d0a07;
+            --bg-header:      #181108;
+            --bg-panel:       #130e08;
+            --bg-header-bar:  #181108;
+            --bg-input:       #0e0a06;
+            --border:         #2e1f0e;
+            --border-panel:   #261a0c;
+            --border-subtle:  #221608;
+            --text-primary:   #d4c4a8;
+            --text-secondary: #b8a888;
+            --text-muted:     #7a6040;
+            --collapse-hover: #1e1508;
+            --radius-panel:   8px;
+            --panel-shadow:   0 2px 12px rgba(60,30,0,0.3);
+            --panel-blur:     none;
+        }
+        body[data-theme="glass"] {
+            --bg-body:        #0e1520;
+            --bg-header:      rgba(255,255,255,0.06);
+            --bg-panel:       rgba(255,255,255,0.05);
+            --bg-header-bar:  rgba(255,255,255,0.07);
+            --bg-input:       rgba(0,0,0,0.3);
+            --border:         rgba(255,255,255,0.12);
+            --border-panel:   rgba(255,255,255,0.08);
+            --border-subtle:  rgba(255,255,255,0.06);
+            --text-primary:   #e8eef8;
+            --text-secondary: #c0ccdc;
+            --text-muted:     #7a8aaa;
+            --collapse-hover: rgba(255,255,255,0.08);
+            --radius-panel:   14px;
+            --panel-shadow:   0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+            --panel-blur:     blur(12px);
+        }
+        body[data-theme="glass"] { background: linear-gradient(135deg, #0e1520 0%, #0a1018 50%, #101824 100%) fixed; }
+
+        body { background: var(--bg-body); color: #fff; font-family: monospace; font-size: 13px; }
 
         /* ---- HEADER BAR ---- */
         .header-bar {
-            background: #1a1a1a;
-            border-bottom: 1px solid #2a2a2a;
+            background: var(--bg-header-bar);
+            border-bottom: 1px solid var(--border);
             padding: 8px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            backdrop-filter: var(--panel-blur);
+            -webkit-backdrop-filter: var(--panel-blur);
         }
-        .header-bar h1 { font-size: 14px; letter-spacing: 2px; color: #ddd; }
-        .header-time   { font-size: 11px; color: #888; }
+        .header-bar h1 { font-size: 14px; letter-spacing: 2px; color: var(--text-primary); }
+        .header-time   { font-size: 11px; color: var(--text-muted); }
 
         /* ---- MAIN LAYOUT ---- */
         .app-body { display: grid; grid-template-columns: 260px 1fr; gap: 0; height: calc(100vh - 37px); transition: grid-template-columns 0.25s ease; }
@@ -1088,8 +1161,8 @@ HTML = '''
 
         /* ---- LEFT SIDEBAR ---- */
         .sidebar {
-            background: #141414;
-            border-right: 1px solid #222;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border-subtle);
             padding: 10px;
             overflow: hidden;
             display: flex;
@@ -1301,14 +1374,23 @@ HTML = '''
         .log-info  { color: #aaa; }
 
         /* ---- COLLAPSIBLE PANELS ---- */
-        .collapse-panel { background: #141414; border-radius: 6px; overflow: visible; border: 1px solid #1f1f1f; }
+        .collapse-panel {
+            background: var(--bg-panel);
+            border-radius: var(--radius-panel);
+            overflow: visible;
+            border: 1px solid var(--border-panel);
+            box-shadow: var(--panel-shadow);
+            backdrop-filter: var(--panel-blur);
+            -webkit-backdrop-filter: var(--panel-blur);
+        }
         .collapse-header {
             display: flex; align-items: center; justify-content: space-between;
             padding: 8px 12px; cursor: pointer; user-select: none;
-            background: #1a1a1a;
+            background: var(--bg-header);
+            border-radius: var(--radius-panel) var(--radius-panel) 0 0;
         }
-        .collapse-header:hover { background: #1f1f1f; }
-        .collapse-header h3 { font-size: 10px; color: #bbb; letter-spacing: 1px; margin: 0; }
+        .collapse-header:hover { background: var(--collapse-hover); }
+        .collapse-header h3 { font-size: 10px; color: var(--text-secondary); letter-spacing: 1px; margin: 0; }
         .collapse-arrow { color: #888; font-size: 12px; transition: transform 0.2s; }
         .collapse-arrow.open { transform: rotate(180deg); }
         .collapse-body { display: none; padding: 10px; }
@@ -1508,6 +1590,21 @@ HTML = '''
 
         /* Audio controls overlay */
         #audioOverlayBtn:hover { background: #2a2a2a; border-color: #888; }
+
+        /* ---- THEME PICKER ---- */
+        .theme-btn {
+            display: flex; align-items: center; gap: 10px;
+            background: #111; border: 1px solid #333; color: #aaa;
+            border-radius: 8px; padding: 10px 12px; font-size: 12px;
+            cursor: pointer; text-align: left; font-family: monospace;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .theme-btn:hover { border-color: #666; background: #1a1a1a; }
+        .theme-btn.active { border-color: #4fc3f7; color: #4fc3f7; background: #001a2a; }
+        .theme-swatch {
+            width: 28px; height: 28px; border-radius: 5px; flex-shrink: 0;
+            border: 1px solid #444; display: inline-block;
+        }
         #audioOverlay {
             display: none; position: fixed; inset: 0; z-index: 50000;
             background: rgba(0,0,0,0.6);
@@ -2502,10 +2599,25 @@ HTML = '''
 
             <!-- APPEARANCE -->
             <div style="margin-bottom:24px;">
-                <div style="font-size:9px;color:#666;letter-spacing:1.5px;margin-bottom:10px;
+                <div style="font-size:9px;color:#666;letter-spacing:1.5px;margin-bottom:12px;
                             border-bottom:1px solid #2a2a2a;padding-bottom:6px;">APPEARANCE</div>
-                <div style="color:#777;font-size:11px;">
-                    Theme selection coming soon. Currently using <strong style="color:#aaa;">Classic</strong>.
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="themeGrid">
+                    <button onclick="setTheme('')"     id="theme-btn-classic"  class="theme-btn">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#141414 50%,#1a1a1a 50%);border-color:#2a2a2a;"></span>
+                        <span>Classic</span>
+                    </button>
+                    <button onclick="setTheme('midnight')" id="theme-btn-midnight" class="theme-btn">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#000 50%,#0a0a0a 50%);border-color:#1a1a1a;"></span>
+                        <span>Midnight</span>
+                    </button>
+                    <button onclick="setTheme('warm')"    id="theme-btn-warm"     class="theme-btn">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#130e08 50%,#181108 50%);border-color:#2e1f0e;"></span>
+                        <span>Warm</span>
+                    </button>
+                    <button onclick="setTheme('glass')"   id="theme-btn-glass"    class="theme-btn">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#0e1520 30%,rgba(255,255,255,0.08) 100%);border-color:rgba(255,255,255,0.2);"></span>
+                        <span>Glass</span>
+                    </button>
                 </div>
             </div>
 
@@ -3163,8 +3275,30 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (e.target === document.getElementById('dmrModal')) closeDmrModal();
         }
 
-        function openSettingsModal()  { document.getElementById('settingsModal').style.display = 'flex'; }
+        function openSettingsModal()  {
+            document.getElementById('settingsModal').style.display = 'flex';
+            _updateThemeBtns();
+        }
         function closeSettingsModal() { document.getElementById('settingsModal').style.display = 'none'; }
+
+        function setTheme(name) {
+            if (name) document.body.setAttribute('data-theme', name);
+            else       document.body.removeAttribute('data-theme');
+            localStorage.setItem('appTheme', name);
+            _updateThemeBtns();
+        }
+        function _updateThemeBtns() {
+            const cur = document.body.getAttribute('data-theme') || '';
+            ['classic','midnight','warm','glass'].forEach(t => {
+                const btn = document.getElementById('theme-btn-' + (t === 'classic' ? 'classic' : t));
+                if (!btn) return;
+                btn.classList.toggle('active', (t === 'classic' ? '' : t) === cur);
+            });
+        }
+        (function _applyStoredTheme() {
+            const t = localStorage.getItem('appTheme') || '';
+            if (t) document.body.setAttribute('data-theme', t);
+        })();
 
         function openDispatchModal()  { document.getElementById('dispatchLogModal').style.display = 'flex'; }
         function closeDispatchModal() { document.getElementById('dispatchLogModal').style.display = 'none'; }
