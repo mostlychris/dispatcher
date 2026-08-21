@@ -1208,9 +1208,11 @@ HTML = '''
 
         .conn-badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-weight: bold; font-size: 11px; }
         .conn-active   { background: #0a2a0a; color: #4f4; }
-        .rx-dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#333; margin-right:5px; vertical-align:middle; transition: background 0.15s; }
-        .rx-dot.lit  { background:#4f4; box-shadow: 0 0 6px #4f4; animation: rx-pulse 0.6s ease-out; }
-        @keyframes rx-pulse { 0%{box-shadow:0 0 10px #4f4;} 100%{box-shadow:0 0 4px #4f4;} }
+        .rx-dot { display:none; }
+        /* ---- SECTION ACTIVE STRIP ---- */
+        .collapse-panel.rx-active > .collapse-header {
+            box-shadow: inset 0 -3px 0 lime;
+        }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
         .collapse-panel.as-rx { transition: box-shadow 0.3s; }
         .status-strip { display:flex; align-items:center; gap:14px; padding:6px 12px; background:#1a1a1a; flex-wrap:wrap; }
@@ -1233,20 +1235,7 @@ HTML = '''
         .svc-text-off { color: #999; font-size: 11px; }
 
         /* ---- ACTIVE RX INDICATOR (dot only, no background change) ---- */
-        .tx-pulse {
-            width: 9px; height: 9px; border-radius: 50%;
-            background: #333; flex-shrink: 0;
-        }
-        .tx-pulse.on {
-            background: lime;
-            box-shadow: 0 0 6px lime;
-            animation: pulse 1s infinite;
-        }
-        @keyframes pulse {
-            0%   { box-shadow: 0 0 3px lime; }
-            50%  { box-shadow: 0 0 10px lime; }
-            100% { box-shadow: 0 0 3px lime; }
-        }
+        .tx-pulse { display: none; }
 
         /* ---- RIGHT CONTENT ---- */
         .content {
@@ -2672,7 +2661,7 @@ HTML = '''
                 if (data.event === 'tx_start') {
                     const cs = data.callsign || data.dmr_id || 'UNKNOWN';
                     document.getElementById('dmrSection').classList.add('active');
-                    document.getElementById('txPulse').classList.add('on');
+                    document.getElementById('dmrSection').classList.add('rx-active');
                     document.getElementById('dmrActiveCall').textContent = cs;
                     document.getElementById('txCallsign').textContent    = cs;
                     document.getElementById('txDetail').textContent      = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
@@ -2689,7 +2678,7 @@ HTML = '''
                     if (lastHeardOpen) pollLastHeard();
                 } else if (data.event === 'tx_end') {
                     document.getElementById('dmrSection').classList.remove('active');
-                    document.getElementById('txPulse').classList.remove('on');
+                    document.getElementById('dmrSection').classList.remove('rx-active');
                     document.getElementById('dmrActiveCall').textContent = '';
                     document.getElementById('txCallsign').textContent    = 'STANDBY';
                     document.getElementById('txDetail').textContent      = '—';
@@ -2707,7 +2696,7 @@ HTML = '''
                     if (_sdrActivateTimer) { clearTimeout(_sdrActivateTimer); _sdrActivateTimer = null; }
                     if (_sdrClearTimer)    { clearTimeout(_sdrClearTimer);    _sdrClearTimer    = null; }
                     _sdrActive = false;
-                    document.getElementById('sdrPulse').classList.remove('on');
+                    document.getElementById('sdrSection').classList.remove('rx-active');
                     document.getElementById('sdrDbBadge').textContent = '';
                     _updateSdrDisplay();
                     _updateSdrAudioBtn();
@@ -3378,7 +3367,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _sdrActive       = connected ? !!d.active : false;
             _sdrHoldFreq     = connected ? (d.holdFreq || null) : null;
             document.getElementById('sdrDbBadge').textContent = '';
-            document.getElementById('sdrPulse').classList.toggle('on', _sdrActive);
+            document.getElementById('sdrSection').classList.toggle('rx-active', _sdrActive);
             _updateSdrDisplay();
             const holdBadge = document.getElementById('sdrHoldBadge');
             if (holdBadge) holdBadge.style.display = d.holdFreq ? '' : 'none';
@@ -3399,7 +3388,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (_sdrClearTimer)    { clearTimeout(_sdrClearTimer);    _sdrClearTimer    = null; }
             _sdrActive = false;
             document.getElementById('sdrDbBadge').textContent = '';
-            document.getElementById('sdrPulse').classList.remove('on');
+            document.getElementById('sdrSection').classList.remove('rx-active');
             _updateSdrDisplay();
             _updateSdrAudioBtn();
         }
@@ -3420,7 +3409,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     _sdrActivateTimer = setTimeout(function() {
                         _sdrActivateTimer = null;
                         _sdrActive = true;
-                        document.getElementById('sdrPulse').classList.add('on');
+                        document.getElementById('sdrSection').classList.add('rx-active');
                         document.getElementById('sdrDbBadge').textContent = db != null ? db + ' dB' : '';
                         _updateSdrDisplay();
                         _updateSdrAudioBtn();
@@ -3435,7 +3424,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 _sdrClearTimer = setTimeout(function() {
                     _sdrClearTimer = null;
                     _sdrActive = false;
-                    document.getElementById('sdrPulse').classList.remove('on');
+                    document.getElementById('sdrSection').classList.remove('rx-active');
                     document.getElementById('sdrDbBadge').textContent = '';
                     _updateSdrDisplay();
                     _updateSdrAudioBtn();
@@ -3988,7 +3977,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 // can miss events on reconnect; the poll corrects any drift.
                 const dmrRx = d.conn_state === 'rx';
                 document.getElementById('dmrSection').classList.toggle('active', dmrRx);
-                document.getElementById('txPulse').classList.toggle('on', dmrRx);
+                document.getElementById('dmrSection').classList.toggle('rx-active', dmrRx);
                 // Reset TG tracking when DMR goes offline so next connect fires the toast.
                 if (d.conn_state === 'offline') { _activeDmrTg = null; _activeDmrTgName = null; }
 
@@ -4439,7 +4428,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const nowActive = !!(d.state === 'connected' && d.active);
                 if (nowActive && !wasActive) log('Allstar RX: signal on node ' + (d.node || '--'), 'ok');
                 if (!nowActive && wasActive) log('Allstar RX: signal cleared', 'info');
-                if (asSec) asSec.classList.toggle('as-rx', nowActive);
+                if (asSec) { asSec.classList.toggle('as-rx', nowActive); asSec.classList.toggle('rx-active', nowActive); }
                 ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.classList.toggle('streaming', !!(d.state === 'connected' && d.active) && el.classList.contains('active'));
@@ -4857,7 +4846,7 @@ registerProcessor('mic-decimator', MicDecimator);
                 audio.src = '';
                 _trQueue = [];
                 _trPlaying = null;
-                document.getElementById('trPulse').classList.remove('on');
+                document.getElementById('trSection').classList.remove('rx-active');
                 _updateTrQueueBadge();
             }
             _updateTrAudioBtn();
@@ -5050,7 +5039,7 @@ registerProcessor('mic-decimator', MicDecimator);
             const sys     = _trSystems[call.system] || call.system || '';
 
             // Status bar — show what's actually playing
-            document.getElementById('trPulse').classList.add('on');
+            document.getElementById('trSection').classList.add('rx-active');
             document.getElementById('trSystemBadge').textContent = sys.toUpperCase() || '--';
             const callTime = call.start_time
                 ? new Date(call.start_time * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})
@@ -5069,7 +5058,7 @@ registerProcessor('mic-decimator', MicDecimator);
 
         // Wire audio ended event
         document.getElementById('trAudio').addEventListener('ended', function() {
-            document.getElementById('trPulse').classList.remove('on');
+            document.getElementById('trSection').classList.remove('rx-active');
             document.getElementById('trTimeBadge').textContent = '';
             _trLastCall = _trPlaying || _trLastCall;
             _trPlaying = null;
