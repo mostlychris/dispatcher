@@ -1793,6 +1793,7 @@ HTML = '''
                 min-width: 0;
                 font-size: 13px;
                 font-weight: bold;
+                text-transform: uppercase;
                 border-radius: 5px;
                 border: 1px solid var(--mob-btn-border);
                 background: var(--mob-btn-bg);
