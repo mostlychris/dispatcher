@@ -1791,7 +1791,7 @@ HTML = '''
             .mobile-action-bar .mob-btn {
                 flex: 1;
                 min-width: 0;
-                font-size: 10px;
+                font-size: 13px;
                 font-weight: bold;
                 border-radius: 5px;
                 border: 1px solid var(--mob-btn-border);
@@ -1799,10 +1799,8 @@ HTML = '''
                 color: var(--mob-btn-color);
                 cursor: pointer;
                 display: flex;
-                flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                gap: 1px;
                 overflow: hidden;
                 -webkit-tap-highlight-color: transparent;
                 padding: 3px 2px;
@@ -1810,7 +1808,7 @@ HTML = '''
             /* Active idle: single theme-matched color for all non-glass themes */
             .mobile-action-bar .mob-btn.active   { background: var(--mob-active-bg); color: var(--mob-active-clr); border-color: var(--mob-active-bdr); }
             /* Streaming overrides — yellow/black for all themes */
-            .mobile-action-bar .mob-btn.active.streaming { background: #ccaa00; color: #000; border-color: #ffdd00; box-shadow: 0 0 8px #ffdd00; filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
+            .mobile-action-bar .mob-btn.active.streaming { background: #ccaa00; color: #000; border-color: #ffdd00; box-shadow: 0 0 8px #ffdd00; }
             .mobile-action-bar .mob-btn.mob-ptt  { background: var(--mob-btn-bg); color: var(--mob-btn-color); border-color: var(--mob-btn-border); font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
             .mobile-action-bar .mob-btn:disabled { opacity: 0.35; }
@@ -1946,14 +1944,14 @@ HTML = '''
 
     <div class="mobile-action-bar">
         <button class="mob-btn btn-monitor" id="mobBtnDmrMonitor"
-                onclick="toggleMonitor(this)"><span style="font-size:16px;">&#128264;</span><span>DMR</span></button>
+                onclick="toggleMonitor(this)">DMR</button>
         <button class="mob-btn btn-monitor" id="mobBtnAsMonitor"
-                onclick="toggleAllstarAudio(this)"><span style="font-size:16px;">&#128264;</span><span>Allstar</span></button>
+                onclick="toggleAllstarAudio(this)">Allstar</button>
         <button class="mob-btn btn-monitor" id="mobBtnTrAudio"
-                onclick="trToggleAudio()"><span style="font-size:16px;">&#128251;</span><span>Trunk</span></button>
+                onclick="trToggleAudio()">Trunk</button>
         <button class="mob-btn btn-monitor" id="mobBtnSdrAudio"
-                onclick="sdrToggleAudio()"><span style="font-size:16px;">📡</span><span>SDR</span></button>
-        <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled><span style="font-size:16px;">&#127908;</span><span>PTT</span></button>
+                onclick="sdrToggleAudio()">SDR</button>
+        <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled>PTT</button>
     </div>
 
         <!-- MAIN CONTENT -->
