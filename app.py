@@ -1083,15 +1083,14 @@ HTML = '''
             --radius-panel:   6px;
             --panel-shadow:   none;
             --panel-blur:     none;
-            --mob-bar-bg:     #111;
-            --mob-bar-border: #333;
-            --mob-btn-bg:     #1a1a1a;
-            --mob-btn-border: #444;
-            --mob-btn-color:  #aaa;
-            --mob-dmr-bg:     #002266; --mob-dmr-color: #7af; --mob-dmr-border: #0055cc;
-            --mob-as-bg:      #003a18; --mob-as-color:  #6f6; --mob-as-border:  #00aa44;
-            --mob-tr-bg:      #220044; --mob-tr-color:  #c8f; --mob-tr-border:  #8800cc;
-            --mob-sdr-bg:     #00303a; --mob-sdr-color: #4df; --mob-sdr-border: #00aabb;
+            --mob-bar-bg:      #111;
+            --mob-bar-border:  #333;
+            --mob-btn-bg:      #1a1a1a;
+            --mob-btn-border:  #444;
+            --mob-btn-color:   #aaa;
+            --mob-active-bg:   #004d00;
+            --mob-active-clr:  #7f7;
+            --mob-active-bdr:  #009900;
         }
         body[data-theme="midnight"] {
             --bg-body:        #000000;
@@ -1109,15 +1108,14 @@ HTML = '''
             --radius-panel:   8px;
             --panel-shadow:   0 2px 8px rgba(0,0,0,0.6);
             --panel-blur:     none;
-            --mob-bar-bg:     #080808;
-            --mob-bar-border: #1a1a1a;
-            --mob-btn-bg:     #0d0d0d;
-            --mob-btn-border: #222;
-            --mob-btn-color:  #888;
-            --mob-dmr-bg:     #001a55; --mob-dmr-color: #68a; --mob-dmr-border: #003eaa;
-            --mob-as-bg:      #002810; --mob-as-color:  #5d5; --mob-as-border:  #008833;
-            --mob-tr-bg:      #180033; --mob-tr-color:  #b6d; --mob-tr-border:  #6600aa;
-            --mob-sdr-bg:     #002028; --mob-sdr-color: #3ce; --mob-sdr-border: #008899;
+            --mob-bar-bg:      #080808;
+            --mob-bar-border:  #1a1a1a;
+            --mob-btn-bg:      #0d0d0d;
+            --mob-btn-border:  #222;
+            --mob-btn-color:   #888;
+            --mob-active-bg:   #003300;
+            --mob-active-clr:  #5d5;
+            --mob-active-bdr:  #006600;
         }
         body[data-theme="warm"] {
             --bg-body:        #0d0a07;
@@ -1135,15 +1133,14 @@ HTML = '''
             --radius-panel:   8px;
             --panel-shadow:   0 2px 12px rgba(60,30,0,0.3);
             --panel-blur:     none;
-            --mob-bar-bg:     #0e0a06;
-            --mob-bar-border: #2e1f0e;
-            --mob-btn-bg:     #181108;
-            --mob-btn-border: #3a2010;
-            --mob-btn-color:  #8a7050;
-            --mob-dmr-bg:     #1a1000; --mob-dmr-color: #c96; --mob-dmr-border: #5a3000;
-            --mob-as-bg:      #0e1a06; --mob-as-color:  #8b6; --mob-as-border:  #2a5010;
-            --mob-tr-bg:      #1a0808; --mob-tr-color:  #c88; --mob-tr-border:  #5a1010;
-            --mob-sdr-bg:     #001414; --mob-sdr-color: #78a; --mob-sdr-border: #104040;
+            --mob-bar-bg:      #0e0a06;
+            --mob-bar-border:  #2e1f0e;
+            --mob-btn-bg:      #181108;
+            --mob-btn-border:  #3a2010;
+            --mob-btn-color:   #8a7050;
+            --mob-active-bg:   #2a1800;
+            --mob-active-clr:  #c96;
+            --mob-active-bdr:  #6a3800;
         }
         body[data-theme="glass"] {
             --bg-body:        #0e1520;
@@ -1161,15 +1158,14 @@ HTML = '''
             --radius-panel:   14px;
             --panel-shadow:   0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
             --panel-blur:     blur(12px);
-            --mob-bar-bg:     rgba(14,21,32,0.85);
-            --mob-bar-border: rgba(255,255,255,0.12);
-            --mob-btn-bg:     rgba(255,255,255,0.07);
-            --mob-btn-border: rgba(255,255,255,0.14);
-            --mob-btn-color:  #c0ccdc;
-            --mob-dmr-bg:     rgba(0,60,180,0.35); --mob-dmr-color: #8cf; --mob-dmr-border: rgba(0,100,255,0.5);
-            --mob-as-bg:      rgba(0,140,60,0.25);  --mob-as-color:  #7e7; --mob-as-border:  rgba(0,180,80,0.45);
-            --mob-tr-bg:      rgba(120,0,200,0.28); --mob-tr-color:  #d9f; --mob-tr-border:  rgba(160,60,255,0.45);
-            --mob-sdr-bg:     rgba(0,160,180,0.22); --mob-sdr-color: #5ef; --mob-sdr-border: rgba(0,200,220,0.4);
+            --mob-bar-bg:      rgba(14,21,32,0.85);
+            --mob-bar-border:  rgba(255,255,255,0.12);
+            --mob-btn-bg:      rgba(255,255,255,0.07);
+            --mob-btn-border:  rgba(255,255,255,0.14);
+            --mob-btn-color:   #c0ccdc;
+            --mob-active-bg:   rgba(0,100,40,0.4);
+            --mob-active-clr:  #7e7;
+            --mob-active-bdr:  rgba(0,180,80,0.5);
         }
         body[data-theme="glass"] { background: linear-gradient(135deg, #0e1520 0%, #0a1018 50%, #101824 100%) fixed; }
 
@@ -1214,6 +1210,12 @@ HTML = '''
         body[data-theme="glass"] #sdrSection .collapse-header:hover {
             background: linear-gradient(90deg, rgba(0,160,180,0.24) 0%, rgba(255,255,255,0.06) 100%);
         }
+
+        /* Glass theme — per-section mobile button active colors (override the generic active rule) */
+        body[data-theme="glass"] #mobBtnDmrMonitor.active:not(.streaming) { background: rgba(0,60,180,0.35);  color: #8cf; border-color: rgba(0,100,255,0.5); }
+        body[data-theme="glass"] #mobBtnAsMonitor.active:not(.streaming)  { background: rgba(0,140,60,0.25);  color: #7e7; border-color: rgba(0,180,80,0.45); }
+        body[data-theme="glass"] #mobBtnTrAudio.active:not(.streaming)    { background: rgba(120,0,200,0.28); color: #d9f; border-color: rgba(160,60,255,0.45); }
+        body[data-theme="glass"] #mobBtnSdrAudio.active:not(.streaming)   { background: rgba(0,160,180,0.22); color: #5ef; border-color: rgba(0,200,220,0.4); }
 
         body { background: var(--bg-body); color: #fff; font-family: monospace; font-size: 13px; }
 
@@ -1805,17 +1807,10 @@ HTML = '''
                 -webkit-tap-highlight-color: transparent;
                 padding: 3px 2px;
             }
-            .mobile-action-bar .mob-btn.active   { background: #006600; color: #fff; border-color: #00aa00; }
-            /* Section-matched idle-active colors (theme-aware via CSS vars) */
-            #mobBtnDmrMonitor.active             { background: var(--mob-dmr-bg); color: var(--mob-dmr-color); border-color: var(--mob-dmr-border); }
-            #mobBtnAsMonitor.active              { background: var(--mob-as-bg);  color: var(--mob-as-color);  border-color: var(--mob-as-border);  }
-            #mobBtnTrAudio.active                { background: var(--mob-tr-bg);  color: var(--mob-tr-color);  border-color: var(--mob-tr-border);  }
-            #mobBtnSdrAudio.active               { background: var(--mob-sdr-bg); color: var(--mob-sdr-color); border-color: var(--mob-sdr-border); }
-            /* Streaming overrides section color — yellow/black for all */
-            #mobBtnDmrMonitor.active.streaming,
-            #mobBtnAsMonitor.active.streaming,
-            #mobBtnTrAudio.active.streaming,
-            #mobBtnSdrAudio.active.streaming     { background: #ccaa00; color: #000; border-color: #ffdd00; box-shadow: 0 0 8px #ffdd00; }
+            /* Active idle: single theme-matched color for all non-glass themes */
+            .mobile-action-bar .mob-btn.active   { background: var(--mob-active-bg); color: var(--mob-active-clr); border-color: var(--mob-active-bdr); }
+            /* Streaming overrides — yellow/black for all themes */
+            .mobile-action-bar .mob-btn.active.streaming { background: #ccaa00; color: #000; border-color: #ffdd00; box-shadow: 0 0 8px #ffdd00; }
             .mobile-action-bar .mob-btn.mob-ptt  { background: var(--mob-btn-bg); color: var(--mob-btn-color); border-color: var(--mob-btn-border); font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
             .mobile-action-bar .mob-btn:disabled { opacity: 0.35; }
