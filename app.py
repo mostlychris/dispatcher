@@ -2103,11 +2103,11 @@ HTML = '''
                                 <button onclick="trLockSysToggle()" id="trLockSysBtn"
                                         style="background:#1a1a1a;border:1px solid #1a2a3a;color:#4a7a9a;border-radius:3px;
                                                padding:2px 7px;font-size:10px;cursor:pointer;"
-                                        title="Lock to current system">&#128274;<span class="btn-label"> Sys</span></button>
+                                        title="Lock to current system">📡<span class="btn-label"> Sys</span></button>
                                 <button onclick="trLockTgToggle()" id="trLockTgBtn"
                                         style="background:#1a1a1a;border:1px solid #1a2a3a;color:#4a7a9a;border-radius:3px;
                                                padding:2px 7px;font-size:10px;cursor:pointer;"
-                                        title="Lock to current talkgroup">&#128274;<span class="btn-label"> TG</span></button>
+                                        title="Lock to current talkgroup">#<span class="btn-label"> TG</span></button>
                                 <!-- Divider -->
                                 <span style="width:1px;height:14px;background:#333;margin:0 2px;"></span>
                                 <!-- Destructive -->
@@ -4851,12 +4851,14 @@ registerProcessor('mic-decimator', MicDecimator);
                 sysBtn.style.background  = s.background;
                 sysBtn.style.borderColor = s.borderColor;
                 sysBtn.style.color       = s.color;
+                sysBtn.innerHTML = (_trLockedSystem ? '📡🔒' : '📡') + '<span class="btn-label"> Sys</span>';
             }
             if (tgBtn) {
                 const s = _trLockedTg ? LOCK_ON : LOCK_OFF;
                 tgBtn.style.background  = s.background;
                 tgBtn.style.borderColor = s.borderColor;
                 tgBtn.style.color       = s.color;
+                tgBtn.innerHTML = (_trLockedTg ? '#🔒' : '#') + '<span class="btn-label"> TG</span>';
             }
             if (sysBadge) {
                 sysBadge.style.display = _trLockedSystem ? '' : 'none';
