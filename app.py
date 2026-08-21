@@ -1065,6 +1065,7 @@ HTML = '''
     <script type="text/javascript" src="/static/pcm-player.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; overflow: hidden; }
         /* ---- THEME VARIABLES ---- */
         body {
             --bg-body:        #0d0d0d;
@@ -1082,6 +1083,11 @@ HTML = '''
             --radius-panel:   6px;
             --panel-shadow:   none;
             --panel-blur:     none;
+            --mob-bar-bg:     #111;
+            --mob-bar-border: #333;
+            --mob-btn-bg:     #1a1a1a;
+            --mob-btn-border: #444;
+            --mob-btn-color:  #aaa;
         }
         body[data-theme="midnight"] {
             --bg-body:        #000000;
@@ -1099,6 +1105,11 @@ HTML = '''
             --radius-panel:   8px;
             --panel-shadow:   0 2px 8px rgba(0,0,0,0.6);
             --panel-blur:     none;
+            --mob-bar-bg:     #080808;
+            --mob-bar-border: #1a1a1a;
+            --mob-btn-bg:     #0d0d0d;
+            --mob-btn-border: #222;
+            --mob-btn-color:  #888;
         }
         body[data-theme="warm"] {
             --bg-body:        #0d0a07;
@@ -1116,6 +1127,11 @@ HTML = '''
             --radius-panel:   8px;
             --panel-shadow:   0 2px 12px rgba(60,30,0,0.3);
             --panel-blur:     none;
+            --mob-bar-bg:     #0e0a06;
+            --mob-bar-border: #2e1f0e;
+            --mob-btn-bg:     #181108;
+            --mob-btn-border: #3a2010;
+            --mob-btn-color:  #8a7050;
         }
         body[data-theme="glass"] {
             --bg-body:        #0e1520;
@@ -1133,6 +1149,11 @@ HTML = '''
             --radius-panel:   14px;
             --panel-shadow:   0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
             --panel-blur:     blur(12px);
+            --mob-bar-bg:     rgba(14,21,32,0.85);
+            --mob-bar-border: rgba(255,255,255,0.12);
+            --mob-btn-bg:     rgba(255,255,255,0.07);
+            --mob-btn-border: rgba(255,255,255,0.14);
+            --mob-btn-color:  #c0ccdc;
         }
         body[data-theme="glass"] { background: linear-gradient(135deg, #0e1520 0%, #0a1018 50%, #101824 100%) fixed; }
 
@@ -1742,8 +1763,8 @@ HTML = '''
                 bottom: 0; left: 0; right: 0;
                 box-sizing: border-box;
                 height: 52px;
-                background: #111;
-                border-top: 1px solid #333;
+                background: var(--mob-bar-bg);
+                border-top: 1px solid var(--mob-bar-border);
                 z-index: 200;
                 gap: 4px;
                 padding: 5px 5px;
@@ -1755,9 +1776,9 @@ HTML = '''
                 font-size: 10px;
                 font-weight: bold;
                 border-radius: 5px;
-                border: 1px solid #444;
-                background: #1a1a1a;
-                color: #aaa;
+                border: 1px solid var(--mob-btn-border);
+                background: var(--mob-btn-bg);
+                color: var(--mob-btn-color);
                 cursor: pointer;
                 display: flex;
                 flex-direction: column;
@@ -1780,7 +1801,7 @@ HTML = '''
             #mobBtnAsMonitor.active.streaming,
             #mobBtnTrAudio.active.streaming,
             #mobBtnSdrAudio.active.streaming     { background: #0055cc; color: #fff; border-color: #0077ff; box-shadow: 0 0 8px #0077ff; }
-            .mobile-action-bar .mob-btn.mob-ptt  { background: #1a1a1a; color: #888; border-color: #444; font-weight: bold; letter-spacing: 1px; }
+            .mobile-action-bar .mob-btn.mob-ptt  { background: var(--mob-btn-bg); color: var(--mob-btn-color); border-color: var(--mob-btn-border); font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
             .mobile-action-bar .mob-btn:disabled { opacity: 0.35; }
             /* Push panel content up so it isn't hidden behind the bar */
