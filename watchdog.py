@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
 Dispatcher watchdog — runs every 2 minutes via cron.
-Restarts dead services and recovers USRP disconnection.
+Restarts dead services within the currently active network stack.
 
-Restart order: stfu → analog_bridge → mmdvm_bridge
-USRP recovery: if all services are RUNNING but usrp_connected is
-               false for USRP_GRACE_SECS, restart analog_bridge.
+Network stacks (mutually exclusive):
+  BM   stack: stfu.service + analog_bridge.service
+  TGIF stack: analog_bridge.service + mmdvm_bridge.service
+
+Active stack is determined by which network-specific service is running.
+stfu.service is BM-only — it must never be restarted when on TGIF, because
+the dispatcher uses stfu.service running as the signal that BM is active.
 """
 
 import subprocess
@@ -13,8 +17,15 @@ import time
 
 LOG_FILE      = '/var/log/dispatcher-watchdog.log'
 LOG_TAG       = 'dispatcher-watchdog'
-RESTART_ORDER = ['stfu.service', 'analog_bridge.service', 'mmdvm_bridge.service']
 RESTART_DELAY = 5   # seconds between restarts when multiple services are down
+
+# Services that identify each network stack (mutually exclusive)
+BM_ANCHOR   = 'stfu.service'
+TGIF_ANCHOR = 'mmdvm_bridge.service'
+SHARED_SVC  = 'analog_bridge.service'
+
+BM_STACK   = [BM_ANCHOR,   SHARED_SVC]
+TGIF_STACK = [TGIF_ANCHOR, SHARED_SVC]
 
 
 def log(msg):
@@ -48,19 +59,60 @@ def is_running(service):
     return result.returncode == 0
 
 
+def active_stack():
+    """Return the service list for the currently active network stack.
+
+    Priority: if the BM anchor is up → BM stack; if the TGIF anchor is up →
+    TGIF stack.  If both anchors are down, infer from the stack whose anchor
+    was most recently active (via systemctl show ExecMainStartTimestamp).
+    Falls back to TGIF if indeterminate.
+    """
+    bm_up   = is_running(BM_ANCHOR)
+    tgif_up = is_running(TGIF_ANCHOR)
+
+    if bm_up and not tgif_up:
+        return 'BM', BM_STACK
+    if tgif_up and not bm_up:
+        return 'TGIF', TGIF_STACK
+
+    # Both anchors down — check which one exited more recently
+    def last_start(svc):
+        try:
+            r = subprocess.run(
+                ['systemctl', 'show', svc, '--property=ExecMainStartTimestamp'],
+                capture_output=True, timeout=5
+            )
+            ts = r.stdout.decode().strip().split('=', 1)[-1]
+            return ts if ts else ''
+        except Exception:
+            return ''
+
+    bm_ts   = last_start(BM_ANCHOR)
+    tgif_ts = last_start(TGIF_ANCHOR)
+
+    # Lexicographic comparison of systemd timestamps works for recency
+    if bm_ts > tgif_ts:
+        return 'BM', BM_STACK
+    return 'TGIF', TGIF_STACK
+
 
 def main():
-    down = [s for s in RESTART_ORDER if not is_running(s)]
-    if not down:
-        return  # all services healthy, nothing to do
+    network, stack = active_stack()
+    down = [s for s in stack if not is_running(s)]
 
-    log(f'Dead services detected: {", ".join(down)}')
-    for svc in RESTART_ORDER:
+    if not down:
+        for s in stack:
+            log(f'  OK: {s}')
+        return
+
+    log(f'Network: {network} — dead services: {", ".join(down)}')
+    for svc in stack:
         if svc in down:
             log(f'Restarting {svc}...')
             ok = systemctl('restart', svc)
             log(f'  {"OK" if ok else "FAILED"}: {svc}')
-            time.sleep(RESTART_DELAY)
+            if RESTART_DELAY and svc != stack[-1]:
+                time.sleep(RESTART_DELAY)
 
 
 if __name__ == '__main__':
