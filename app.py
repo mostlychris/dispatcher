@@ -4787,6 +4787,7 @@ registerProcessor('mic-decimator', MicDecimator);
         var _trAutoplay   = true;
         var _trAudioEnabled = true;
         var _trDisabled   = {};       // 'system:tg' → true (disabled), 'avoided' → true (avoided/reddish)
+        var _trAvoidLevelMap = {};    // 'system:tg' → 1..4 (current avoid level index)
         var _trLockedSystem = null;   // when set, only calls from this system are played
         var _trLockedTg     = null;   // when set, only calls matching this talkgroup are played
         var _trConsoleTgs = {};       // system → [{id,tag,label,group,description}] for console grid
@@ -5002,21 +5003,7 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         function _trAvoidLevel(key) {
-            // Returns index into _TR_AVOID_LEVELS+1 (0=off)
-            const v = _trDisabled[key];
-            if (!v || v === true) return 0;
-            if (v === 'avoided') return _TR_AVOID_LEVELS.indexOf('indefinite') + 1;
-            if (typeof v === 'number' && v > Date.now()) {
-                const remaining = v - Date.now();
-                const mins = remaining / 60000;
-                // Find closest level
-                for (let i = 0; i < _TR_AVOID_LEVELS.length; i++) {
-                    if (_TR_AVOID_LEVELS[i] === 'indefinite') continue;
-                    if (Math.abs(mins - _TR_AVOID_LEVELS[i]) < _TR_AVOID_LEVELS[i] * 0.6) return i + 1;
-                }
-                return 1;
-            }
-            return 0;
+            return _trAvoidLevelMap[key] || 0;
         }
 
         function _trSetAvoid(key, level) {
@@ -5024,8 +5011,10 @@ registerProcessor('mic-decimator', MicDecimator);
                 // Off — but keep disabled state if it was toggled via console
                 if (_trDisabled[key] === true) return; // don't touch console-disabled
                 delete _trDisabled[key];
+                delete _trAvoidLevelMap[key];
             } else {
                 const lvl = _TR_AVOID_LEVELS[level - 1];
+                _trAvoidLevelMap[key] = level;
                 _trDisabled[key] = lvl === 'indefinite' ? 'avoided' : Date.now() + lvl * 60 * 1000;
             }
             _saveTrDisabled();
@@ -5097,6 +5086,7 @@ registerProcessor('mic-decimator', MicDecimator);
                 const v = _trDisabled[key];
                 if (typeof v === 'number' && v <= now) {
                     delete _trDisabled[key];
+                    delete _trAvoidLevelMap[key];
                     changed = true;
                 }
             }
