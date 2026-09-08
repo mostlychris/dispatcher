@@ -2126,7 +2126,6 @@ HTML = '''
                                 <button onclick="trAvoid()" id="trAvoidBtn" title="Avoid this talkgroup (cycles: 20m→30m→60m→indefinite→off)"
                                         style="background:#1a1010;border:1px solid #442222;color:#aa6666;border-radius:3px;
                                                padding:2px 7px;font-size:10px;cursor:pointer;">&#128683;<span class="btn-label" id="trAvoidBtnLabel"> Avoid</span></button>
-                                <span id="trAvoidTimer" style="display:none;font-size:10px;color:#cc6666;font-weight:bold;white-space:nowrap;"></span>
                                 <!-- Divider -->
                                 <span style="width:1px;height:14px;background:#333;margin:0 2px;"></span>
                                 <!-- View group -->
@@ -2140,9 +2139,10 @@ HTML = '''
                                         title="Call Log">&#9776;<span class="btn-label"> Call Log</span></button>
                             </span>
                         </div>
-                        <!-- Row 2: pulse · TG name · badges · system -->
+                        <!-- Row 2: pulse · avoid timer · TG name · badges · system -->
                         <div style="display:flex;align-items:center;gap:6px;min-width:0;padding-top:5px;border-top:1px solid #222;">
                             <span class="tx-pulse" id="trPulse"></span>
+                            <span id="trAvoidTimer" style="display:none;font-size:10px;color:#cc6666;font-weight:bold;white-space:nowrap;flex-shrink:0;"></span>
                             <span id="trTgBadge" style="font-size:16px;color:#fff;font-weight:bold;
                                   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;
                                   letter-spacing:0.3px;">--</span>
