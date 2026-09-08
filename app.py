@@ -2123,7 +2123,7 @@ HTML = '''
                                 <!-- Divider -->
                                 <span style="width:1px;height:14px;background:#333;margin:0 2px;"></span>
                                 <!-- Destructive -->
-                                <button onclick="trAvoid()" id="trAvoidBtn" title="Avoid this talkgroup (cycles: 20m→30m→60m→indefinite→off)"
+                                <button onclick="trAvoid()" id="trAvoidBtn" title="Avoid this talkgroup (cycles: indefinite→30m→60m→off)"
                                         style="background:#1a1010;border:1px solid #442222;color:#aa6666;border-radius:3px;
                                                padding:2px 7px;font-size:10px;cursor:pointer;">&#128683;<span class="btn-label" id="trAvoidBtnLabel"> Avoid</span></button>
                                 <!-- Divider -->
@@ -2337,7 +2337,7 @@ HTML = '''
                                         style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
                                     ⏭ Skip
                                 </button>
-                                <button onclick="trAvoid()" id="trAvoidBtnModal" title="Avoid this talkgroup (cycles: 20m→30m→60m→indefinite→off)"
+                                <button onclick="trAvoid()" id="trAvoidBtnModal" title="Avoid this talkgroup (cycles: indefinite→30m→60m→off)"
                                         style="background:#2a1010;border:1px solid #662222;color:#ff8888;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
                                     &#128683; <span id="trAvoidBtnModalLabel">Avoid</span>
                                 </button>
@@ -4989,8 +4989,8 @@ registerProcessor('mic-decimator', MicDecimator);
             _playTrCall(target);
         }
 
-        // Avoid cycle: 20min → 30min → 60min → indefinite → off
-        var _TR_AVOID_LEVELS = [20, 30, 60, 'indefinite'];
+        // Avoid cycle: indefinite → 30min → 60min → off
+        var _TR_AVOID_LEVELS = ['indefinite', 30, 60];
 
         function _trAvoidState(key) {
             const v = _trDisabled[key];
@@ -5034,7 +5034,7 @@ registerProcessor('mic-decimator', MicDecimator);
 
         function _updateTrAvoidBtn() {
             const target = _trPlaying || _trLastCall;
-            const labels = ['Avoid', '20m', '30m', '60m', '∞'];
+            const labels = ['Avoid', '∞', '30m', '60m'];
             let label = 'Avoid';
             let timerText = null;
             if (target) {
