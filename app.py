@@ -1536,6 +1536,10 @@ HTML = '''
         .tr-tg-btn.disabled .tr-tg-btn-num { color:#444; }
         .tr-tg-btn.avoided { background:#2a1010; border-color:#662222; color:#cc6666; }
         .tr-tg-btn.avoided .tr-tg-btn-num { color:#882222; }
+        .tr-tg-btn.avoided-timed { background:#2a1010; border-color:#662222; color:#cc6666; }
+        .tr-tg-btn.avoided-timed .tr-tg-btn-num { color:#882222; }
+        @keyframes avoid-flash { 0%,100%{opacity:1;border-color:#662222;} 50%{opacity:0.4;border-color:#cc2222;} }
+        .tr-tg-btn.avoided-timed { animation: avoid-flash 1.2s ease-in-out infinite; }
         .tr-tg-btn-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:bold; }
         .tr-tg-btn-num  { font-size:9px; color:#4a8a4a; font-family:monospace; }
 
@@ -2119,9 +2123,9 @@ HTML = '''
                                 <!-- Divider -->
                                 <span style="width:1px;height:14px;background:#333;margin:0 2px;"></span>
                                 <!-- Destructive -->
-                                <button onclick="trAvoid()" title="Avoid this talkgroup"
+                                <button onclick="trAvoid()" id="trAvoidBtn" title="Avoid this talkgroup (cycles: 20m→30m→60m→indefinite→off)"
                                         style="background:#1a1010;border:1px solid #442222;color:#aa6666;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;">&#128683;<span class="btn-label"> Avoid</span></button>
+                                               padding:2px 7px;font-size:10px;cursor:pointer;">&#128683;<span class="btn-label" id="trAvoidBtnLabel"> Avoid</span></button>
                                 <!-- Divider -->
                                 <span style="width:1px;height:14px;background:#333;margin:0 2px;"></span>
                                 <!-- View group -->
@@ -2332,9 +2336,9 @@ HTML = '''
                                         style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
                                     ⏭ Skip
                                 </button>
-                                <button onclick="trAvoid()" title="Avoid this talkgroup"
+                                <button onclick="trAvoid()" id="trAvoidBtnModal" title="Avoid this talkgroup (cycles: 20m→30m→60m→indefinite→off)"
                                         style="background:#2a1010;border:1px solid #662222;color:#ff8888;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
-                                    &#128683; Avoid
+                                    &#128683; <span id="trAvoidBtnModalLabel">Avoid</span>
                                 </button>
                                 <button onclick="trPauseToggle()" id="trPauseBtnModal"
                                         style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
@@ -4810,7 +4814,14 @@ registerProcessor('mic-decimator', MicDecimator);
 
         function _trKey(call) { return call.system + ':' + call.talkgroup; }
 
-        function _isTrDisabled(call) { return !!_trDisabled[_trKey(call)]; }
+        function _isTrDisabled(call) {
+            const v = _trDisabled[_trKey(call)];
+            if (!v) return false;
+            if (v === true) return true;                     // console-disabled
+            if (v === 'avoided') return true;                // indefinite avoid
+            if (typeof v === 'number') return v > Date.now(); // timed avoid: still active?
+            return false;
+        }
 
         // ---- Volume ----
         function setTrVolume(val) {
@@ -4975,17 +4986,100 @@ registerProcessor('mic-decimator', MicDecimator);
             _playTrCall(target);
         }
 
+        // Avoid cycle: 20min → 30min → 60min → indefinite → off
+        var _TR_AVOID_LEVELS = [20, 30, 60, 'indefinite'];
+
+        function _trAvoidState(key) {
+            const v = _trDisabled[key];
+            if (!v || v === true) return null;           // not avoided
+            if (v === 'avoided') return 'indefinite';    // legacy indefinite
+            if (typeof v === 'number') {
+                return v > Date.now() ? v : null;        // timed: expiry ts or expired
+            }
+            return null;
+        }
+
+        function _trAvoidLevel(key) {
+            // Returns index into _TR_AVOID_LEVELS+1 (0=off)
+            const v = _trDisabled[key];
+            if (!v || v === true) return 0;
+            if (v === 'avoided') return _TR_AVOID_LEVELS.indexOf('indefinite') + 1;
+            if (typeof v === 'number' && v > Date.now()) {
+                const remaining = v - Date.now();
+                const mins = remaining / 60000;
+                // Find closest level
+                for (let i = 0; i < _TR_AVOID_LEVELS.length; i++) {
+                    if (_TR_AVOID_LEVELS[i] === 'indefinite') continue;
+                    if (Math.abs(mins - _TR_AVOID_LEVELS[i]) < _TR_AVOID_LEVELS[i] * 0.6) return i + 1;
+                }
+                return 1;
+            }
+            return 0;
+        }
+
+        function _trSetAvoid(key, level) {
+            if (level === 0) {
+                // Off — but keep disabled state if it was toggled via console
+                if (_trDisabled[key] === true) return; // don't touch console-disabled
+                delete _trDisabled[key];
+            } else {
+                const lvl = _TR_AVOID_LEVELS[level - 1];
+                _trDisabled[key] = lvl === 'indefinite' ? 'avoided' : Date.now() + lvl * 60 * 1000;
+            }
+            _saveTrDisabled();
+        }
+
+        function _updateTrAvoidBtn() {
+            const target = _trPlaying || _trLastCall;
+            const labels = ['Avoid', '20m', '30m', '60m', '∞'];
+            let label = 'Avoid';
+            if (target) {
+                const lvl = _trAvoidLevel(_trKey(target));
+                label = lvl === 0 ? 'Avoid' : labels[lvl];
+            }
+            const s1 = document.getElementById('trAvoidBtnLabel');
+            const s2 = document.getElementById('trAvoidBtnModalLabel');
+            if (s1) s1.textContent = ' ' + label;
+            if (s2) s2.textContent = label;
+        }
+
         function trAvoid() {
             const target = _trPlaying || _trLastCall;
             if (!target) return;
             const key = _trKey(target);
-            _trDisabled[key] = 'avoided';
-            _saveTrDisabled();
-            _trQueue = _trQueue.filter(c => _trKey(c) !== key);
-            _updateTrQueueBadge();
-            renderTrConsole();
-            trSkip();
+            // Cycle to next level
+            const cur = _trAvoidLevel(key);
+            const next = (cur + 1) % (_TR_AVOID_LEVELS.length + 1);  // +1 for "off"
+            _trSetAvoid(key, next);
+            _updateTrAvoidBtn();
+            if (next > 0) {
+                // Purge queued calls and skip current
+                _trQueue = _trQueue.filter(c => _trKey(c) !== key);
+                _updateTrQueueBadge();
+                renderTrConsole();
+                trSkip();
+            } else {
+                renderTrConsole();
+            }
         }
+
+        // Tick: expire timed avoids
+        setInterval(function _trAvoidTick() {
+            let changed = false;
+            const now = Date.now();
+            for (const key of Object.keys(_trDisabled)) {
+                const v = _trDisabled[key];
+                if (typeof v === 'number' && v <= now) {
+                    delete _trDisabled[key];
+                    changed = true;
+                }
+            }
+            if (changed) {
+                _saveTrDisabled();
+                renderTrConsole();
+                _updateTrAvoidBtn();
+            }
+        }, 15000);
 
         // ---- Playback queue ----
         function _trEnqueue(call) {
@@ -5016,6 +5110,7 @@ registerProcessor('mic-decimator', MicDecimator);
             _trLastCall = call;
             document.getElementById('trSkippedBadge').style.display = 'none';
             clearTimeout(_trSkippedTimer);
+            _updateTrAvoidBtn();
             renderTrCalls();
             const audio = document.getElementById('trAudio');
             const vol = parseInt(localStorage.getItem('trVolume') ?? '100');
@@ -5149,7 +5244,10 @@ registerProcessor('mic-decimator', MicDecimator);
                         const isDisabled = !!state;
                         if (filter === 'active'   &&  isDisabled) return;
                         if (filter === 'disabled' && !isDisabled) return;
-                        const cls   = state === 'avoided' ? 'avoided' : state ? 'disabled' : '';
+                        const isTimedAvoid = typeof state === 'number' && state > Date.now();
+                        const cls   = state === 'avoided' ? 'avoided'
+                                    : isTimedAvoid        ? 'avoided-timed'
+                                    : state               ? 'disabled' : '';
                         const name = tg.label || tg.description || tg.tag || '';
                         const sub  = tg.group || tg.tag || '';
                         html += `<button class="tr-tg-btn ${cls}" onclick="trToggleTg('${escHtml(s)}',${tg.id})"
