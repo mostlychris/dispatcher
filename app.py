@@ -2126,6 +2126,7 @@ HTML = '''
                                 <button onclick="trAvoid()" id="trAvoidBtn" title="Avoid this talkgroup (cycles: 20m→30m→60m→indefinite→off)"
                                         style="background:#1a1010;border:1px solid #442222;color:#aa6666;border-radius:3px;
                                                padding:2px 7px;font-size:10px;cursor:pointer;">&#128683;<span class="btn-label" id="trAvoidBtnLabel"> Avoid</span></button>
+                                <span id="trAvoidTimer" style="display:none;font-size:10px;color:#cc6666;font-weight:bold;white-space:nowrap;"></span>
                                 <!-- Divider -->
                                 <span style="width:1px;height:14px;background:#333;margin:0 2px;"></span>
                                 <!-- View group -->
@@ -2340,6 +2341,7 @@ HTML = '''
                                         style="background:#2a1010;border:1px solid #662222;color:#ff8888;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
                                     &#128683; <span id="trAvoidBtnModalLabel">Avoid</span>
                                 </button>
+                                <span id="trAvoidTimerModal" style="display:none;font-size:11px;color:#ff8888;font-weight:bold;white-space:nowrap;"></span>
                                 <button onclick="trPauseToggle()" id="trPauseBtnModal"
                                         style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
                                     ⏸ Pause
@@ -5029,18 +5031,42 @@ registerProcessor('mic-decimator', MicDecimator);
             _saveTrDisabled();
         }
 
+        function _fmtAvoidRemaining(expiry) {
+            const ms = expiry - Date.now();
+            if (ms <= 0) return null;
+            const totalSec = Math.ceil(ms / 1000);
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            if (h > 0) return h + 'h ' + m + 'm';
+            if (m > 0) return m + 'm ' + s + 's';
+            return s + 's';
+        }
+
         function _updateTrAvoidBtn() {
             const target = _trPlaying || _trLastCall;
             const labels = ['Avoid', '20m', '30m', '60m', '∞'];
             let label = 'Avoid';
+            let timerText = null;
             if (target) {
-                const lvl = _trAvoidLevel(_trKey(target));
+                const key = _trKey(target);
+                const lvl = _trAvoidLevel(key);
                 label = lvl === 0 ? 'Avoid' : labels[lvl];
+                const v = _trDisabled[key];
+                if (typeof v === 'number' && v > Date.now()) {
+                    timerText = _fmtAvoidRemaining(v);
+                } else if (v === 'avoided') {
+                    timerText = '∞';
+                }
             }
             const s1 = document.getElementById('trAvoidBtnLabel');
             const s2 = document.getElementById('trAvoidBtnModalLabel');
             if (s1) s1.textContent = ' ' + label;
             if (s2) s2.textContent = label;
+            const t1 = document.getElementById('trAvoidTimer');
+            const t2 = document.getElementById('trAvoidTimerModal');
+            if (t1) { t1.textContent = timerText || ''; t1.style.display = timerText ? '' : 'none'; }
+            if (t2) { t2.textContent = timerText || ''; t2.style.display = timerText ? '' : 'none'; }
         }
 
         function trAvoid() {
@@ -5063,7 +5089,7 @@ registerProcessor('mic-decimator', MicDecimator);
             }
         }
 
-        // Tick: expire timed avoids
+        // Tick: expire timed avoids + refresh countdown display every 30s
         setInterval(function _trAvoidTick() {
             let changed = false;
             const now = Date.now();
@@ -5074,12 +5100,11 @@ registerProcessor('mic-decimator', MicDecimator);
                     changed = true;
                 }
             }
-            if (changed) {
-                _saveTrDisabled();
-                renderTrConsole();
-                _updateTrAvoidBtn();
-            }
-        }, 15000);
+            if (changed) _saveTrDisabled();
+            // Always refresh display so countdowns stay current
+            _updateTrAvoidBtn();
+            renderTrConsole();
+        }, 30000);
 
         // ---- Playback queue ----
         function _trEnqueue(call) {
@@ -5250,10 +5275,12 @@ registerProcessor('mic-decimator', MicDecimator);
                                     : state               ? 'disabled' : '';
                         const name = tg.label || tg.description || tg.tag || '';
                         const sub  = tg.group || tg.tag || '';
+                        const avoidSub = isTimedAvoid ? ('🚫 ' + (_fmtAvoidRemaining(state) || ''))
+                                       : state === 'avoided' ? '🚫 ∞' : '';
                         html += `<button class="tr-tg-btn ${cls}" onclick="trToggleTg('${escHtml(s)}',${tg.id})"
                                     title="TG ${tg.id}${name ? ' · ' + name : ''}${sub ? ' [' + sub + ']' : ''}">
                             <span class="tr-tg-btn-name">${escHtml(name || ('TG ' + tg.id))}</span>
-                            <span class="tr-tg-btn-num">TG ${tg.id}${sub ? ' · ' + escHtml(sub) : ''}</span>
+                            <span class="tr-tg-btn-num">${avoidSub || ('TG ' + tg.id + (sub ? ' · ' + escHtml(sub) : ''))}</span>
                         </button>`;
                     });
                     html += `</div></div>`;
