@@ -3608,7 +3608,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 // Audio overlay status row
                 const row = document.getElementById('ysfStatusRow');
                 if (row) {
-                    if (d.error || d.connected === false) {
+                    if (d.error) {
                         row.textContent = 'Decoder offline';
                     } else {
                         const reflector = d.reflector || d.label || '—';
@@ -3639,7 +3639,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         function _updateYsfPanel(d) {
-            const offline   = !d || !!d.error || d.connected === false || d.usrp_connected === false;
+            // OFFLINE only when the HTTP API itself fails — idle silence is normal
+            const offline   = !d || !!d.error;
             const badge     = document.getElementById('ysfOfflineBadge');
             const pulse     = document.getElementById('ysfPulse');
             const refBadge  = document.getElementById('ysfReflectorBadge');
