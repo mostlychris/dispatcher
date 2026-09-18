@@ -3758,10 +3758,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function ysfConnectReflector(id, label) {
             const display = label || id;
             _ysfSetStatus('Connecting to ' + display + '…', true);
+            // Pass address/port from local list so backend doesn't need a warm cache
+            const rEntry = _ysfAllReflectors.find(function(x) { return (x.id||x.name) === id; });
+            const body = {name: id, label: display};
+            if (rEntry) { body.address = rEntry.ip; body.port = rEntry.port; }
             fetch('/api/ysf/connect', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-Api-Key': API_KEY},
-                body: JSON.stringify({name: id})
+                body: JSON.stringify(body)
             }).then(function(r) {
                 return r.json().then(function(d) { return {status: r.status, data: d}; });
             }).then(function(res) {
@@ -6650,34 +6654,43 @@ def ysf_connect():
     if deny:
         return deny
     data = request.get_json(silent=True) or {}
-    ref_id = str(data.get('name', '')).strip()
+    ref_id  = str(data.get('name', '')).strip()
     if not ref_id:
         return jsonify({'ok': False, 'message': 'name required'}), 400
 
-    # Look up the reflector in the cached ysfreflector.de list
-    ref = next((r for r in _ysf_reflector_cache if r.get('id') == ref_id), None)
+    # Address/port may come directly from the frontend (preferred), else look up cache
+    address = str(data.get('address', '')).strip()
+    port    = data.get('port')
+    label   = str(data.get('label', '')).strip()
+
+    if not address:
+        # Warm the cache if needed, then look up
+        _fetch_ysf_reflectors()
+        ref = next((r for r in _ysf_reflector_cache if r.get('id') == ref_id), None)
+        if ref:
+            address = ref.get('ip', '')
+            port    = ref.get('port', 42000)
+            label   = label or ref.get('name', ref_id)
+
+    try:
+        port = int(port) if port else 42000
+    except (TypeError, ValueError):
+        port = 42000
+
+    startup_name = label or ref_id
 
     import re as _re
-    if ref:
-        # Use human-readable name as the Startup= / hosts Name
-        startup_name = ref.get('name') or ref_id
-        address      = ref.get('ip', '')
-        port         = int(ref.get('port', 42000))
-        desc         = ref.get('desc', '') or startup_name
-
-        # Write a single-entry JSON hosts file the gateway can parse.
-        # G4KLX YSFGateway expects: [{"Name":…,"Desc":…,"Address":…,"Port":…}]
+    if address:
+        # Write a single-entry JSON hosts file.
+        # G4KLX YSFGateway parses: [{"Name":…,"Desc":…,"Address":…,"Port":…}]
         hosts_dir  = os.path.dirname(os.path.abspath(YSF_GATEWAY_INI))
         hosts_path = os.path.join(hosts_dir, 'YSFHosts.json')
         try:
             with open(hosts_path, 'w') as f:
-                json.dump([{"Name": startup_name, "Desc": desc,
+                json.dump([{"Name": startup_name, "Desc": startup_name,
                             "Address": address, "Port": port}], f, indent=2)
         except Exception as e:
             return jsonify({'ok': False, 'message': f'Failed to write hosts file: {e}'}), 500
-    else:
-        # FCS room or bare name — skip hosts file, just update Startup=
-        startup_name = ref_id
 
     try:
         with open(YSF_GATEWAY_INI, 'r') as f:
