@@ -2367,6 +2367,8 @@ HTML = '''
                             <div style="font-size:9px;color:#556;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px;">Favorites</div>
                             <div id="ysfFavList" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;"></div>
                         </div>
+                        <div id="ysfConnectStatus" style="display:none;margin-bottom:8px;padding:6px 10px;
+                             border-radius:4px;font-size:12px;flex-shrink:0;"></div>
                         <div id="ysfReflectorList" style="overflow-y:auto;flex:1;font-size:12px;"></div>
                     </div>
                 </div>
@@ -3738,24 +3740,43 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _renderYsfList();
         }
 
+        function _ysfSetStatus(msg, ok) {
+            const el = document.getElementById('ysfConnectStatus');
+            if (!el) return;
+            el.style.display   = msg ? '' : 'none';
+            el.style.background = ok ? '#0a2a0a' : '#2a0a0a';
+            el.style.border     = '1px solid ' + (ok ? '#1a6a1a' : '#6a1a1a');
+            el.style.color      = ok ? '#6f6' : '#f88';
+            el.textContent      = msg;
+        }
+
         function ysfConnectReflector(name) {
+            _ysfSetStatus('Connecting to ' + name + '…', true);
+            // Dim the clicked button immediately
             fetch('/api/ysf/connect', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-Api-Key': API_KEY},
                 body: JSON.stringify({name: name})
-            }).then(r => r.json()).then(function(d) {
+            }).then(function(r) {
+                return r.json().then(function(d) { return {status: r.status, data: d}; });
+            }).then(function(res) {
+                const d = res.data;
                 if (d.ok) {
                     _ysfCurrentRef = name;
                     const refBadge = document.getElementById('ysfReflectorBadge');
                     if (refBadge) refBadge.textContent = name;
                     const row = document.getElementById('ysfStatusRow');
                     if (row) row.textContent = name;
+                    _ysfSetStatus('Connected to ' + name + '. Gateway restarting…', true);
                     _renderYsfList();
                     _renderYsfFavs();
+                    setTimeout(function() { _ysfSetStatus('', true); }, 6000);
                 } else {
-                    alert('YSF connect failed: ' + (d.message || 'Unknown error'));
+                    _ysfSetStatus('Error: ' + (d.message || 'Unknown error'), false);
                 }
-            }).catch(function(e) { alert('YSF connect error: ' + e); });
+            }).catch(function(e) {
+                _ysfSetStatus('Request failed: ' + e, false);
+            });
         }
 
         function _sdrMergeChannels(m) {
@@ -6579,8 +6600,19 @@ def ysf_connect():
             f.write(ini)
     except Exception as e:
         return jsonify({'ok': False, 'message': f'Failed to update ini: {e}'}), 500
-    result = run(f"sudo systemctl restart {YSF_GATEWAY_SERVICE}")
-    return jsonify({'ok': True, 'message': result or 'OK', 'name': name})
+    try:
+        proc = subprocess.run(
+            ['sudo', 'systemctl', 'restart', YSF_GATEWAY_SERVICE],
+            capture_output=True, text=True, timeout=15
+        )
+        if proc.returncode != 0:
+            msg = (proc.stdout + proc.stderr).strip() or 'systemctl restart failed'
+            return jsonify({'ok': False, 'message': msg}), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({'ok': False, 'message': 'Service restart timed out'}), 500
+    except Exception as e:
+        return jsonify({'ok': False, 'message': str(e)}), 500
+    return jsonify({'ok': True, 'message': 'OK', 'name': name})
 
 
 if __name__ == '__main__':
