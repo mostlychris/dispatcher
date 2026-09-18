@@ -3700,19 +3700,21 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (!list) return;
             const q = (document.getElementById('ysfSearchBox')?.value || '').toLowerCase();
             const filtered = q
-                ? _ysfAllReflectors.filter(r => r.name.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q))
+                ? _ysfAllReflectors.filter(r => (r.name||r.id||'').toLowerCase().includes(q) || (r.desc||'').toLowerCase().includes(q))
                 : _ysfAllReflectors;
             list.innerHTML = filtered.slice(0, 300).map(function(r) {
-                const isFav     = _ysfFavorites.includes(r.name);
-                const isCurrent = r.name === _ysfCurrentRef;
+                const key       = r.id || r.name;
+                const label     = r.name || r.id;
+                const isFav     = _ysfFavorites.includes(key);
+                const isCurrent = key === _ysfCurrentRef;
                 return '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #1e1e1e;">' +
-                    '<button onclick="ysfStarReflector(' + escHtml(JSON.stringify(r.name)) + ')" title="Favorite"' +
+                    '<button onclick="ysfStarReflector(' + escHtml(JSON.stringify(key)) + ')" title="Favorite"' +
                     ' style="background:none;border:none;color:' + (isFav ? '#fc0' : '#444') + ';font-size:15px;cursor:pointer;flex-shrink:0;padding:0;">&#9733;</button>' +
                     '<div style="flex:1;min-width:0;">' +
-                    '<div style="font-weight:bold;color:' + (isCurrent ? '#c8f' : '#ddd') + ';">' + escHtml(r.name) + '</div>' +
-                    '<div style="font-size:10px;color:#666;">' + escHtml(r.desc) + '</div>' +
+                    '<div style="font-weight:bold;color:' + (isCurrent ? '#c8f' : '#ddd') + ';">' + escHtml(label) + '</div>' +
+                    '<div style="font-size:10px;color:#666;">' + escHtml(r.desc||'') + '</div>' +
                     '</div>' +
-                    '<button onclick="ysfConnectReflector(' + escHtml(JSON.stringify(r.name)) + ')"' +
+                    '<button onclick="ysfConnectReflector(' + escHtml(JSON.stringify(key)) + ',' + escHtml(JSON.stringify(label)) + ')"' +
                     ' style="background:' + (isCurrent ? '#1a003a' : '#1a1a1a') + ';border:1px solid ' + (isCurrent ? '#8040c0' : '#333') + ';' +
                     'color:' + (isCurrent ? '#c8f' : '#aaa') + ';border-radius:3px;padding:2px 9px;font-size:10px;cursor:pointer;flex-shrink:0;">' +
                     (isCurrent ? 'Connected' : 'Connect') + '</button>' +
@@ -3726,10 +3728,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (!sec || !list) return;
             if (_ysfFavorites.length === 0) { sec.style.display = 'none'; return; }
             sec.style.display = '';
-            list.innerHTML = _ysfFavorites.map(function(name) {
-                return '<button onclick="ysfConnectReflector(' + escHtml(JSON.stringify(name)) + ')"' +
+            list.innerHTML = _ysfFavorites.map(function(id) {
+                const r     = _ysfAllReflectors.find(x => (x.id||x.name) === id);
+                const label = r ? (r.name || r.id) : id;
+                return '<button onclick="ysfConnectReflector(' + escHtml(JSON.stringify(id)) + ',' + escHtml(JSON.stringify(label)) + ')"' +
                     ' style="background:#1a0a2a;border:1px solid #6030a0;color:#c8f;border-radius:4px;' +
-                    'padding:2px 9px;font-size:11px;cursor:pointer;">' + escHtml(name) + '</button>';
+                    'padding:2px 9px;font-size:11px;cursor:pointer;">' + escHtml(label) + '</button>';
             }).join('');
         }
 
@@ -3751,24 +3755,24 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             el.textContent      = msg;
         }
 
-        function ysfConnectReflector(name) {
-            _ysfSetStatus('Connecting to ' + name + '…', true);
-            // Dim the clicked button immediately
+        function ysfConnectReflector(id, label) {
+            const display = label || id;
+            _ysfSetStatus('Connecting to ' + display + '…', true);
             fetch('/api/ysf/connect', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-Api-Key': API_KEY},
-                body: JSON.stringify({name: name})
+                body: JSON.stringify({name: id})
             }).then(function(r) {
                 return r.json().then(function(d) { return {status: r.status, data: d}; });
             }).then(function(res) {
                 const d = res.data;
                 if (d.ok) {
-                    _ysfCurrentRef = name;
+                    _ysfCurrentRef = id;
                     const refBadge = document.getElementById('ysfReflectorBadge');
-                    if (refBadge) refBadge.textContent = name;
+                    if (refBadge) refBadge.textContent = display;
                     const row = document.getElementById('ysfStatusRow');
-                    if (row) row.textContent = name;
-                    _ysfSetStatus('Connected to ' + name + '. Gateway restarting…', true);
+                    if (row) row.textContent = display;
+                    _ysfSetStatus('Connected to ' + display + '. Gateway restarting…', true);
                     _renderYsfList();
                     _renderYsfFavs();
                     setTimeout(function() { _ysfSetStatus('', true); }, 6000);
@@ -6553,31 +6557,72 @@ def ysf_stream():
     return Response(generate(), content_type=content_type,
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
+_ysf_reflector_cache = []
+_ysf_reflector_cache_ts = 0.0
+YSF_REGISTRY_URL = 'http://ysfreflector.de'
+YSF_CACHE_TTL = 3600  # refresh once per hour
+
+def _fetch_ysf_reflectors():
+    """Fetch and parse the YSF reflector list from ysfreflector.de."""
+    global _ysf_reflector_cache, _ysf_reflector_cache_ts
+    import time as _time
+    now = _time.time()
+    if _ysf_reflector_cache and (now - _ysf_reflector_cache_ts) < YSF_CACHE_TTL:
+        return _ysf_reflector_cache, None
+    try:
+        req = urllib.request.Request(YSF_REGISTRY_URL,
+                                     headers={'User-Agent': 'dispatcher/1.0'})
+        r = urllib.request.urlopen(req, timeout=8)
+        text = r.read().decode('utf-8', errors='replace')
+    except Exception as e:
+        # On failure return stale cache if available, else try local file
+        if _ysf_reflector_cache:
+            return _ysf_reflector_cache, None
+        return None, str(e)
+    out = []
+    for line in text.splitlines():
+        if line.startswith('#') or not line.strip():
+            continue
+        parts = [p.strip() for p in line.split(';')]
+        if len(parts) >= 5:
+            out.append({
+                'id':    parts[0],
+                'name':  parts[1],
+                'desc':  parts[2],
+                'ip':    parts[3],
+                'port':  int(parts[4]) if parts[4].isdigit() else 42000,
+            })
+    if out:
+        _ysf_reflector_cache = out
+        _ysf_reflector_cache_ts = now
+    return out or _ysf_reflector_cache, None
+
 @app.route('/api/ysf/reflectors')
 def ysf_reflectors():
-    """Parse YSFHosts.txt and return a list of YSF reflectors."""
-    try:
-        with open(YSF_HOSTS_FILE, 'r', errors='replace') as f:
-            lines = f.readlines()
-        out = []
-        for line in lines:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            parts = line.split(';')
-            if len(parts) >= 4:
-                out.append({
-                    'name':   parts[0].strip(),
-                    'desc':   parts[1].strip(),
-                    'ip':     parts[2].strip(),
-                    'port':   parts[3].strip(),
-                    'active': parts[4].strip() if len(parts) >= 5 else '1',
-                })
-        return jsonify(out)
-    except FileNotFoundError:
-        return jsonify({'error': 'Hosts file not found', 'path': YSF_HOSTS_FILE}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    """Return YSF reflector list from ysfreflector.de (cached 1 hour)."""
+    data, err = _fetch_ysf_reflectors()
+    if not data:
+        # Fall back to local hosts file
+        try:
+            with open(YSF_HOSTS_FILE, 'r', errors='replace') as f:
+                lines = f.readlines()
+            data = []
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split(';')
+                if len(parts) >= 4:
+                    data.append({
+                        'id':   parts[0].strip(),
+                        'name': parts[0].strip(),
+                        'desc': parts[1].strip(),
+                        'ip':   parts[2].strip(),
+                        'port': int(parts[3].strip()) if parts[3].strip().isdigit() else 42000,
+                    })
+        except Exception as e2:
+            return jsonify({'error': f'Registry: {err}  Local: {e2}'}), 502
+    return jsonify(data)
 
 @app.route('/api/ysf/connect', methods=['POST'])
 def ysf_connect():
