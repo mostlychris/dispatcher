@@ -118,6 +118,18 @@ try:
     from config import YSF_DECODER_URL
 except ImportError:
     YSF_DECODER_URL = 'http://127.0.0.1:8082'
+try:
+    from config import YSF_GATEWAY_INI
+except ImportError:
+    YSF_GATEWAY_INI = '/opt/MMDVM_Bridge/YSFClients/YSFGateway/YSFGateway.ini'
+try:
+    from config import YSF_HOSTS_FILE
+except ImportError:
+    YSF_HOSTS_FILE = '/opt/MMDVM_Bridge/YSFClients/YSFGateway/YSFHosts.txt'
+try:
+    from config import YSF_GATEWAY_SERVICE
+except ImportError:
+    YSF_GATEWAY_SERVICE = 'ysf_gateway.service'
 
 
 FAVORITES_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
@@ -2308,6 +2320,57 @@ HTML = '''
                     </div>
                 </div>
 
+                <!-- YSF REFLECTOR PANEL -->
+                <div class="collapse-panel" id="ysfSection">
+                    <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <h3 style="flex-shrink:0;margin:0;">&#128251; YSF</h3>
+                            <span id="ysfOfflineBadge" style="font-size:9px;font-weight:bold;
+                                  background:#2a0000;border:1px solid #660000;color:#f88;
+                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">OFFLINE</span>
+                            <span style="margin-left:auto;display:flex;gap:5px;flex-shrink:0;">
+                                <button onclick="openYsfModal()" title="Browse Reflectors"
+                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
+                                               padding:2px 7px;font-size:10px;cursor:pointer;">&#10765;<span class="btn-label"> Reflectors</span></button>
+                            </span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;min-width:0;padding-top:5px;border-top:1px solid #222;">
+                            <span class="tx-pulse" id="ysfPulse"></span>
+                            <span id="ysfReflectorBadge" style="font-size:13px;color:#c8f;font-weight:bold;
+                                  white-space:nowrap;flex-shrink:0;"></span>
+                            <span id="ysfSourceBadge" style="font-size:14px;color:#fff;font-weight:bold;
+                                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;"></span>
+                            <span id="ysfRxCount" style="font-size:10px;color:#888;flex-shrink:0;"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- YSF REFLECTOR MODAL -->
+                <div id="ysfModal" onclick="closeYsfModalIfBackdrop(event)"
+                     style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
+                            align-items:center;justify-content:center;">
+                    <div class="modal-panel" style="background:#1a1a1a;border:1px solid #444;border-radius:10px;
+                                padding:16px 20px;width:min(560px,96vw);max-height:90vh;
+                                display:flex;flex-direction:column;position:relative;
+                                box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+                        <div style="display:flex;align-items:center;margin-bottom:10px;flex-shrink:0;gap:8px;">
+                            <h3 style="margin:0;font-size:14px;color:#aaa;letter-spacing:1px;">&#128251; YSF REFLECTORS</h3>
+                            <button onclick="closeYsfModal()"
+                                    style="margin-left:auto;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&#x2715;</button>
+                        </div>
+                        <input type="text" id="ysfSearchBox" placeholder="Search reflectors&#x2026;"
+                               oninput="_renderYsfList()"
+                               style="width:100%;box-sizing:border-box;background:#111;border:1px solid #444;
+                                      color:#ddd;border-radius:4px;padding:6px 10px;font-size:12px;
+                                      margin-bottom:10px;flex-shrink:0;">
+                        <div id="ysfFavSection" style="display:none;flex-shrink:0;">
+                            <div style="font-size:9px;color:#556;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px;">Favorites</div>
+                            <div id="ysfFavList" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;"></div>
+                        </div>
+                        <div id="ysfReflectorList" style="overflow-y:auto;flex:1;font-size:12px;"></div>
+                    </div>
+                </div>
+
                 <!-- SCANNER CALL LOG MODAL -->
                 <div id="trModal" onclick="closeTrModalIfBackdrop(event)"
                      style="display:none;position:fixed;inset:0;z-index:50000;background:rgba(0,0,0,0.6);
@@ -3540,22 +3603,159 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function _pollYsfStatus() {
             fetch('/api/ysf/status').then(r => r.json()).then(function(d) {
+                // Audio overlay status row
                 const row = document.getElementById('ysfStatusRow');
-                if (!row) return;
-                if (d.error || d.connected === false) {
-                    row.textContent = 'Decoder offline';
-                    _ysfActive = false;
-                } else {
-                    const reflector = d.reflector || d.label || '—';
-                    const src = d.source ? ' │ ' + d.source : '';
-                    row.textContent = reflector + src;
-                    _ysfActive = !!d.active;
+                if (row) {
+                    if (d.error || d.connected === false) {
+                        row.textContent = 'Decoder offline';
+                    } else {
+                        const reflector = d.reflector || d.label || '—';
+                        const src = d.source && d.active ? ' │ ' + d.source : '';
+                        row.textContent = reflector + src;
+                    }
                 }
+                _ysfActive = !!(d && d.active);
                 _updateYsfAudioBtn();
+                _updateYsfPanel(d);
             }).catch(function() {
                 const row = document.getElementById('ysfStatusRow');
                 if (row) row.textContent = 'Decoder offline';
+                _updateYsfPanel(null);
             });
+        }
+
+        // ---- YSF PANEL + REFLECTOR MODAL ----
+        var _ysfFavorites     = [];
+        var _ysfAllReflectors = [];
+        var _ysfCurrentRef    = '';
+        var _ysfPanelTimer    = null;
+
+        function _initYsfPanel() {
+            try { _ysfFavorites = JSON.parse(localStorage.getItem('ysfFavorites') || '[]'); } catch(e) { _ysfFavorites = []; }
+            _ysfPanelTimer = setInterval(_pollYsfStatus, 8000);
+            _pollYsfStatus();
+        }
+
+        function _updateYsfPanel(d) {
+            const offline   = !d || !!d.error || d.connected === false || d.usrp_connected === false;
+            const badge     = document.getElementById('ysfOfflineBadge');
+            const pulse     = document.getElementById('ysfPulse');
+            const refBadge  = document.getElementById('ysfReflectorBadge');
+            const srcBadge  = document.getElementById('ysfSourceBadge');
+            const rxCount   = document.getElementById('ysfRxCount');
+            const section   = document.getElementById('ysfSection');
+            if (badge)   badge.style.display  = offline ? '' : 'none';
+            if (section) section.classList.toggle('rx-active', !!(d && d.active));
+            if (refBadge) refBadge.textContent = (d && (d.reflector || d.label)) || '';
+            if (srcBadge) srcBadge.textContent = (d && d.active && d.source) ? d.source : '';
+            if (rxCount)  rxCount.textContent  = (d && d.rx_count) ? d.rx_count + ' RX' : '';
+            if (pulse) {
+                const on = !!(d && d.active);
+                pulse.style.background = on ? '#0f0' : '';
+                pulse.style.boxShadow  = on ? '0 0 6px #0f0' : '';
+            }
+            _ysfCurrentRef = (d && d.reflector) || _ysfCurrentRef;
+        }
+
+        function openYsfModal() {
+            const modal = document.getElementById('ysfModal');
+            if (!modal) return;
+            modal.style.display = 'flex';
+            _renderYsfFavs();
+            _loadYsfReflectors();
+        }
+
+        function closeYsfModal() {
+            const modal = document.getElementById('ysfModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function closeYsfModalIfBackdrop(e) {
+            if (e.target === document.getElementById('ysfModal')) closeYsfModal();
+        }
+
+        function _loadYsfReflectors() {
+            const list = document.getElementById('ysfReflectorList');
+            if (list) list.textContent = 'Loading…';
+            fetch('/api/ysf/reflectors')
+                .then(r => r.json())
+                .then(function(data) {
+                    if (!Array.isArray(data)) {
+                        if (list) list.textContent = 'Error: ' + (data.error || 'Unknown');
+                        return;
+                    }
+                    _ysfAllReflectors = data;
+                    _renderYsfList();
+                })
+                .catch(function() {
+                    if (list) list.textContent = 'Failed to load reflector list.';
+                });
+        }
+
+        function _renderYsfList() {
+            const list = document.getElementById('ysfReflectorList');
+            if (!list) return;
+            const q = (document.getElementById('ysfSearchBox')?.value || '').toLowerCase();
+            const filtered = q
+                ? _ysfAllReflectors.filter(r => r.name.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q))
+                : _ysfAllReflectors;
+            list.innerHTML = filtered.slice(0, 300).map(function(r) {
+                const isFav     = _ysfFavorites.includes(r.name);
+                const isCurrent = r.name === _ysfCurrentRef;
+                return '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #1e1e1e;">' +
+                    '<button onclick="ysfStarReflector(' + JSON.stringify(r.name) + ')" title="Favorite"' +
+                    ' style="background:none;border:none;color:' + (isFav ? '#fc0' : '#444') + ';font-size:15px;cursor:pointer;flex-shrink:0;padding:0;">&#9733;</button>' +
+                    '<div style="flex:1;min-width:0;">' +
+                    '<div style="font-weight:bold;color:' + (isCurrent ? '#c8f' : '#ddd') + ';">' + escHtml(r.name) + '</div>' +
+                    '<div style="font-size:10px;color:#666;">' + escHtml(r.desc) + '</div>' +
+                    '</div>' +
+                    '<button onclick="ysfConnectReflector(' + JSON.stringify(r.name) + ')"' +
+                    ' style="background:' + (isCurrent ? '#1a003a' : '#1a1a1a') + ';border:1px solid ' + (isCurrent ? '#8040c0' : '#333') + ';' +
+                    'color:' + (isCurrent ? '#c8f' : '#aaa') + ';border-radius:3px;padding:2px 9px;font-size:10px;cursor:pointer;flex-shrink:0;">' +
+                    (isCurrent ? 'Connected' : 'Connect') + '</button>' +
+                    '</div>';
+            }).join('');
+        }
+
+        function _renderYsfFavs() {
+            const sec  = document.getElementById('ysfFavSection');
+            const list = document.getElementById('ysfFavList');
+            if (!sec || !list) return;
+            if (_ysfFavorites.length === 0) { sec.style.display = 'none'; return; }
+            sec.style.display = '';
+            list.innerHTML = _ysfFavorites.map(function(name) {
+                return '<button onclick="ysfConnectReflector(' + JSON.stringify(name) + ')"' +
+                    ' style="background:#1a0a2a;border:1px solid #6030a0;color:#c8f;border-radius:4px;' +
+                    'padding:2px 9px;font-size:11px;cursor:pointer;">' + escHtml(name) + '</button>';
+            }).join('');
+        }
+
+        function ysfStarReflector(name) {
+            const idx = _ysfFavorites.indexOf(name);
+            if (idx >= 0) _ysfFavorites.splice(idx, 1); else _ysfFavorites.push(name);
+            try { localStorage.setItem('ysfFavorites', JSON.stringify(_ysfFavorites)); } catch(e) {}
+            _renderYsfFavs();
+            _renderYsfList();
+        }
+
+        function ysfConnectReflector(name) {
+            fetch('/api/ysf/connect', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-Api-Key': API_KEY},
+                body: JSON.stringify({name: name})
+            }).then(r => r.json()).then(function(d) {
+                if (d.ok) {
+                    _ysfCurrentRef = name;
+                    const refBadge = document.getElementById('ysfReflectorBadge');
+                    if (refBadge) refBadge.textContent = name;
+                    const row = document.getElementById('ysfStatusRow');
+                    if (row) row.textContent = name;
+                    _renderYsfList();
+                    _renderYsfFavs();
+                } else {
+                    alert('YSF connect failed: ' + (d.message || 'Unknown error'));
+                }
+            }).catch(function(e) { alert('YSF connect error: ' + e); });
         }
 
         function _sdrMergeChannels(m) {
@@ -5616,6 +5816,7 @@ registerProcessor('mic-decimator', MicDecimator);
         _initSdr();
         fetch('/api/sdr/state').then(r=>r.json()).then(_onSdrState).catch(()=>{});
         _initYsf();
+        _initYsfPanel();
         log('Dispatcher ready', 'ok');
         // Populate device list on load (labels appear only after mic permission granted via Test or PTT)
         populateMicDevices().catch(() => {});
@@ -6329,6 +6530,57 @@ def ysf_stream():
             except Exception: pass
     return Response(generate(), content_type=content_type,
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+@app.route('/api/ysf/reflectors')
+def ysf_reflectors():
+    """Parse YSFHosts.txt and return a list of YSF reflectors."""
+    try:
+        with open(YSF_HOSTS_FILE, 'r', errors='replace') as f:
+            lines = f.readlines()
+        out = []
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split(';')
+            if len(parts) >= 4:
+                out.append({
+                    'name':   parts[0].strip(),
+                    'desc':   parts[1].strip(),
+                    'ip':     parts[2].strip(),
+                    'port':   parts[3].strip(),
+                    'active': parts[4].strip() if len(parts) >= 5 else '1',
+                })
+        return jsonify(out)
+    except FileNotFoundError:
+        return jsonify({'error': 'Hosts file not found', 'path': YSF_HOSTS_FILE}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/ysf/connect', methods=['POST'])
+def ysf_connect():
+    """Update YSFGateway.ini Startup= and restart the gateway service."""
+    deny = require_key()
+    if deny:
+        return deny
+    data = request.get_json(silent=True) or {}
+    name = str(data.get('name', '')).strip()
+    if not name:
+        return jsonify({'ok': False, 'message': 'name required'}), 400
+    import re as _re
+    try:
+        with open(YSF_GATEWAY_INI, 'r') as f:
+            ini = f.read()
+        if _re.search(r'^Startup\s*=', ini, _re.MULTILINE):
+            ini = _re.sub(r'^(Startup\s*=).*', f'Startup={name}', ini, flags=_re.MULTILINE)
+        else:
+            ini += f'\nStartup={name}\n'
+        with open(YSF_GATEWAY_INI, 'w') as f:
+            f.write(ini)
+    except Exception as e:
+        return jsonify({'ok': False, 'message': f'Failed to update ini: {e}'}), 500
+    result = run(f"sudo systemctl restart {YSF_GATEWAY_SERVICE}")
+    return jsonify({'ok': True, 'message': result or 'OK', 'name': name})
 
 
 if __name__ == '__main__':

@@ -72,3 +72,12 @@ SDR_SCANNER_URL = 'http://172.31.10.192:8080'
 # Base URL of the ysf_decoder app (no trailing slash).
 # The dispatcher proxies /api/ysf/status and /api/ysf/stream to this host.
 YSF_DECODER_URL = 'http://127.0.0.1:8082'
+
+# Path to YSFGateway.ini — used by /api/ysf/connect to update Startup= reflector.
+YSF_GATEWAY_INI = '/opt/MMDVM_Bridge/YSFClients/YSFGateway/YSFGateway.ini'
+
+# Path to YSFHosts.txt — used by /api/ysf/reflectors to return the reflector list.
+YSF_HOSTS_FILE = '/opt/MMDVM_Bridge/YSFClients/YSFGateway/YSFHosts.txt'
+
+# Systemd service name for YSFGateway — restarted when changing reflectors.
+YSF_GATEWAY_SERVICE = 'ysf_gateway.service'
