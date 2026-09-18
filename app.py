@@ -6613,6 +6613,13 @@ def _fetch_ysf_reflectors():
             'port': int(entry.get('port', 42000) or 42000),
         })
     if out:
+        # Write the full file so YSFGateway can use it directly for all lookups
+        try:
+            hosts_path = os.path.join(os.path.dirname(os.path.abspath(YSF_GATEWAY_INI)), 'YSFHosts.json')
+            with open(hosts_path, 'w') as f:
+                json.dump(payload, f)
+        except Exception:
+            pass  # non-fatal; gateway keeps its existing file
         _ysf_reflector_cache = out
         _ysf_reflector_cache_ts = now
     return out or _ysf_reflector_cache, None
@@ -6658,60 +6665,19 @@ def _ysf_read_ini_startup():
 
 @app.route('/api/ysf/connect', methods=['POST'])
 def ysf_connect():
-    """Write a single-entry JSON hosts file, update Startup=, and restart the gateway."""
+    """Update Startup= in YSFGateway.ini and restart the gateway."""
     deny = require_key()
     if deny:
         return deny
     data = request.get_json(silent=True) or {}
-    ref_id  = str(data.get('name', '')).strip()
+    ref_id = str(data.get('name', '')).strip()
     if not ref_id:
         return jsonify({'ok': False, 'message': 'name required'}), 400
 
-    # Address/port may come directly from the frontend (preferred), else look up cache
-    address = str(data.get('address', '')).strip()
-    port    = data.get('port')
-    label   = str(data.get('label', '')).strip()
-
-    if not address:
-        # Warm the cache if needed, then look up
-        _fetch_ysf_reflectors()
-        ref = next((r for r in _ysf_reflector_cache if r.get('id') == ref_id), None)
-        if ref:
-            address = ref.get('ip', '')
-            port    = ref.get('port', 42000)
-            label   = label or ref.get('name', ref_id)
-
-    try:
-        port = int(port) if port else 42000
-    except (TypeError, ValueError):
-        port = 42000
-
-    startup_name = ref_id  # gateway looks up Startup= against the JSON Name field (numeric ID)
+    label        = str(data.get('label', '')).strip()
+    startup_name = ref_id  # designator — what the gateway looks up in YSFHosts.json
 
     import re as _re
-    if address:
-        # Write a single-entry JSON hosts file.
-        # YSFGateway 20260323 expects {"reflectors":[{...}]}
-        hosts_dir  = os.path.dirname(os.path.abspath(YSF_GATEWAY_INI))
-        hosts_path = os.path.join(hosts_dir, 'YSFHosts.json')
-        try:
-            with open(hosts_path, 'w') as f:
-                json.dump({
-                    "reflectors": [{
-                        "designator":    startup_name,
-                        "country":       "",
-                        "name":          label or startup_name,
-                        "use_xx_prefix": False,
-                        "user_count":    "000",
-                        "description":   label or startup_name,
-                        "port":          port,
-                        "ipv4":          address,
-                        "ipv6":          None,
-                    }]
-                }, f, indent=2)
-        except Exception as e:
-            return jsonify({'ok': False, 'message': f'Failed to write hosts file: {e}'}), 500
-
     try:
         with open(YSF_GATEWAY_INI, 'r') as f:
             ini = f.read()
@@ -6744,9 +6710,7 @@ def ysf_connect():
     except Exception as e:
         return jsonify({'ok': False, 'message': str(e)}), 500
 
-    hosts_path_dbg = os.path.join(os.path.dirname(os.path.abspath(YSF_GATEWAY_INI)), 'YSFHosts.json')
-    return jsonify({'ok': True, 'message': 'OK', 'id': startup_name, 'display': label or startup_name,
-                    '_debug_hosts_path': hosts_path_dbg, '_debug_ini': YSF_GATEWAY_INI})
+    return jsonify({'ok': True, 'message': 'OK', 'id': startup_name, 'display': label or startup_name})
 
 
 if __name__ == '__main__':
