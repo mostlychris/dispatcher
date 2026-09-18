@@ -6704,12 +6704,6 @@ def ysf_connect():
     try:
         with open(YSF_GATEWAY_INI, 'r') as f:
             ini = f.read()
-        # Point Hosts= at the JSON file we just wrote
-        if address:
-            if _re.search(r'^Hosts\s*=', ini, _re.MULTILINE):
-                ini = _re.sub(r'^(Hosts\s*=).*', 'Hosts=./YSFHosts.json', ini, flags=_re.MULTILINE)
-            else:
-                ini += '\nHosts=./YSFHosts.json\n'
         # Update Startup=
         if _re.search(r'^Startup\s*=', ini, _re.MULTILINE):
             ini = _re.sub(r'^(Startup\s*=).*', f'Startup={startup_name}', ini, flags=_re.MULTILINE)
