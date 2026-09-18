@@ -3767,12 +3767,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             }).then(function(res) {
                 const d = res.data;
                 if (d.ok) {
-                    _ysfCurrentRef = id;
+                    // d.name is the human-readable startup name the gateway uses
+                    const connectedName = d.name || display;
+                    _ysfCurrentRef = connectedName;
                     const refBadge = document.getElementById('ysfReflectorBadge');
-                    if (refBadge) refBadge.textContent = display;
+                    if (refBadge) refBadge.textContent = connectedName;
                     const row = document.getElementById('ysfStatusRow');
-                    if (row) row.textContent = display;
-                    _ysfSetStatus('Connected to ' + display + '. Gateway restarting…', true);
+                    if (row) row.textContent = connectedName;
+                    _ysfSetStatus('Connected to ' + connectedName + '. Gateway restarting…', true);
                     _renderYsfList();
                     _renderYsfFavs();
                     setTimeout(function() { _ysfSetStatus('', true); }, 6000);
@@ -6528,12 +6530,18 @@ def _ysf_api_url(path):
 
 @app.route('/api/ysf/status')
 def ysf_status():
-    """Proxy the YSF decoder /status endpoint."""
+    """Proxy the YSF decoder /status, injecting current Startup= as reflector name."""
     try:
         r = urllib.request.urlopen(_ysf_api_url('/status'), timeout=3)
-        return Response(r.read(), content_type='application/json')
+        d = json.loads(r.read())
     except Exception as e:
         return jsonify({'error': str(e), 'connected': False}), 502
+    # If ysf_decoder doesn't know the reflector, read it from the gateway ini
+    if not d.get('reflector'):
+        startup = _ysf_read_ini_startup()
+        if startup:
+            d['reflector'] = startup
+    return jsonify(d)
 
 @app.route('/api/ysf/stream')
 def ysf_stream():
@@ -6624,28 +6632,72 @@ def ysf_reflectors():
             return jsonify({'error': f'Registry: {err}  Local: {e2}'}), 502
     return jsonify(data)
 
+def _ysf_read_ini_startup():
+    """Return the current Startup= value from YSFGateway.ini, or ''."""
+    try:
+        import re as _re
+        with open(YSF_GATEWAY_INI, 'r') as f:
+            ini = f.read()
+        m = _re.search(r'^Startup\s*=\s*(.+)', ini, _re.MULTILINE)
+        return m.group(1).strip() if m else ''
+    except Exception:
+        return ''
+
 @app.route('/api/ysf/connect', methods=['POST'])
 def ysf_connect():
-    """Update YSFGateway.ini Startup= and restart the gateway service."""
+    """Write a single-entry JSON hosts file, update Startup=, and restart the gateway."""
     deny = require_key()
     if deny:
         return deny
     data = request.get_json(silent=True) or {}
-    name = str(data.get('name', '')).strip()
-    if not name:
+    ref_id = str(data.get('name', '')).strip()
+    if not ref_id:
         return jsonify({'ok': False, 'message': 'name required'}), 400
+
+    # Look up the reflector in the cached ysfreflector.de list
+    ref = next((r for r in _ysf_reflector_cache if r.get('id') == ref_id), None)
+
     import re as _re
+    if ref:
+        # Use human-readable name as the Startup= / hosts Name
+        startup_name = ref.get('name') or ref_id
+        address      = ref.get('ip', '')
+        port         = int(ref.get('port', 42000))
+        desc         = ref.get('desc', '') or startup_name
+
+        # Write a single-entry JSON hosts file the gateway can parse.
+        # G4KLX YSFGateway expects: [{"Name":…,"Desc":…,"Address":…,"Port":…}]
+        hosts_dir  = os.path.dirname(os.path.abspath(YSF_GATEWAY_INI))
+        hosts_path = os.path.join(hosts_dir, 'YSFHosts.json')
+        try:
+            with open(hosts_path, 'w') as f:
+                json.dump([{"Name": startup_name, "Desc": desc,
+                            "Address": address, "Port": port}], f, indent=2)
+        except Exception as e:
+            return jsonify({'ok': False, 'message': f'Failed to write hosts file: {e}'}), 500
+    else:
+        # FCS room or bare name — skip hosts file, just update Startup=
+        startup_name = ref_id
+
     try:
         with open(YSF_GATEWAY_INI, 'r') as f:
             ini = f.read()
+        # Point Hosts= at the JSON file we just wrote
+        if ref:
+            if _re.search(r'^Hosts\s*=', ini, _re.MULTILINE):
+                ini = _re.sub(r'^(Hosts\s*=).*', 'Hosts=./YSFHosts.json', ini, flags=_re.MULTILINE)
+            else:
+                ini += '\nHosts=./YSFHosts.json\n'
+        # Update Startup=
         if _re.search(r'^Startup\s*=', ini, _re.MULTILINE):
-            ini = _re.sub(r'^(Startup\s*=).*', f'Startup={name}', ini, flags=_re.MULTILINE)
+            ini = _re.sub(r'^(Startup\s*=).*', f'Startup={startup_name}', ini, flags=_re.MULTILINE)
         else:
-            ini += f'\nStartup={name}\n'
+            ini += f'\nStartup={startup_name}\n'
         with open(YSF_GATEWAY_INI, 'w') as f:
             f.write(ini)
     except Exception as e:
         return jsonify({'ok': False, 'message': f'Failed to update ini: {e}'}), 500
+
     try:
         proc = subprocess.run(
             ['sudo', 'systemctl', 'restart', YSF_GATEWAY_SERVICE],
@@ -6658,7 +6710,8 @@ def ysf_connect():
         return jsonify({'ok': False, 'message': 'Service restart timed out'}), 500
     except Exception as e:
         return jsonify({'ok': False, 'message': str(e)}), 500
-    return jsonify({'ok': True, 'message': 'OK', 'name': name})
+
+    return jsonify({'ok': True, 'message': 'OK', 'name': startup_name})
 
 
 if __name__ == '__main__':
