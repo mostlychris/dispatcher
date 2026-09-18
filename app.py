@@ -6547,11 +6547,15 @@ def ysf_status():
     if not d.get('reflector'):
         startup = _ysf_read_ini_startup()
         if startup:
-            # startup contains the human name; look up numeric id for list highlight
-            ref = (next((r for r in _ysf_reflector_cache if r.get('name') == startup), None) or
-                   next((r for r in _ysf_reflector_cache if r.get('id')   == startup), None))
-            d['reflector']    = startup
-            d['reflector_id'] = ref['id'] if ref else startup
+            # startup is the gateway internal name (e.g. "US-TEXAS SADRC");
+            # find the matching cache entry to get the human name and designator
+            ref = next(
+                (r for r in (_ysf_reflector_cache or [])
+                 if _ysf_gateway_name(r) == startup),
+                None,
+            )
+            d['reflector']    = ref['name'] if ref else startup
+            d['reflector_id'] = ref['id']   if ref else startup
     return jsonify(d)
 
 @app.route('/api/ysf/stream')
@@ -6592,13 +6596,30 @@ def _parse_ysf_reflector_payload(payload):
         if not ref_id:
             continue
         out.append({
-            'id':   ref_id,
-            'name': str(entry.get('name', ref_id)).strip(),
-            'desc': str(entry.get('description', '') or '').strip(),
-            'ip':   str(entry.get('ipv4', '') or '').strip(),
-            'port': int(entry.get('port', 42000) or 42000),
+            'id':      ref_id,
+            'name':    str(entry.get('name', ref_id)).strip(),
+            'desc':    str(entry.get('description', '') or '').strip(),
+            'ip':      str(entry.get('ipv4', '') or '').strip(),
+            'port':    int(entry.get('port', 42000) or 42000),
+            'country': str(entry.get('country', '') or '').strip().upper(),
+            'xx':      bool(entry.get('use_xx_prefix', False)),
         })
     return out
+
+def _ysf_gateway_name(ref):
+    """Build the internal name YSFGateway uses when matching Startup=.
+
+    Gateway 20260323 constructs: country + "-" + uppercase(name).
+    When use_xx_prefix is True it uses "XX" in place of the country code.
+    """
+    name = ref.get('name', '').upper()
+    country = ref.get('country', '')
+    if ref.get('xx'):
+        prefix = 'XX'
+    else:
+        prefix = country
+    return (prefix + '-' if prefix else '') + name
+
 
 def _gateway_add_name_key(payload):
     """Return payload with "Name" (capital N) added to each reflector entry.
@@ -6729,8 +6750,15 @@ def ysf_connect():
     if not ref_id:
         return jsonify({'ok': False, 'message': 'name required'}), 400
 
-    label        = str(data.get('label', '')).strip()
-    startup_name = label or ref_id  # gateway matches Startup= against "Name" (capital N) in JSON
+    label = str(data.get('label', '')).strip()
+
+    # Build the internal name the gateway uses for Startup= matching:
+    # country + "-" + uppercase(name)  (e.g. "US-TEXAS SADRC")
+    ref_entry = next((r for r in (_ysf_reflector_cache or []) if r.get('id') == ref_id), None)
+    if ref_entry:
+        startup_name = _ysf_gateway_name(ref_entry)
+    else:
+        startup_name = label or ref_id
 
     import re as _re
     try:
