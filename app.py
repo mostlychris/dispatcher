@@ -1891,6 +1891,20 @@ HTML = '''
                 <input type="range" class="vol-slider" id="sdrHpSliderOv" min="0" max="600" step="10" value="0"
                        oninput="sdrSetHp(this.value)">
             </div>
+
+            <div class="audio-section">
+                <div class="audio-section-hdr" style="color:#c8f;">
+                    <span class="section-icon">📻</span> YSF Reflector Audio
+                </div>
+                <div class="vol-row">
+                    <span class="vol-label">Volume</span>
+                    <button id="ysfAudioToggleOv" onclick="ysfToggleAudio()" class="btn-sidebar-sm btn-monitor">&#128264; Enable</button>
+                    <span class="vol-pct" id="ysfVolDisplayOv">100%</span>
+                </div>
+                <input type="range" class="vol-slider" id="ysfVolSliderOv" min="0" max="100" value="100"
+                       oninput="ysfSetVolume(this.value)">
+                <div id="ysfStatusRow" style="margin-top:6px;font-size:11px;color:#888;">—</div>
+            </div>
         </div>
     </div>
 
@@ -1903,6 +1917,8 @@ HTML = '''
                 onclick="trToggleAudio()">Trunk</button>
         <button class="mob-btn btn-monitor" id="mobBtnSdrAudio"
                 onclick="sdrToggleAudio()">SDR</button>
+        <button class="mob-btn btn-monitor" id="mobBtnYsfAudio"
+                onclick="ysfToggleAudio()">YSF</button>
         <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled>PTT</button>
     </div>
 
@@ -3437,6 +3453,109 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     _updateSdrAudioBtn();
                 }, lag);
             }
+        }
+
+        // -------------------------
+        // ---- YSF DECODER ----
+        var _ysfAudioEnabled = false;
+        var _ysfAudioEl      = null;
+        var _ysfVolume       = 100;
+        var _ysfCtx          = null;
+        var _ysfGainNode     = null;
+        var _ysfActive       = false;
+        var _ysfStatusTimer  = null;
+
+        function _initYsf() {
+            _ysfAudioEl = new Audio();
+            _ysfAudioEl.crossOrigin = 'anonymous';
+            _ysfVolume = parseInt(localStorage.getItem('ysfVolume') ?? '100');
+            const volSl  = document.getElementById('ysfVolSliderOv');
+            const volLbl = document.getElementById('ysfVolDisplayOv');
+            if (volSl)  volSl.value = _ysfVolume;
+            if (volLbl) volLbl.textContent = _ysfVolume + '%';
+        }
+
+        function _ysfEnsureCtx() {
+            if (_ysfCtx) return;
+            _ysfCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const src = _ysfCtx.createMediaElementSource(_ysfAudioEl);
+            _ysfGainNode = _ysfCtx.createGain();
+            _ysfGainNode.gain.value = _ysfVolume / 100;
+            src.connect(_ysfGainNode);
+            _ysfGainNode.connect(_ysfCtx.destination);
+        }
+
+        function ysfToggleAudio() {
+            _ysfAudioEnabled = !_ysfAudioEnabled;
+            localStorage.setItem('ysfAudioEnabled', _ysfAudioEnabled ? '1' : '0');
+            if (_ysfAudioEnabled) {
+                _ysfConnectAudio();
+                if (!_ysfStatusTimer) _ysfStatusTimer = setInterval(_pollYsfStatus, 5000);
+                _pollYsfStatus();
+            } else {
+                _ysfDisconnectAudio();
+                if (_ysfStatusTimer) { clearInterval(_ysfStatusTimer); _ysfStatusTimer = null; }
+            }
+            _updateYsfAudioBtn();
+        }
+
+        function _ysfConnectAudio() {
+            if (!_ysfAudioEl) return;
+            _ysfEnsureCtx();
+            _ysfAudioEl.src = '/api/ysf/stream';
+            if (_ysfCtx && _ysfCtx.state === 'suspended') _ysfCtx.resume();
+            _ysfAudioEl.play().catch(() => {});
+        }
+
+        function _ysfDisconnectAudio() {
+            if (_ysfAudioEl) {
+                _ysfAudioEl.pause();
+                _ysfAudioEl.src = '';
+            }
+        }
+
+        function ysfSetVolume(val) {
+            val = parseInt(val);
+            _ysfVolume = val;
+            if (_ysfGainNode) _ysfGainNode.gain.value = val / 100;
+            else if (_ysfAudioEl) _ysfAudioEl.volume = val / 100;
+            const lbl = document.getElementById('ysfVolDisplayOv');
+            const sl  = document.getElementById('ysfVolSliderOv');
+            if (lbl) lbl.textContent = val + '%';
+            if (sl)  sl.value = val;
+            localStorage.setItem('ysfVolume', val);
+        }
+
+        function _updateYsfAudioBtn() {
+            ['mobBtnYsfAudio', 'ysfAudioToggleOv'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.classList.toggle('active', _ysfAudioEnabled);
+            });
+            const mob = document.getElementById('mobBtnYsfAudio');
+            if (mob) mob.textContent = 'YSF';
+            const ov = document.getElementById('ysfAudioToggleOv');
+            if (ov) ov.textContent = _ysfAudioEnabled ? '🔊 Enable' : '🔇 Muted';
+        }
+
+        function _pollYsfStatus() {
+            fetch('/api/ysf/status').then(r => r.json()).then(function(d) {
+                const row = document.getElementById('ysfStatusRow');
+                if (!row) return;
+                if (d.error || d.connected === false) {
+                    row.textContent = 'Decoder offline';
+                    _ysfActive = false;
+                } else {
+                    const reflector = d.reflector || d.label || '—';
+                    const src = d.source ? ' │ ' + d.source : '';
+                    row.textContent = reflector + src;
+                    _ysfActive = !!d.active;
+                }
+                _updateYsfAudioBtn();
+            }).catch(function() {
+                const row = document.getElementById('ysfStatusRow');
+                if (row) row.textContent = 'Decoder offline';
+            });
         }
 
         function _sdrMergeChannels(m) {
@@ -5496,6 +5615,7 @@ registerProcessor('mic-decimator', MicDecimator);
         _fetchTrCalls();
         _initSdr();
         fetch('/api/sdr/state').then(r=>r.json()).then(_onSdrState).catch(()=>{});
+        _initYsf();
         log('Dispatcher ready', 'ok');
         // Populate device list on load (labels appear only after mic permission granted via Test or PTT)
         populateMicDevices().catch(() => {});
