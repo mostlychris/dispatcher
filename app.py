@@ -3771,14 +3771,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             }).then(function(res) {
                 const d = res.data;
                 if (d.ok) {
-                    // d.name is the human-readable startup name the gateway uses
-                    const connectedName = d.name || display;
-                    _ysfCurrentRef = connectedName;
+                    _ysfCurrentRef = d.id || id;          // numeric designator for list highlight
+                    const humanName = d.display || display; // friendly name for badges
                     const refBadge = document.getElementById('ysfReflectorBadge');
-                    if (refBadge) refBadge.textContent = connectedName;
+                    if (refBadge) refBadge.textContent = humanName;
                     const row = document.getElementById('ysfStatusRow');
-                    if (row) row.textContent = connectedName;
-                    _ysfSetStatus('Connected to ' + connectedName + '. Gateway restarting…', true);
+                    if (row) row.textContent = humanName;
+                    _ysfSetStatus('Connected to ' + humanName + '. Gateway restarting…', true);
                     _renderYsfList();
                     _renderYsfFavs();
                     setTimeout(function() { _ysfSetStatus('', true); }, 6000);
@@ -6690,13 +6689,24 @@ def ysf_connect():
     import re as _re
     if address:
         # Write a single-entry JSON hosts file.
-        # G4KLX YSFGateway parses: [{"Name":…,"Desc":…,"Address":…,"Port":…}]
+        # YSFGateway 20260323 expects {"reflectors":[{...}]}
         hosts_dir  = os.path.dirname(os.path.abspath(YSF_GATEWAY_INI))
         hosts_path = os.path.join(hosts_dir, 'YSFHosts.json')
         try:
             with open(hosts_path, 'w') as f:
-                json.dump([{"Name": startup_name, "Desc": startup_name,
-                            "Address": address, "Port": port}], f, indent=2)
+                json.dump({
+                    "reflectors": [{
+                        "designator":    startup_name,
+                        "country":       "",
+                        "name":          label or startup_name,
+                        "use_xx_prefix": False,
+                        "user_count":    "000",
+                        "description":   label or startup_name,
+                        "port":          port,
+                        "ipv4":          address,
+                        "ipv6":          None,
+                    }]
+                }, f, indent=2)
         except Exception as e:
             return jsonify({'ok': False, 'message': f'Failed to write hosts file: {e}'}), 500
 
@@ -6732,7 +6742,7 @@ def ysf_connect():
     except Exception as e:
         return jsonify({'ok': False, 'message': str(e)}), 500
 
-    return jsonify({'ok': True, 'message': 'OK', 'name': startup_name})
+    return jsonify({'ok': True, 'message': 'OK', 'id': startup_name, 'display': label or startup_name})
 
 
 if __name__ == '__main__':
