@@ -6600,6 +6600,25 @@ def _parse_ysf_reflector_payload(payload):
         })
     return out
 
+def _gateway_add_name_key(payload):
+    """Return payload with "Name" (capital N) added to each reflector entry.
+
+    YSFGateway 20260323 reads the "Name" key (capital N) from the JSON when
+    matching the Startup= value. refcheck.radio returns lowercase "name", so
+    we add the capital-N copy before writing the file to disk.
+    """
+    reflectors = payload if isinstance(payload, list) else payload.get('reflectors', [])
+    upgraded = []
+    for entry in reflectors:
+        e = dict(entry)
+        if 'Name' not in e:
+            e['Name'] = e.get('name', '')
+        upgraded.append(e)
+    if isinstance(payload, list):
+        return upgraded
+    return dict(payload, reflectors=upgraded)
+
+
 def _fetch_ysf_reflectors():
     """Return the YSF reflector list.
 
@@ -6622,6 +6641,15 @@ def _fetch_ysf_reflectors():
             payload = json.load(f)
         out = _parse_ysf_reflector_payload(payload)
         if out:
+            # Upgrade file in-place if it's missing the "Name" key the gateway needs
+            reflectors = payload if isinstance(payload, list) else payload.get('reflectors', [])
+            if reflectors and 'Name' not in reflectors[0]:
+                payload = _gateway_add_name_key(payload)
+                try:
+                    with open(hosts_path, 'w') as f:
+                        json.dump(payload, f)
+                except Exception:
+                    pass
             _ysf_reflector_cache = out
             _ysf_reflector_cache_ts = now
             return out, None
@@ -6644,7 +6672,7 @@ def _fetch_ysf_reflectors():
     if out:
         try:
             with open(hosts_path, 'w') as f:
-                json.dump(payload, f)
+                json.dump(_gateway_add_name_key(payload), f)
         except Exception:
             pass
         _ysf_reflector_cache = out
@@ -6702,7 +6730,7 @@ def ysf_connect():
         return jsonify({'ok': False, 'message': 'name required'}), 400
 
     label        = str(data.get('label', '')).strip()
-    startup_name = ref_id  # gateway matches Startup= against the designator field in JSON
+    startup_name = label or ref_id  # gateway matches Startup= against "Name" (capital N) in JSON
 
     import re as _re
     try:
