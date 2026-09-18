@@ -6571,11 +6571,12 @@ def ysf_stream():
 
 _ysf_reflector_cache = []
 _ysf_reflector_cache_ts = 0.0
-YSF_REGISTRY_URL = 'http://ysfreflector.de'
+# pistar YSF host list — format: Name;Description;Address;Port;Active
+YSF_REGISTRY_URL = 'https://www.pistar.uk/downloads/YSF_Hosts.txt'
 YSF_CACHE_TTL = 3600  # refresh once per hour
 
 def _fetch_ysf_reflectors():
-    """Fetch and parse the YSF reflector list from ysfreflector.de."""
+    """Fetch and parse the YSF reflector list from pistar.uk."""
     global _ysf_reflector_cache, _ysf_reflector_cache_ts
     import time as _time
     now = _time.time()
@@ -6587,22 +6588,26 @@ def _fetch_ysf_reflectors():
         r = urllib.request.urlopen(req, timeout=8)
         text = r.read().decode('utf-8', errors='replace')
     except Exception as e:
-        # On failure return stale cache if available, else try local file
         if _ysf_reflector_cache:
             return _ysf_reflector_cache, None
         return None, str(e)
     out = []
     for line in text.splitlines():
-        if line.startswith('#') or not line.strip():
+        line = line.strip()
+        if not line or line.startswith('#'):
             continue
         parts = [p.strip() for p in line.split(';')]
-        if len(parts) >= 5:
+        if len(parts) >= 4:
+            # pistar format: Name;Description;Address;Port[;Active]
+            name = parts[0]
+            if not name:
+                continue
             out.append({
-                'id':    parts[0],
-                'name':  parts[1],
-                'desc':  parts[2],
-                'ip':    parts[3],
-                'port':  int(parts[4]) if parts[4].isdigit() else 42000,
+                'id':   name,   # name is the unique key YSFGateway uses
+                'name': name,
+                'desc': parts[1] if len(parts) > 1 else '',
+                'ip':   parts[2] if len(parts) > 2 else '',
+                'port': int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 42000,
             })
     if out:
         _ysf_reflector_cache = out
@@ -6611,7 +6616,7 @@ def _fetch_ysf_reflectors():
 
 @app.route('/api/ysf/reflectors')
 def ysf_reflectors():
-    """Return YSF reflector list from ysfreflector.de (cached 1 hour)."""
+    """Return YSF reflector list from pistar.uk (cached 1 hour)."""
     data, err = _fetch_ysf_reflectors()
     if not data:
         # Fall back to local hosts file
