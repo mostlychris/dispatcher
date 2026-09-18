@@ -6577,26 +6577,8 @@ _ysf_reflector_cache_ts = 0.0
 YSF_REGISTRY_URL = 'https://refcheck.radio/api/hostfile-gate/fetch/json/ysf/'
 YSF_CACHE_TTL = 3600  # refresh once per hour
 
-def _fetch_ysf_reflectors():
-    """Fetch the YSF reflector list from refcheck.radio (JSON API)."""
-    global _ysf_reflector_cache, _ysf_reflector_cache_ts
-    import time as _time
-    now = _time.time()
-    if _ysf_reflector_cache and (now - _ysf_reflector_cache_ts) < YSF_CACHE_TTL:
-        return _ysf_reflector_cache, None
-    try:
-        headers = {'User-Agent': 'dispatcher/1.0'}
-        if YSF_HOSTS_TOKEN:
-            headers['Authorization'] = f'Token {YSF_HOSTS_TOKEN}'
-        req = urllib.request.Request(YSF_REGISTRY_URL, headers=headers)
-        r = urllib.request.urlopen(req, timeout=10)
-        payload = json.loads(r.read().decode('utf-8', errors='replace'))
-    except Exception as e:
-        if _ysf_reflector_cache:
-            return _ysf_reflector_cache, None
-        return None, str(e)
-
-    # API returns {"reflectors": [{designator, name, description, ipv4, port, …}, …]}
+def _parse_ysf_reflector_payload(payload):
+    """Parse a refcheck.radio JSON payload into our internal list format."""
     reflectors = payload if isinstance(payload, list) else payload.get('reflectors', [])
     out = []
     for entry in reflectors:
@@ -6612,14 +6594,55 @@ def _fetch_ysf_reflectors():
             'ip':   str(entry.get('ipv4', '') or '').strip(),
             'port': int(entry.get('port', 42000) or 42000),
         })
+    return out
+
+def _fetch_ysf_reflectors():
+    """Return the YSF reflector list.
+
+    Priority:
+      1. In-memory cache (1-hour TTL)
+      2. YSFHosts.json already on disk (gateway directory)
+      3. refcheck.radio API (requires YSF_HOSTS_TOKEN, rate-limited)
+    """
+    global _ysf_reflector_cache, _ysf_reflector_cache_ts
+    import time as _time
+    now = _time.time()
+    if _ysf_reflector_cache and (now - _ysf_reflector_cache_ts) < YSF_CACHE_TTL:
+        return _ysf_reflector_cache, None
+
+    hosts_path = os.path.join(os.path.dirname(os.path.abspath(YSF_GATEWAY_INI)), 'YSFHosts.json')
+
+    # Try reading the file that's already on disk (static copy or previous API download)
+    try:
+        with open(hosts_path, 'r') as f:
+            payload = json.load(f)
+        out = _parse_ysf_reflector_payload(payload)
+        if out:
+            _ysf_reflector_cache = out
+            _ysf_reflector_cache_ts = now
+            return out, None
+    except Exception:
+        pass
+
+    # File missing or unreadable — try the API
+    if not YSF_HOSTS_TOKEN:
+        return _ysf_reflector_cache or None, 'No hosts file on disk and no API token configured'
+    try:
+        headers = {'User-Agent': 'dispatcher/1.0',
+                   'Authorization': f'Token {YSF_HOSTS_TOKEN}'}
+        req = urllib.request.Request(YSF_REGISTRY_URL, headers=headers)
+        r = urllib.request.urlopen(req, timeout=10)
+        payload = json.loads(r.read().decode('utf-8', errors='replace'))
+    except Exception as e:
+        return _ysf_reflector_cache or None, str(e)
+
+    out = _parse_ysf_reflector_payload(payload)
     if out:
-        # Write the full file so YSFGateway can use it directly for all lookups
         try:
-            hosts_path = os.path.join(os.path.dirname(os.path.abspath(YSF_GATEWAY_INI)), 'YSFHosts.json')
             with open(hosts_path, 'w') as f:
                 json.dump(payload, f)
         except Exception:
-            pass  # non-fatal; gateway keeps its existing file
+            pass
         _ysf_reflector_cache = out
         _ysf_reflector_cache_ts = now
     return out or _ysf_reflector_cache, None
