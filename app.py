@@ -6597,18 +6597,20 @@ def _fetch_ysf_reflectors():
         if not line or line.startswith('#'):
             continue
         parts = [p.strip() for p in line.split(';')]
-        if len(parts) >= 4:
-            # pistar format: Name;Description;Address;Port[;Active]
-            name = parts[0]
-            if not name:
-                continue
-            out.append({
-                'id':   name,   # name is the unique key YSFGateway uses
-                'name': name,
-                'desc': parts[1] if len(parts) > 1 else '',
-                'ip':   parts[2] if len(parts) > 2 else '',
-                'port': int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 42000,
-            })
+        if len(parts) < 4:
+            continue
+        # pistar YSFHosts.txt format:
+        #   ID ; Name ; Description ; IPAddress ; Port ; DG-ID ; URL
+        ref_id = parts[0]
+        if not ref_id:
+            continue
+        out.append({
+            'id':   ref_id,
+            'name': parts[1] if len(parts) > 1 else ref_id,
+            'desc': parts[2] if len(parts) > 2 else '',
+            'ip':   parts[3] if len(parts) > 3 else '',
+            'port': int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 42000,
+        })
     if out:
         _ysf_reflector_cache = out
         _ysf_reflector_cache_ts = now
@@ -6630,12 +6632,13 @@ def ysf_reflectors():
                     continue
                 parts = line.split(';')
                 if len(parts) >= 4:
+                    p = [x.strip() for x in parts]
                     data.append({
-                        'id':   parts[0].strip(),
-                        'name': parts[0].strip(),
-                        'desc': parts[1].strip(),
-                        'ip':   parts[2].strip(),
-                        'port': int(parts[3].strip()) if parts[3].strip().isdigit() else 42000,
+                        'id':   p[0],
+                        'name': p[1] if len(p) > 1 else p[0],
+                        'desc': p[2] if len(p) > 2 else '',
+                        'ip':   p[3] if len(p) > 3 else '',
+                        'port': int(p[4]) if len(p) > 4 and p[4].isdigit() else 42000,
                     })
         except Exception as e2:
             return jsonify({'error': f'Registry: {err}  Local: {e2}'}), 502
@@ -6682,7 +6685,7 @@ def ysf_connect():
     except (TypeError, ValueError):
         port = 42000
 
-    startup_name = label or ref_id
+    startup_name = ref_id  # gateway looks up Startup= against the JSON Name field (numeric ID)
 
     import re as _re
     if address:
