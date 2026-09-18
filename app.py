@@ -6547,9 +6547,11 @@ def ysf_status():
     if not d.get('reflector'):
         startup = _ysf_read_ini_startup()
         if startup:
-            d['reflector_id'] = startup
-            ref = next((r for r in _ysf_reflector_cache if r.get('id') == startup), None)
-            d['reflector'] = ref['name'] if ref else startup
+            # startup contains the human name; look up numeric id for list highlight
+            ref = (next((r for r in _ysf_reflector_cache if r.get('name') == startup), None) or
+                   next((r for r in _ysf_reflector_cache if r.get('id')   == startup), None))
+            d['reflector']    = startup
+            d['reflector_id'] = ref['id'] if ref else startup
     return jsonify(d)
 
 @app.route('/api/ysf/stream')
@@ -6700,7 +6702,7 @@ def ysf_connect():
         return jsonify({'ok': False, 'message': 'name required'}), 400
 
     label        = str(data.get('label', '')).strip()
-    startup_name = ref_id  # designator — what the gateway looks up in YSFHosts.json
+    startup_name = label or ref_id  # gateway matches Startup= against the name field in JSON
 
     import re as _re
     try:
