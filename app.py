@@ -114,6 +114,10 @@ try:
     from config import SDR_SCANNER_URL
 except ImportError:
     SDR_SCANNER_URL = 'http://172.31.10.192:8080'
+try:
+    from config import YSF_DECODER_URL
+except ImportError:
+    YSF_DECODER_URL = 'http://127.0.0.1:8082'
 
 
 FAVORITES_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favorites.json')
@@ -6151,6 +6155,45 @@ def sdr_stream():
     try:
         req = urllib.request.Request(url)
         r = urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
+    content_type = r.headers.get('Content-Type', 'audio/wav')
+    def generate():
+        try:
+            while True:
+                chunk = r.read(4096)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            try: r.close()
+            except Exception: pass
+    return Response(generate(), content_type=content_type,
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+# -------------------------
+# YSF DECODER PROXY ENDPOINTS
+# -------------------------
+
+def _ysf_api_url(path):
+    return YSF_DECODER_URL.rstrip('/') + path
+
+@app.route('/api/ysf/status')
+def ysf_status():
+    """Proxy the YSF decoder /status endpoint."""
+    try:
+        r = urllib.request.urlopen(_ysf_api_url('/status'), timeout=3)
+        return Response(r.read(), content_type='application/json')
+    except Exception as e:
+        return jsonify({'error': str(e), 'connected': False}), 502
+
+@app.route('/api/ysf/stream')
+def ysf_stream():
+    """Proxy the YSF decoder live WAV stream to the browser."""
+    url = _ysf_api_url('/stream')
+    try:
+        r = urllib.request.urlopen(urllib.request.Request(url), timeout=10)
     except Exception as e:
         return jsonify({'error': str(e)}), 502
     content_type = r.headers.get('Content-Type', 'audio/wav')

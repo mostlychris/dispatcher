@@ -64,3 +64,11 @@ TR_SYSTEMS = {
 # The dispatcher connects to this host's /ws WebSocket to relay scanner
 # state events and proxies /ws/audio to browser clients.
 SDR_SCANNER_URL = 'http://172.31.10.192:8080'
+
+# -------------------------
+# YSF Decoder integration
+# -------------------------
+
+# Base URL of the ysf_decoder app (no trailing slash).
+# The dispatcher proxies /api/ysf/status and /api/ysf/stream to this host.
+YSF_DECODER_URL = 'http://127.0.0.1:8082'
