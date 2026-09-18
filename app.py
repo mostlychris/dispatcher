@@ -127,6 +127,10 @@ try:
 except ImportError:
     YSF_HOSTS_FILE = '/opt/MMDVM_Bridge/YSFClients/YSFGateway/YSFHosts.txt'
 try:
+    from config import YSF_HOSTS_TOKEN
+except ImportError:
+    YSF_HOSTS_TOKEN = ''
+try:
     from config import YSF_GATEWAY_SERVICE
 except ImportError:
     YSF_GATEWAY_SERVICE = 'ysf_gateway.service'
@@ -6570,45 +6574,43 @@ def ysf_stream():
 
 _ysf_reflector_cache = []
 _ysf_reflector_cache_ts = 0.0
-# pistar YSF host list — format: Name;Description;Address;Port;Active
-YSF_REGISTRY_URL = 'https://www.pistar.uk/downloads/YSF_Hosts.txt'
+YSF_REGISTRY_URL = 'https://refcheck.radio/api/hostfile-gate/fetch/json/ysf/'
 YSF_CACHE_TTL = 3600  # refresh once per hour
 
 def _fetch_ysf_reflectors():
-    """Fetch and parse the YSF reflector list from pistar.uk."""
+    """Fetch the YSF reflector list from refcheck.radio (JSON API)."""
     global _ysf_reflector_cache, _ysf_reflector_cache_ts
     import time as _time
     now = _time.time()
     if _ysf_reflector_cache and (now - _ysf_reflector_cache_ts) < YSF_CACHE_TTL:
         return _ysf_reflector_cache, None
     try:
-        req = urllib.request.Request(YSF_REGISTRY_URL,
-                                     headers={'User-Agent': 'dispatcher/1.0'})
-        r = urllib.request.urlopen(req, timeout=8)
-        text = r.read().decode('utf-8', errors='replace')
+        headers = {'User-Agent': 'dispatcher/1.0'}
+        if YSF_HOSTS_TOKEN:
+            headers['Authorization'] = f'Token {YSF_HOSTS_TOKEN}'
+        req = urllib.request.Request(YSF_REGISTRY_URL, headers=headers)
+        r = urllib.request.urlopen(req, timeout=10)
+        payload = json.loads(r.read().decode('utf-8', errors='replace'))
     except Exception as e:
         if _ysf_reflector_cache:
             return _ysf_reflector_cache, None
         return None, str(e)
+
+    # API returns {"reflectors": [{designator, name, description, ipv4, port, …}, …]}
+    reflectors = payload if isinstance(payload, list) else payload.get('reflectors', [])
     out = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or line.startswith('#'):
+    for entry in reflectors:
+        if not isinstance(entry, dict):
             continue
-        parts = [p.strip() for p in line.split(';')]
-        if len(parts) < 4:
-            continue
-        # pistar YSFHosts.txt format:
-        #   ID ; Name ; Description ; IPAddress ; Port ; DG-ID ; URL
-        ref_id = parts[0]
+        ref_id = str(entry.get('designator', '')).strip()
         if not ref_id:
             continue
         out.append({
             'id':   ref_id,
-            'name': parts[1] if len(parts) > 1 else ref_id,
-            'desc': parts[2] if len(parts) > 2 else '',
-            'ip':   parts[3] if len(parts) > 3 else '',
-            'port': int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 42000,
+            'name': str(entry.get('name', ref_id)).strip(),
+            'desc': str(entry.get('description', '') or '').strip(),
+            'ip':   str(entry.get('ipv4', '') or '').strip(),
+            'port': int(entry.get('port', 42000) or 42000),
         })
     if out:
         _ysf_reflector_cache = out

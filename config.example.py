@@ -76,8 +76,12 @@ YSF_DECODER_URL = 'http://127.0.0.1:8082'
 # Path to YSFGateway.ini — used by /api/ysf/connect to update Startup= reflector.
 YSF_GATEWAY_INI = '/opt/MMDVM_Bridge/YSFClients/YSFGateway/YSFGateway.ini'
 
-# Path to YSFHosts.txt — used by /api/ysf/reflectors to return the reflector list.
+# Path to YSFHosts.txt — fallback if the API fetch fails.
 YSF_HOSTS_FILE = '/opt/MMDVM_Bridge/YSFClients/YSFGateway/YSFHosts.txt'
+
+# API token for https://refcheck.radio/api/hostfile-gate/fetch/json/ysf/
+# Register at refcheck.radio to get a token.
+YSF_HOSTS_TOKEN = 'YOUR_TOKEN_HERE'
 
 # Systemd service name for YSFGateway — restarted when changing reflectors.
 YSF_GATEWAY_SERVICE = 'ysf_gateway.service'
