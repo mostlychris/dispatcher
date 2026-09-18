@@ -3661,7 +3661,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 pulse.style.background = on ? '#0f0' : '';
                 pulse.style.boxShadow  = on ? '0 0 6px #0f0' : '';
             }
-            _ysfCurrentRef = (d && d.reflector) || _ysfCurrentRef;
+            _ysfCurrentRef = (d && (d.reflector_id || d.reflector)) || _ysfCurrentRef;
         }
 
         function openYsfModal() {
@@ -6547,7 +6547,9 @@ def ysf_status():
     if not d.get('reflector'):
         startup = _ysf_read_ini_startup()
         if startup:
-            d['reflector'] = startup
+            d['reflector_id'] = startup
+            ref = next((r for r in _ysf_reflector_cache if r.get('id') == startup), None)
+            d['reflector'] = ref['name'] if ref else startup
     return jsonify(d)
 
 @app.route('/api/ysf/stream')
