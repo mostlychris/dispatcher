@@ -6702,7 +6702,7 @@ def ysf_connect():
         return jsonify({'ok': False, 'message': 'name required'}), 400
 
     label        = str(data.get('label', '')).strip()
-    startup_name = label or ref_id  # gateway matches Startup= against the name field in JSON
+    startup_name = ref_id  # gateway matches Startup= against the designator field in JSON
 
     import re as _re
     try:
