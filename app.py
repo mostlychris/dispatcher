@@ -6744,7 +6744,9 @@ def ysf_connect():
     except Exception as e:
         return jsonify({'ok': False, 'message': str(e)}), 500
 
-    return jsonify({'ok': True, 'message': 'OK', 'id': startup_name, 'display': label or startup_name})
+    hosts_path_dbg = os.path.join(os.path.dirname(os.path.abspath(YSF_GATEWAY_INI)), 'YSFHosts.json')
+    return jsonify({'ok': True, 'message': 'OK', 'id': startup_name, 'display': label or startup_name,
+                    '_debug_hosts_path': hosts_path_dbg, '_debug_ini': YSF_GATEWAY_INI})
 
 
 if __name__ == '__main__':
