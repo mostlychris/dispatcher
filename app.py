@@ -3705,13 +3705,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const isFav     = _ysfFavorites.includes(r.name);
                 const isCurrent = r.name === _ysfCurrentRef;
                 return '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #1e1e1e;">' +
-                    '<button onclick="ysfStarReflector(' + JSON.stringify(r.name) + ')" title="Favorite"' +
+                    '<button onclick="ysfStarReflector(' + escHtml(JSON.stringify(r.name)) + ')" title="Favorite"' +
                     ' style="background:none;border:none;color:' + (isFav ? '#fc0' : '#444') + ';font-size:15px;cursor:pointer;flex-shrink:0;padding:0;">&#9733;</button>' +
                     '<div style="flex:1;min-width:0;">' +
                     '<div style="font-weight:bold;color:' + (isCurrent ? '#c8f' : '#ddd') + ';">' + escHtml(r.name) + '</div>' +
                     '<div style="font-size:10px;color:#666;">' + escHtml(r.desc) + '</div>' +
                     '</div>' +
-                    '<button onclick="ysfConnectReflector(' + JSON.stringify(r.name) + ')"' +
+                    '<button onclick="ysfConnectReflector(' + escHtml(JSON.stringify(r.name)) + ')"' +
                     ' style="background:' + (isCurrent ? '#1a003a' : '#1a1a1a') + ';border:1px solid ' + (isCurrent ? '#8040c0' : '#333') + ';' +
                     'color:' + (isCurrent ? '#c8f' : '#aaa') + ';border-radius:3px;padding:2px 9px;font-size:10px;cursor:pointer;flex-shrink:0;">' +
                     (isCurrent ? 'Connected' : 'Connect') + '</button>' +
@@ -3726,7 +3726,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (_ysfFavorites.length === 0) { sec.style.display = 'none'; return; }
             sec.style.display = '';
             list.innerHTML = _ysfFavorites.map(function(name) {
-                return '<button onclick="ysfConnectReflector(' + JSON.stringify(name) + ')"' +
+                return '<button onclick="ysfConnectReflector(' + escHtml(JSON.stringify(name)) + ')"' +
                     ' style="background:#1a0a2a;border:1px solid #6030a0;color:#c8f;border-radius:4px;' +
                     'padding:2px 9px;font-size:11px;cursor:pointer;">' + escHtml(name) + '</button>';
             }).join('');
