@@ -3880,8 +3880,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             }).then(function(res) {
                 const d = res.data;
                 if (d.ok) {
-                    _ysfCurrentRef = d.id || id;          // numeric designator for list highlight
+                    _ysfCurrentRef = id;                    // designator for list highlight
                     const humanName = d.display || display; // friendly name for badges
+                    // Persist into _ysfLastStatus so WS events don't revert the badge
+                    if (!_ysfLastStatus) _ysfLastStatus = {};
+                    _ysfLastStatus.reflector    = humanName;
+                    _ysfLastStatus.reflector_id = id;
                     const refBadge = document.getElementById('ysfReflectorBadge');
                     if (refBadge) refBadge.textContent = humanName;
                     const row = document.getElementById('ysfStatusRow');
