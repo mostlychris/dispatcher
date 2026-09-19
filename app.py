@@ -3529,7 +3529,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _ysfAudioEnabled = false;
         var _ysfVolume       = 100;
         var _ysfPlayer       = null;
-        var _ysfStreamReader = null;
+        var _ysfAudioWs      = null;
+        var _ysfAudioWsRetry = null;
         var _ysfActive       = false;
         var _ysfWs           = null;
         var _ysfWsRetry      = null;
@@ -3554,6 +3555,16 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _updateYsfAudioBtn();
         }
 
+        // Replace host portion with current page host so loopback URLs work from remote browsers
+        (function() {
+            try {
+                const raw = '{{ ysf_audio_ws_url }}';
+                const u = new URL(raw);
+                u.hostname = location.hostname;
+                window._YSF_AUDIO_WS_URL = u.toString();
+            } catch(e) { window._YSF_AUDIO_WS_URL = ''; }
+        })();
+
         async function _ysfConnectAudio() {
             if (_ysfPlayer) return;
             _ysfPlayer = new WorkletPlayer(8000);
@@ -3564,36 +3575,30 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 return;
             }
             _ysfPlayer.volume(_ysfVolume / 100);
-            _ysfReadStream();
+            _ysfOpenAudioWs();
         }
 
-        async function _ysfReadStream() {
-            if (!_ysfAudioEnabled || !_ysfPlayer) return;
-            try {
-                const resp = await fetch('/api/ysf/stream');
-                if (!resp.ok || !resp.body) throw new Error('no body');
-                const reader = resp.body.getReader();
-                _ysfStreamReader = reader;
-                let headerLeft = 44;   // skip 44-byte WAV header
-                while (_ysfAudioEnabled && _ysfPlayer) {
-                    const {done, value} = await reader.read();
-                    if (done) break;
-                    let chunk = value;
-                    if (headerLeft > 0) {
-                        const skip = Math.min(headerLeft, chunk.length);
-                        chunk = chunk.subarray(skip);
-                        headerLeft -= skip;
-                    }
-                    if (chunk.length > 0 && _ysfPlayer) _ysfPlayer.feed(chunk);
+        function _ysfOpenAudioWs() {
+            if (_ysfAudioWsRetry) { clearTimeout(_ysfAudioWsRetry); _ysfAudioWsRetry = null; }
+            if (!window._YSF_AUDIO_WS_URL) return;
+            const aws = new WebSocket(window._YSF_AUDIO_WS_URL);
+            aws.binaryType = 'arraybuffer';
+            aws.onmessage = function(e) {
+                if (_ysfPlayer) _ysfPlayer.feed(new Uint8Array(e.data));
+            };
+            aws.onclose = function() {
+                _ysfAudioWs = null;
+                if (_ysfAudioEnabled && _ysfPlayer) {
+                    _ysfAudioWsRetry = setTimeout(_ysfOpenAudioWs, 3000);
                 }
-                try { reader.cancel(); } catch(e) {}
-            } catch(e) {}
-            _ysfStreamReader = null;
-            if (_ysfAudioEnabled && _ysfPlayer) setTimeout(_ysfReadStream, 2000);
+            };
+            aws.onerror = function() { aws.close(); };
+            _ysfAudioWs = aws;
         }
 
         function _ysfDisconnectAudio() {
-            if (_ysfStreamReader) { try { _ysfStreamReader.cancel(); } catch(e) {} _ysfStreamReader = null; }
+            if (_ysfAudioWsRetry) { clearTimeout(_ysfAudioWsRetry); _ysfAudioWsRetry = null; }
+            if (_ysfAudioWs) { try { _ysfAudioWs.close(); } catch(e) {} _ysfAudioWs = null; }
             if (_ysfPlayer) { _ysfPlayer.stop(); _ysfPlayer = null; }
         }
 
@@ -5921,6 +5926,7 @@ registerProcessor('mic-decimator', MicDecimator);
 def index():
     return render_template_string(HTML, audio_ws_url=AUDIO_WS_URL,
                                   dvswitchplayer_port=DVSWITCHPLAYER_PORT,
+                                  ysf_audio_ws_url=YSF_AUDIO_WS_URL,
                                   api_key=API_KEY)
 
 @app.route('/api/stream')
@@ -6586,6 +6592,8 @@ def _ysf_api_url(path):
 
 def _ysf_ws_url():
     return YSF_DECODER_URL.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws'
+
+YSF_AUDIO_WS_URL = YSF_DECODER_URL.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/audio'
 
 @app.route('/api/ysf/status')
 def ysf_status():
