@@ -3617,7 +3617,11 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function _applyYsfState(d) {
             if (!d) return;
-            _ysfLastStatus = Object.assign(_ysfLastStatus || {}, d);
+            if (!_ysfLastStatus) _ysfLastStatus = {};
+            // Merge: don't overwrite existing truthy values with empty strings
+            for (const k in d) {
+                if (d[k] !== '') _ysfLastStatus[k] = d[k];
+            }
             const merged = _ysfLastStatus;
             const row = document.getElementById('ysfStatusRow');
             if (row) {
