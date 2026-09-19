@@ -3527,33 +3527,21 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         // -------------------------
         // ---- YSF DECODER ----
         var _ysfAudioEnabled = false;
-        var _ysfAudioEl      = null;
         var _ysfVolume       = 100;
-        var _ysfCtx          = null;
-        var _ysfGainNode     = null;
+        var _ysfPlayer       = null;
+        var _ysfAudioWs      = null;
+        var _ysfAudioWsRetry = null;
         var _ysfActive       = false;
         var _ysfWs           = null;
         var _ysfWsRetry      = null;
         var _ysfLastStatus   = null;
 
         function _initYsf() {
-            _ysfAudioEl = new Audio();
-            _ysfAudioEl.crossOrigin = 'anonymous';
             _ysfVolume = parseInt(localStorage.getItem('ysfVolume') ?? '100');
             const volSl  = document.getElementById('ysfVolSliderOv');
             const volLbl = document.getElementById('ysfVolDisplayOv');
             if (volSl)  volSl.value = _ysfVolume;
             if (volLbl) volLbl.textContent = _ysfVolume + '%';
-        }
-
-        function _ysfEnsureCtx() {
-            if (_ysfCtx) return;
-            _ysfCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const src = _ysfCtx.createMediaElementSource(_ysfAudioEl);
-            _ysfGainNode = _ysfCtx.createGain();
-            _ysfGainNode.gain.value = _ysfVolume / 100;
-            src.connect(_ysfGainNode);
-            _ysfGainNode.connect(_ysfCtx.destination);
         }
 
         function ysfToggleAudio() {
@@ -3567,26 +3555,47 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _updateYsfAudioBtn();
         }
 
-        function _ysfConnectAudio() {
-            if (!_ysfAudioEl) return;
-            _ysfEnsureCtx();
-            _ysfAudioEl.src = '/api/ysf/stream';
-            if (_ysfCtx && _ysfCtx.state === 'suspended') _ysfCtx.resume();
-            _ysfAudioEl.play().catch(() => {});
+        async function _ysfConnectAudio() {
+            if (_ysfPlayer) return;
+            _ysfPlayer = new WorkletPlayer(24000);
+            try {
+                await _ysfPlayer.init();
+            } catch(e) {
+                _ysfPlayer = null;
+                return;
+            }
+            _ysfPlayer.volume(_ysfVolume / 100);
+            _ysfOpenAudioWs();
+        }
+
+        function _ysfOpenAudioWs() {
+            if (_ysfAudioWsRetry) { clearTimeout(_ysfAudioWsRetry); _ysfAudioWsRetry = null; }
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const aws = new WebSocket(proto + '//' + location.host + '/api/ysf/ws/audio');
+            aws.binaryType = 'arraybuffer';
+            aws.onmessage = function(e) {
+                if (_ysfPlayer) _ysfPlayer.feed(new Uint8Array(e.data));
+            };
+            aws.onclose = function() {
+                _ysfAudioWs = null;
+                if (_ysfAudioEnabled && _ysfPlayer) {
+                    _ysfAudioWsRetry = setTimeout(_ysfOpenAudioWs, 3000);
+                }
+            };
+            aws.onerror = function() { aws.close(); };
+            _ysfAudioWs = aws;
         }
 
         function _ysfDisconnectAudio() {
-            if (_ysfAudioEl) {
-                _ysfAudioEl.pause();
-                _ysfAudioEl.src = '';
-            }
+            if (_ysfAudioWs) { try { _ysfAudioWs.close(); } catch(e) {} _ysfAudioWs = null; }
+            if (_ysfAudioWsRetry) { clearTimeout(_ysfAudioWsRetry); _ysfAudioWsRetry = null; }
+            if (_ysfPlayer) { _ysfPlayer.stop(); _ysfPlayer = null; }
         }
 
         function ysfSetVolume(val) {
             val = parseInt(val);
             _ysfVolume = val;
-            if (_ysfGainNode) _ysfGainNode.gain.value = val / 100;
-            else if (_ysfAudioEl) _ysfAudioEl.volume = val / 100;
+            if (_ysfPlayer) _ysfPlayer.volume(val / 100);
             const lbl = document.getElementById('ysfVolDisplayOv');
             const sl  = document.getElementById('ysfVolSliderOv');
             if (lbl) lbl.textContent = val + '%';
@@ -6608,6 +6617,29 @@ def ysf_ws_proxy(ws):
         while True:
             msg = conn.recv()
             ws.send(msg)
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@sock.route('/api/ysf/ws/audio')
+def ysf_ws_audio_proxy(ws):
+    """Relay ysf_decoder raw PCM WebSocket to browser."""
+    ysf_audio_url = YSF_DECODER_URL.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/audio'
+    try:
+        import websocket as _wsc
+        conn = _wsc.create_connection(ysf_audio_url, timeout=35)
+    except Exception as e:
+        return
+    try:
+        while True:
+            opcode, data = conn.recv_data()
+            if opcode == 2:  # binary
+                ws.send(data)
     except Exception:
         pass
     finally:
