@@ -3529,8 +3529,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _ysfAudioEnabled = false;
         var _ysfVolume       = 100;
         var _ysfPlayer       = null;
-        var _ysfAudioWs      = null;
-        var _ysfAudioWsRetry = null;
+        var _ysfStreamReader = null;
         var _ysfActive       = false;
         var _ysfWs           = null;
         var _ysfWsRetry      = null;
@@ -3565,30 +3564,36 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 return;
             }
             _ysfPlayer.volume(_ysfVolume / 100);
-            _ysfOpenAudioWs();
+            _ysfReadStream();
         }
 
-        function _ysfOpenAudioWs() {
-            if (_ysfAudioWsRetry) { clearTimeout(_ysfAudioWsRetry); _ysfAudioWsRetry = null; }
-            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const aws = new WebSocket(proto + '//' + location.host + '/api/ysf/ws/audio');
-            aws.binaryType = 'arraybuffer';
-            aws.onmessage = function(e) {
-                if (_ysfPlayer) _ysfPlayer.feed(new Uint8Array(e.data));
-            };
-            aws.onclose = function() {
-                _ysfAudioWs = null;
-                if (_ysfAudioEnabled && _ysfPlayer) {
-                    _ysfAudioWsRetry = setTimeout(_ysfOpenAudioWs, 3000);
+        async function _ysfReadStream() {
+            if (!_ysfAudioEnabled || !_ysfPlayer) return;
+            try {
+                const resp = await fetch('/api/ysf/stream');
+                if (!resp.ok || !resp.body) throw new Error('no body');
+                const reader = resp.body.getReader();
+                _ysfStreamReader = reader;
+                let headerLeft = 44;   // skip 44-byte WAV header
+                while (_ysfAudioEnabled && _ysfPlayer) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    let chunk = value;
+                    if (headerLeft > 0) {
+                        const skip = Math.min(headerLeft, chunk.length);
+                        chunk = chunk.subarray(skip);
+                        headerLeft -= skip;
+                    }
+                    if (chunk.length > 0 && _ysfPlayer) _ysfPlayer.feed(chunk);
                 }
-            };
-            aws.onerror = function() { aws.close(); };
-            _ysfAudioWs = aws;
+                try { reader.cancel(); } catch(e) {}
+            } catch(e) {}
+            _ysfStreamReader = null;
+            if (_ysfAudioEnabled && _ysfPlayer) setTimeout(_ysfReadStream, 2000);
         }
 
         function _ysfDisconnectAudio() {
-            if (_ysfAudioWs) { try { _ysfAudioWs.close(); } catch(e) {} _ysfAudioWs = null; }
-            if (_ysfAudioWsRetry) { clearTimeout(_ysfAudioWsRetry); _ysfAudioWsRetry = null; }
+            if (_ysfStreamReader) { try { _ysfStreamReader.cancel(); } catch(e) {} _ysfStreamReader = null; }
             if (_ysfPlayer) { _ysfPlayer.stop(); _ysfPlayer = null; }
         }
 
@@ -6621,29 +6626,6 @@ def ysf_ws_proxy(ws):
         while True:
             msg = conn.recv()
             ws.send(msg)
-    except Exception:
-        pass
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-
-
-@sock.route('/api/ysf/ws/audio')
-def ysf_ws_audio_proxy(ws):
-    """Relay ysf_decoder raw PCM WebSocket to browser."""
-    ysf_audio_url = YSF_DECODER_URL.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/audio'
-    try:
-        import websocket as _wsc
-        conn = _wsc.create_connection(ysf_audio_url, timeout=35)
-    except Exception as e:
-        return
-    try:
-        while True:
-            opcode, data = conn.recv_data()
-            if opcode == 2:  # binary
-                ws.send(data)
     except Exception:
         pass
     finally:
