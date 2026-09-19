@@ -1062,6 +1062,53 @@ def _start_sdr_relay():
     t.start()
 
 
+# ── YSF audio relay ─────────────────────────────────────────────────────────
+# One background thread connects to ysf_decoder /ws/audio and fans out to
+# browser clients via queues — same pattern as Allstar audio.
+
+class _YsfAudioRelay:
+    def __init__(self):
+        self._qs:   list[queue.Queue] = []
+        self._lock  = threading.Lock()
+
+    def start(self):
+        threading.Thread(target=self._loop, daemon=True, name='ysf-audio-relay').start()
+
+    def _loop(self):
+        url = YSF_DECODER_URL.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/audio'
+        while True:
+            try:
+                import websocket as _wsc
+                conn = _wsc.create_connection(url, timeout=35)
+                while True:
+                    opcode, data = conn.recv_data()
+                    if opcode == 2:
+                        self._broadcast(data)
+            except Exception:
+                pass
+            time.sleep(3)
+
+    def _broadcast(self, data: bytes):
+        with self._lock:
+            qs = list(self._qs)
+        for q in qs:
+            try:
+                q.put_nowait(data)
+            except queue.Full:
+                pass
+
+    def add_listener(self, q: queue.Queue):
+        with self._lock:
+            self._qs.append(q)
+
+    def remove_listener(self, q: queue.Queue):
+        with self._lock:
+            if q in self._qs:
+                self._qs.remove(q)
+
+ysf_audio_relay = _YsfAudioRelay()
+
+
 def tg_refresh_loop():
     while True:
         time.sleep(300)
@@ -1075,6 +1122,7 @@ tg_refresh_thread = threading.Thread(target=tg_refresh_loop, daemon=True)
 usrp_thread.start()
 tg_refresh_thread.start()
 _start_sdr_relay()
+ysf_audio_relay.start()
 
 HTML = '''
 <!DOCTYPE html>
@@ -3555,16 +3603,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _updateYsfAudioBtn();
         }
 
-        // Replace host portion with current page host so loopback URLs work from remote browsers
-        (function() {
-            try {
-                const raw = '{{ ysf_audio_ws_url }}';
-                const u = new URL(raw);
-                u.hostname = location.hostname;
-                window._YSF_AUDIO_WS_URL = u.toString();
-            } catch(e) { window._YSF_AUDIO_WS_URL = ''; }
-        })();
-
         async function _ysfConnectAudio() {
             if (_ysfPlayer) return;
             _ysfPlayer = new WorkletPlayer(8000);
@@ -3580,8 +3618,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function _ysfOpenAudioWs() {
             if (_ysfAudioWsRetry) { clearTimeout(_ysfAudioWsRetry); _ysfAudioWsRetry = null; }
-            if (!window._YSF_AUDIO_WS_URL) return;
-            const aws = new WebSocket(window._YSF_AUDIO_WS_URL);
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const aws = new WebSocket(proto + '//' + location.host + '/ws/ysf-audio');
             aws.binaryType = 'arraybuffer';
             aws.onmessage = function(e) {
                 if (_ysfPlayer) _ysfPlayer.feed(new Uint8Array(e.data));
@@ -5926,7 +5964,6 @@ registerProcessor('mic-decimator', MicDecimator);
 def index():
     return render_template_string(HTML, audio_ws_url=AUDIO_WS_URL,
                                   dvswitchplayer_port=DVSWITCHPLAYER_PORT,
-                                  ysf_audio_ws_url=YSF_AUDIO_WS_URL,
                                   api_key=API_KEY)
 
 @app.route('/api/stream')
@@ -6222,6 +6259,23 @@ def allstar_command():
         return jsonify({'ok': True, 'message': f'Sent: {cmd}'})
     except RuntimeError as e:
         return jsonify({'ok': False, 'message': str(e)})
+
+
+@sock.route('/ws/ysf-audio')
+def ysf_audio_ws(ws):
+    q = queue.Queue(maxsize=100)
+    ysf_audio_relay.add_listener(q)
+    try:
+        while True:
+            try:
+                pcm = q.get(timeout=5)
+            except queue.Empty:
+                continue
+            ws.send(pcm)
+    except Exception:
+        pass
+    finally:
+        ysf_audio_relay.remove_listener(q)
 
 
 @sock.route('/ws/allstar-audio')
@@ -6593,7 +6647,6 @@ def _ysf_api_url(path):
 def _ysf_ws_url():
     return YSF_DECODER_URL.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws'
 
-YSF_AUDIO_WS_URL = YSF_DECODER_URL.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/audio'
 
 @app.route('/api/ysf/status')
 def ysf_status():
