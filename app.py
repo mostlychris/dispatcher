@@ -3559,7 +3559,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             localStorage.setItem('ysfAudioEnabled', _ysfAudioEnabled ? '1' : '0');
             if (_ysfAudioEnabled) {
                 _ysfConnectAudio();
-                if (!_ysfStatusTimer) _ysfStatusTimer = setInterval(_pollYsfStatus, 5000);
+                if (!_ysfStatusTimer) _ysfStatusTimer = setInterval(_pollYsfStatus, 2000);
                 _pollYsfStatus();
             } else {
                 _ysfDisconnectAudio();
@@ -3639,7 +3639,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function _initYsfPanel() {
             try { _ysfFavorites = JSON.parse(localStorage.getItem('ysfFavorites') || '[]'); } catch(e) { _ysfFavorites = []; }
-            _ysfPanelTimer = setInterval(_pollYsfStatus, 8000);
+            _ysfPanelTimer = setInterval(_pollYsfStatus, 2000);
             _pollYsfStatus();
         }
 
