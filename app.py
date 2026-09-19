@@ -1063,8 +1063,13 @@ def _start_sdr_relay():
 
 
 # ── YSF audio relay ─────────────────────────────────────────────────────────
-# One background thread connects to ysf_decoder /ws/audio and fans out to
-# browser clients via queues — same pattern as Allstar audio.
+# One background thread reads the ysf_decoder HTTP WAV stream (/stream), strips
+# the 44-byte WAV header, and fans out raw 16-bit PCM chunks to browser clients
+# via queues.  Using the HTTP stream (not /ws/audio) avoids any binary-frame
+# encoding issues in the websocket relay.
+
+_YSF_WAV_HDR   = 44    # fixed-size RIFF/WAV header from ysf_decoder._wav_stream_header
+_YSF_CHUNK     = 1920  # bytes — matches ysf_decoder CHUNK_SIZE (AUDIO_RATE*2*CHUNK_MS//1000)
 
 class _YsfAudioRelay:
     def __init__(self):
@@ -1075,17 +1080,25 @@ class _YsfAudioRelay:
         threading.Thread(target=self._loop, daemon=True, name='ysf-audio-relay').start()
 
     def _loop(self):
-        url = YSF_DECODER_URL.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/audio'
+        import urllib.request
+        url = YSF_DECODER_URL.rstrip('/') + '/stream'
         while True:
             try:
-                import websocket as _wsc
-                conn = _wsc.create_connection(url, timeout=35)
+                req  = urllib.request.Request(url, headers={'Connection': 'keep-alive'})
+                resp = urllib.request.urlopen(req, timeout=35)
+                # Discard the WAV header so callers receive raw int16 PCM
+                hdr = resp.read(_YSF_WAV_HDR)
+                if len(hdr) < _YSF_WAV_HDR:
+                    raise IOError('short WAV header')
+                print(f'[YSF relay] connected to {url}')
                 while True:
-                    opcode, data = conn.recv_data()
-                    if opcode == 2:
-                        self._broadcast(data)
-            except Exception:
-                pass
+                    chunk = resp.read(_YSF_CHUNK)
+                    if not chunk:
+                        break
+                    if len(chunk) == _YSF_CHUNK:
+                        self._broadcast(chunk)
+            except Exception as e:
+                print(f'[YSF relay] error: {e}')
             time.sleep(3)
 
     def _broadcast(self, data: bytes):
