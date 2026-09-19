@@ -3557,7 +3557,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         async function _ysfConnectAudio() {
             if (_ysfPlayer) return;
-            _ysfPlayer = new WorkletPlayer(24000);
+            _ysfPlayer = new WorkletPlayer(8000);
             try {
                 await _ysfPlayer.init();
             } catch(e) {
