@@ -3532,7 +3532,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _ysfCtx          = null;
         var _ysfGainNode     = null;
         var _ysfActive       = false;
-        var _ysfStatusTimer  = null;
+        var _ysfWs           = null;
+        var _ysfWsRetry      = null;
+        var _ysfLastStatus   = null;
 
         function _initYsf() {
             _ysfAudioEl = new Audio();
@@ -3559,11 +3561,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             localStorage.setItem('ysfAudioEnabled', _ysfAudioEnabled ? '1' : '0');
             if (_ysfAudioEnabled) {
                 _ysfConnectAudio();
-                if (!_ysfStatusTimer) _ysfStatusTimer = setInterval(_pollYsfStatus, 2000);
-                _pollYsfStatus();
             } else {
                 _ysfDisconnectAudio();
-                if (_ysfStatusTimer) { clearInterval(_ysfStatusTimer); _ysfStatusTimer = null; }
             }
             _updateYsfAudioBtn();
         }
@@ -3607,23 +3606,28 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (ov) ov.textContent = _ysfAudioEnabled ? '🔊 Enable' : '🔇 Muted';
         }
 
+        function _applyYsfState(d) {
+            if (!d) return;
+            _ysfLastStatus = Object.assign(_ysfLastStatus || {}, d);
+            const merged = _ysfLastStatus;
+            const row = document.getElementById('ysfStatusRow');
+            if (row) {
+                if (merged.error) {
+                    row.textContent = 'Decoder offline';
+                } else {
+                    const reflector = merged.reflector || merged.label || '—';
+                    const activeSrc = merged.active ? (merged.callsign || merged.source) : null;
+                    row.textContent = reflector + (activeSrc ? ' │ ' + activeSrc : '');
+                }
+            }
+            _ysfActive = !!(merged && merged.active);
+            _updateYsfAudioBtn();
+            _updateYsfPanel(merged.error ? null : merged);
+        }
+
         function _pollYsfStatus() {
             fetch('/api/ysf/status').then(r => r.json()).then(function(d) {
-                // Audio overlay status row
-                const row = document.getElementById('ysfStatusRow');
-                if (row) {
-                    if (d.error) {
-                        row.textContent = 'Decoder offline';
-                    } else {
-                        const reflector = d.reflector || d.label || '—';
-                        const activeSrc = d.active ? (d.callsign || d.source) : null;
-                        const src = activeSrc ? ' │ ' + activeSrc : '';
-                        row.textContent = reflector + src;
-                    }
-                }
-                _ysfActive = !!(d && d.active);
-                _updateYsfAudioBtn();
-                _updateYsfPanel(d);
+                _applyYsfState(d);
             }).catch(function() {
                 const row = document.getElementById('ysfStatusRow');
                 if (row) row.textContent = 'Decoder offline';
@@ -3631,16 +3635,41 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             });
         }
 
+        function _connectYsfWs() {
+            if (_ysfWs) { try { _ysfWs.close(); } catch(e) {} }
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(proto + '//' + location.host + '/api/ysf/ws');
+            _ysfWs = ws;
+            ws.onmessage = function(ev) {
+                try {
+                    const msg = JSON.parse(ev.data);
+                    if (msg.event === 'ping') return;
+                    if (msg.event === 'state') {
+                        _applyYsfState(msg);
+                    } else if (msg.event === 'callsign') {
+                        _applyYsfState({callsign: msg.callsign});
+                    } else if (msg.event === 'error') {
+                        _applyYsfState({error: msg.msg});
+                    }
+                } catch(e) {}
+            };
+            ws.onclose = function() {
+                _ysfWs = null;
+                if (_ysfWsRetry) clearTimeout(_ysfWsRetry);
+                _ysfWsRetry = setTimeout(_connectYsfWs, 5000);
+            };
+            ws.onerror = function() { ws.close(); };
+        }
+
         // ---- YSF PANEL + REFLECTOR MODAL ----
         var _ysfFavorites     = [];
         var _ysfAllReflectors = [];
         var _ysfCurrentRef    = '';
-        var _ysfPanelTimer    = null;
 
         function _initYsfPanel() {
             try { _ysfFavorites = JSON.parse(localStorage.getItem('ysfFavorites') || '[]'); } catch(e) { _ysfFavorites = []; }
-            _ysfPanelTimer = setInterval(_pollYsfStatus, 2000);
-            _pollYsfStatus();
+            _pollYsfStatus();   // fetch initial full status (reflector name etc.)
+            _connectYsfWs();    // then switch to push-based updates
         }
 
         function _updateYsfPanel(d) {
@@ -6537,6 +6566,9 @@ def sdr_stream():
 def _ysf_api_url(path):
     return YSF_DECODER_URL.rstrip('/') + path
 
+def _ysf_ws_url():
+    return YSF_DECODER_URL.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://') + '/ws'
+
 @app.route('/api/ysf/status')
 def ysf_status():
     """Proxy the YSF decoder /status, injecting current Startup= as reflector name."""
@@ -6559,6 +6591,31 @@ def ysf_status():
             d['reflector']    = ref['name'] if ref else startup
             d['reflector_id'] = ref['id']   if ref else startup
     return jsonify(d)
+
+@sock.route('/api/ysf/ws')
+def ysf_ws_proxy(ws):
+    """Relay ysf_decoder /ws events to browser WebSocket clients."""
+    try:
+        import websocket as _wsc
+        conn = _wsc.create_connection(_ysf_ws_url(), timeout=35)
+    except Exception as e:
+        try:
+            ws.send(json.dumps({"event": "error", "msg": str(e)}))
+        except Exception:
+            pass
+        return
+    try:
+        while True:
+            msg = conn.recv()
+            ws.send(msg)
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 
 @app.route('/api/ysf/stream')
 def ysf_stream():
