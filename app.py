@@ -3616,7 +3616,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                         row.textContent = 'Decoder offline';
                     } else {
                         const reflector = d.reflector || d.label || '—';
-                        const src = d.source && d.active ? ' │ ' + d.source : '';
+                        const activeSrc = d.active ? (d.callsign || d.source) : null;
+                        const src = activeSrc ? ' │ ' + activeSrc : '';
                         row.textContent = reflector + src;
                     }
                 }
@@ -3654,7 +3655,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (badge)   badge.style.display  = offline ? '' : 'none';
             if (section) section.classList.toggle('rx-active', !!(d && d.active));
             if (refBadge) refBadge.textContent = (d && (d.reflector || d.label)) || '';
-            if (srcBadge) srcBadge.textContent = (d && d.active && d.source) ? d.source : '';
+            const displaySrc = (d && d.active) ? (d.callsign || d.source || '') : '';
+            if (srcBadge) srcBadge.textContent = displaySrc;
             if (rxCount)  rxCount.textContent  = (d && d.rx_count) ? d.rx_count + ' RX' : '';
             if (pulse) {
                 const on = !!(d && d.active);
