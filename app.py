@@ -3241,8 +3241,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 body.innerHTML = rows.map(r => {
                     const utcStr = r.time.replace(' ', 'T') + 'Z';
                     const localTime = new Date(utcStr).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
+                    const tgSafe = String(r.tg).replace(/'/g, "\\'");
                     return `
-                    <tr>
+                    <tr onclick="tuneFromLastHeard('${tgSafe}')" style="cursor:pointer;" title="Click to tune to TG ${tgSafe}">
                         <td class="lh-time">${localTime}</td>
                         <td class="lh-callsign">${r.callsign}</td>
                         <td class="lh-dmrid">${r.dmr_id || ''}</td>
@@ -4322,6 +4323,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             .then(r => r.json())
             .then(d => { log(d.message, d.ok ? 'ok' : 'error'); pollStatus(); })
             .catch(e => log('Tune failed: ' + e, 'error'));
+        }
+
+        function tuneFromLastHeard(tg) {
+            closeLastHeardModal();
+            document.getElementById('tgInput').value = tg;
+            tuneTG();
         }
 
         // -------------------------
@@ -6103,8 +6110,11 @@ def tune():
     last_state.update({"tg": tg, "tg_name": tg_name, "network": network, "time": now})
     save_last_state()
 
-    run(f"{DVSWITCH_SCRIPT} tune {tg}")
-    return jsonify({"ok": True, "message": f"Tuned to {tg}"})
+    out = run(f"{DVSWITCH_SCRIPT} tune {tg}")
+    msg = f"Tuned to {tg}" + (f" (via {network})" if tg_name else "")
+    if out and 'ERROR' in out.upper():
+        msg += f" — script: {out[:120]}"
+    return jsonify({"ok": True, "message": msg})
 
 @app.route('/api/favorites', methods=['GET'])
 def get_favs():
