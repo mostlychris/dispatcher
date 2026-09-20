@@ -2063,6 +2063,7 @@ HTML = '''
                             <button class="btn-tune"     onclick="tuneTG()">&#9654; Tune</button>
                             <button class="btn-save-fav" onclick="saveFavorite()" title="Save to favorites for current network">&#9733; Fav</button>
                         </div>
+                        <div id="tuneStatus" style="font-size:10px;min-height:14px;padding-top:3px;color:#aaa;"></div>
                     </div>
                 </div>
 
@@ -4295,6 +4296,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         async function action(endpoint, msg) {
             log(msg);
+            _showTuneStatus(msg, true);
             setButtons(true);
             try {
                 const res  = await fetch(endpoint, {
@@ -4304,25 +4306,38 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 });
                 const data = await res.json();
                 log(data.message, data.ok ? 'ok' : 'error');
+                _showTuneStatus(data.message, data.ok);
             } catch(e) {
                 log('Failed: ' + e, 'error');
+                _showTuneStatus('Failed: ' + e, false);
             } finally {
                 setButtons(false);
                 pollStatus();
             }
         }
 
+        var _tuneStatusTimer = null;
+        function _showTuneStatus(msg, ok) {
+            const el = document.getElementById('tuneStatus');
+            if (!el) return;
+            el.textContent = msg;
+            el.style.color = ok ? 'lime' : 'tomato';
+            clearTimeout(_tuneStatusTimer);
+            _tuneStatusTimer = setTimeout(function() { el.textContent = ''; el.style.color = '#aaa'; }, 6000);
+        }
+
         function tuneTG() {
             const tg = document.getElementById('tgInput').value.trim();
-            if (!tg) { log('No talkgroup entered', 'error'); return; }
+            if (!tg) { _showTuneStatus('No talkgroup entered', false); return; }
+            _showTuneStatus('Tuning to TG ' + tg + '…', true);
             log('Tuning to TG ' + tg + '...');
             fetch('/api/tune', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({tg})
             })
             .then(r => r.json())
-            .then(d => { log(d.message, d.ok ? 'ok' : 'error'); pollStatus(); })
-            .catch(e => log('Tune failed: ' + e, 'error'));
+            .then(d => { _showTuneStatus(d.message, d.ok); log(d.message, d.ok ? 'ok' : 'error'); pollStatus(); })
+            .catch(e => { _showTuneStatus('Tune failed: ' + e, false); log('Tune failed: ' + e, 'error'); });
         }
 
         function tuneFromLastHeard(tg) {
