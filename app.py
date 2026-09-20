@@ -3870,6 +3870,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function ysfConnectReflector(id, label) {
             const display = label || id;
             _ysfSetStatus('Connecting to ' + display + '…', true);
+            setTimeout(closeYsfModal, 2500);
             // Pass address/port from local list so backend doesn't need a warm cache
             const rEntry = _ysfAllReflectors.find(function(x) { return (x.id||x.name) === id; });
             const body = {name: id, label: display};
@@ -6126,7 +6127,7 @@ def tune():
     last_state.update({"tg": tg, "tg_name": tg_name, "network": network, "time": now})
     save_last_state()
 
-    out = run(f"{DVSWITCH_SCRIPT} tune {tg}")
+    out = run(f"ABINFO={ABINFO_ACTIVE} {DVSWITCH_SCRIPT} tune {tg}")
     msg = f"Tuned to TG {tg}" + (f" · {tg_name}" if tg_name else "") + f" ({network})"
     if out:
         msg += f" — [{out[:120]}]"
