@@ -441,6 +441,19 @@ def send_registration():
     sock.close()
     usrp_state["last_reg_sent"] = time.time()
 
+def usrp_tune_tg(tg_int):
+    """Switch MMDVM_Bridge to tg_int by sending a brief silent PTT via USRP.
+    Analog_Bridge interprets PTT=1 on a new TG as a transmission start and
+    tells MMDVM_Bridge to connect to that TG on BM/TGIF."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    ptt_on  = struct.pack('>4sIIIII', USRP_MAGIC, 1, tg_int, 1, 0, 0) + bytes(4) + bytes(320)
+    ptt_off = struct.pack('>4sIIIII', USRP_MAGIC, 2, tg_int, 0, 0, 0) + bytes(4) + bytes(320)
+    sock.sendto(ptt_on,  (USRP_HOST, USRP_PORT))
+    time.sleep(0.25)
+    sock.sendto(ptt_off, (USRP_HOST, USRP_PORT))
+    sock.close()
+    print(f"[tune] USRP PTT sent to TG {tg_int} on {USRP_HOST}:{USRP_PORT}")
+
 def usrp_listener():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -6125,10 +6138,12 @@ def tune():
     last_state.update({"tg": tg, "tg_name": tg_name, "network": network, "time": now})
     save_last_state()
 
-    out = run(f"{DVSWITCH_SCRIPT} tune {tg}")
-    msg = f"Tuned to {tg}" + (f" (via {network})" if tg_name else "")
-    if out and 'ERROR' in out.upper():
-        msg += f" — script: {out[:120]}"
+    try:
+        usrp_tune_tg(int(tg))
+        msg = f"Tuned to TG {tg}" + (f" · {tg_name}" if tg_name else "") + f" ({network})"
+    except Exception as e:
+        msg = f"Tune failed: {e}"
+        return jsonify({"ok": False, "message": msg})
     return jsonify({"ok": True, "message": msg})
 
 @app.route('/api/favorites', methods=['GET'])
