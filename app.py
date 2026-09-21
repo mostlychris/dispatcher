@@ -1739,7 +1739,7 @@ HTML = '''
             #tgValueName              { font-size: 9px !important; }
             #asNodeBadge              { font-size: 13px !important; }
             #asDirectLinkBadge        { font-size: 12px !important; }
-            #modeValue                { display: none; }
+            #modeValue                { font-size: 9px !important; }
 
             /* Hide non-essential panels entirely on mobile */
             .mobile-hide { display: none !important; }
@@ -4452,7 +4452,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
                 currentMode = d.mode;
                 const modeEl = document.getElementById('modeValue');
-                modeEl.textContent = d.mode;
+                modeEl.textContent = d.mode === 'BrandMeister' ? 'BM' : (d.mode || '--');
                 modeEl.className   = 'mode-badge ' + (
                     d.mode === 'TGIF'         ? 'badge-tgif' :
                     d.mode === 'BrandMeister' ? 'badge-bm'   : 'badge-unknown'
