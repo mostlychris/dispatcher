@@ -2821,6 +2821,10 @@ HTML = '''
                     const cs = data.callsign || data.dmr_id || 'UNKNOWN';
                     document.getElementById('dmrSection').classList.add('active');
                     document.getElementById('dmrSection').classList.add('rx-active');
+                    ['btnMonitor', 'mobBtnDmrMonitor'].forEach(function(id) {
+                        const b = document.getElementById(id);
+                        if (b && b.classList.contains('active')) b.classList.add('streaming');
+                    });
                     document.getElementById('dmrActiveCall').textContent = cs;
                     document.getElementById('txCallsign').textContent    = cs;
                     document.getElementById('txDetail').textContent      = 'TG: ' + data.tg + (data.tg_name ? ' → ' + data.tg_name : '');
@@ -2836,6 +2840,10 @@ HTML = '''
                 } else if (data.event === 'tx_end') {
                     document.getElementById('dmrSection').classList.remove('active');
                     document.getElementById('dmrSection').classList.remove('rx-active');
+                    ['btnMonitor', 'mobBtnDmrMonitor'].forEach(function(id) {
+                        const b = document.getElementById(id);
+                        if (b) b.classList.remove('streaming');
+                    });
                     document.getElementById('dmrActiveCall').textContent = '';
                     document.getElementById('txCallsign').textContent    = 'STANDBY';
                     document.getElementById('txDetail').textContent      = '—';
