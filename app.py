@@ -614,17 +614,12 @@ def get_status():
         core_up = svc_mmdvm == "RUNNING" and svc_analog == "RUNNING"
 
     # Connection state: answers "am I tuned or just quiet?"
-    # AB only sends USRP packets when audio is flowing (no keepalive acks), so
-    # "connected" drops after 35s of silence even though the stack is healthy.
-    # Use last_connected within 5 minutes as the idle threshold so quiet talkgroups
-    # show IDLE rather than falsely WAIT.
-    usrp_recently_seen = (time.time() - usrp_state["last_connected"]) < 300
     if active_tx["active"]:
         conn_state = "rx"           # audio actively flowing
-    elif (usrp_state["connected"] or usrp_recently_seen) and core_up:
+    elif usrp_state["connected"] and core_up:
         conn_state = "idle"         # tuned and ready, no traffic
     elif core_up:
-        conn_state = "starting"     # services up, never seen USRP from AB
+        conn_state = "starting"     # services up, USRP not yet connected
     else:
         conn_state = "offline"      # radio stack is down
 
@@ -645,8 +640,9 @@ def get_status():
         "svc_stfu":         svc_stfu,
         "svc_mmdvm":        svc_mmdvm,
         "svc_analog":       svc_analog,
-        "usrp_connected":   usrp_state["connected"],
-        "usrp_registered":  usrp_state["registered"],
+        "usrp_connected":       usrp_state["connected"],
+        "usrp_ever_connected":  usrp_state["last_connected"] > 0,
+        "usrp_registered":      usrp_state["registered"],
         "status_source":    status_source,
         "conn_state":       conn_state,
         "ysf_conn_state":   ysf_conn_state,
@@ -2645,8 +2641,9 @@ HTML = '''
                 <!-- STATUS STRIP -->
                 <div class="collapse-panel svc-strip-panel">
                     <div class="status-strip">
-                        <span class="strip-label">STATUS</span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_dmr"></span>DMR <span id="svc_dmr" class="svc-text-off">--</span></span>
+                        <span class="strip-label">SVCS</span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span>STFU <span id="svc_stfu" class="svc-text-off">--</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM <span id="svc_mmdvm" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>AB <span id="svc_analog" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span>USRP <span id="svc_usrp" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_ysf"></span>YSF <span id="svc_ysf" class="svc-text-off">--</span></span>
@@ -4530,33 +4527,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     tgInputPopulated = true;
                 }
 
-                // DMR health — driven by conn_state
-                (function() {
-                    const dot = document.getElementById('dot_dmr');
-                    const lbl = document.getElementById('svc_dmr');
-                    const st  = d.conn_state;
-                    if (st === 'rx' || st === 'idle') {
-                        dot.className = 'svc-dot dot-on';
-                        lbl.textContent = st === 'rx' ? 'RX' : 'IDLE';
-                        lbl.className = 'stat-val svc-text-on';
-                    } else if (st === 'starting') {
-                        dot.className = 'svc-dot dot-warn';
-                        lbl.textContent = 'WAIT';
-                        lbl.className = 'stat-val svc-text-warn';
-                    } else {
-                        dot.className = 'svc-dot dot-off';
-                        lbl.textContent = 'OFF';
-                        lbl.className = 'stat-val svc-text-off';
-                    }
-                })();
-
-                // Analog Bridge — raw service state
-                (function() {
-                    const running = d.svc_analog === 'RUNNING';
-                    document.getElementById('svc_analog').textContent = running ? 'RUN' : 'STOP';
-                    document.getElementById('svc_analog').className   = running ? 'stat-val svc-text-on' : 'stat-val svc-text-off';
-                    document.getElementById('dot_analog').className   = 'svc-dot ' + (running ? 'dot-on' : 'dot-off');
-                })();
+                // STFU, MMDVM, AB — raw service state
+                ['stfu', 'mmdvm', 'analog'].forEach(function(svc) {
+                    const running = d['svc_' + svc] === 'RUNNING';
+                    document.getElementById('svc_' + svc).textContent = running ? 'RUN' : 'STOP';
+                    document.getElementById('svc_' + svc).className   = running ? 'stat-val svc-text-on' : 'stat-val svc-text-off';
+                    document.getElementById('dot_' + svc).className   = 'svc-dot ' + (running ? 'dot-on' : 'dot-off');
+                });
 
                 // YSF health — driven by ysf_conn_state
                 (function() {
@@ -4564,35 +4541,35 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     const lbl = document.getElementById('svc_ysf');
                     const st  = d.ysf_conn_state;
                     if (st === 'idle') {
-                        dot.className = 'svc-dot dot-on';
-                        lbl.textContent = 'RDY';
+                        dot.className = 'svc-dot dot-on'; lbl.textContent = 'RDY';
                         lbl.className = 'stat-val svc-text-on';
                     } else if (st === 'starting') {
-                        dot.className = 'svc-dot dot-warn';
-                        lbl.textContent = 'WAIT';
+                        dot.className = 'svc-dot dot-warn'; lbl.textContent = 'WAIT';
                         lbl.className = 'stat-val svc-text-warn';
                     } else {
-                        dot.className = 'svc-dot dot-off';
-                        lbl.textContent = 'OFF';
+                        dot.className = 'svc-dot dot-off'; lbl.textContent = 'OFF';
                         lbl.className = 'stat-val svc-text-off';
                     }
                 })();
 
-                const usrpEl  = document.getElementById('svc_usrp');
-                const usrpDot = document.getElementById('dot_usrp');
-                if (d.usrp_connected) {
-                    usrpEl.textContent = 'CONN';
-                    usrpEl.className   = 'stat-val svc-text-on';
-                    usrpDot.className  = 'svc-dot dot-on';
-                } else if (d.usrp_registered) {
-                    usrpEl.textContent = 'REG';
-                    usrpEl.className   = 'stat-val svc-text-off';
-                    usrpDot.className  = 'svc-dot dot-off';
-                } else {
-                    usrpEl.textContent = 'OFF';
-                    usrpEl.className   = 'stat-val svc-text-off';
-                    usrpDot.className  = 'svc-dot dot-off';
-                }
+                // USRP: three states — live packets now / confirmed at least once / never seen
+                (function() {
+                    const usrpEl  = document.getElementById('svc_usrp');
+                    const usrpDot = document.getElementById('dot_usrp');
+                    if (d.usrp_connected) {
+                        usrpEl.textContent = 'CONN';
+                        usrpEl.className   = 'stat-val svc-text-on';
+                        usrpDot.className  = 'svc-dot dot-on';
+                    } else if (d.usrp_ever_connected) {
+                        usrpEl.textContent = 'IDLE';
+                        usrpEl.className   = 'stat-val svc-text-warn';
+                        usrpDot.className  = 'svc-dot dot-warn';
+                    } else {
+                        usrpEl.textContent = 'OFF';
+                        usrpEl.className   = 'stat-val svc-text-off';
+                        usrpDot.className  = 'svc-dot dot-off';
+                    }
+                })();
             } catch(e) {
                 log('Poll failed: ' + e, 'error');
             }
