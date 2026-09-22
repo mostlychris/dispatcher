@@ -3850,6 +3850,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     }
                     _ysfAllReflectors = data;
                     _renderYsfList();
+                    _renderYsfFavs();
                 })
                 .catch(function() {
                     if (list) list.textContent = 'Failed to load reflector list.';
