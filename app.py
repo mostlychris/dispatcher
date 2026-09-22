@@ -1848,20 +1848,21 @@ HTML = '''
                 overflow: hidden;
                 -webkit-tap-highlight-color: transparent;
                 padding: 3px 2px;
+                transition: background 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
             }
-            /* Active idle: bottom strip indicator, subtle bg tint */
+            /* Active: monitoring enabled, no audio — solid green */
             .mobile-action-bar .mob-btn.active {
-                background: var(--mob-active-bg);
-                color: var(--mob-active-clr);
-                border-color: var(--mob-active-bdr);
-                box-shadow: inset 0 -3px 0 #00cc44;
+                background: #006600;
+                color: #aaffaa;
+                border-color: #00aa00;
+                box-shadow: none;
             }
-            /* Streaming: yellow strip + subtle glow, keep text readable */
+            /* Streaming: audio flowing — blue matching panel active state */
             .mobile-action-bar .mob-btn.active.streaming {
-                background: var(--mob-active-bg);
-                color: var(--mob-active-clr);
-                border-color: var(--mob-active-bdr);
-                box-shadow: inset 0 -3px 0 #ffdd00, 0 0 6px rgba(255,220,0,0.4);
+                background: rgba(4, 25, 184, 0.75);
+                color: #c0d8ff;
+                border-color: rgba(4, 25, 184, 0.9);
+                box-shadow: 0 0 8px rgba(4, 25, 184, 0.6);
             }
             .mobile-action-bar .mob-btn.mob-ptt  { background: var(--mob-btn-bg); color: var(--mob-btn-color); border-color: var(--mob-btn-border); font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
@@ -3719,6 +3720,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const el = document.getElementById(id);
                 if (!el) return;
                 el.classList.toggle('active', _ysfAudioEnabled);
+                el.classList.toggle('streaming', _ysfAudioEnabled && _ysfActive);
             });
             const mob = document.getElementById('mobBtnYsfAudio');
             if (mob) mob.textContent = 'YSF';
