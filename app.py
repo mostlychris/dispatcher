@@ -574,6 +574,8 @@ def get_status():
     svc_stfu   = svc("stfu.service")
     svc_mmdvm  = svc("mmdvm_bridge.service")
     svc_analog = svc("analog_bridge.service")
+    svc_ysf_gw = svc("ysf_gateway.service")
+    svc_ysf_ab = svc("analog_bridge_ysf.service")
 
     if svc_stfu == "RUNNING":
         mode = "BrandMeister"
@@ -617,6 +619,8 @@ def get_status():
     else:
         conn_state = "offline"      # radio stack is down
 
+    svc_ysf = "RUNNING" if (svc_ysf_gw == "RUNNING" and svc_ysf_ab == "RUNNING") else "STOPPED"
+
     return {
         "mode":             mode,
         "tg":               tg,
@@ -626,6 +630,7 @@ def get_status():
         "svc_stfu":         svc_stfu,
         "svc_mmdvm":        svc_mmdvm,
         "svc_analog":       svc_analog,
+        "svc_ysf":          svc_ysf,
         "usrp_connected":   usrp_state["connected"],
         "usrp_registered":  usrp_state["registered"],
         "status_source":    status_source,
@@ -1842,8 +1847,22 @@ HTML = '''
             .mobile-action-bar .mob-btn.mob-ptt  { background: var(--mob-btn-bg); color: var(--mob-btn-color); border-color: var(--mob-btn-border); font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
             .mobile-action-bar .mob-btn:disabled { opacity: 0.35; }
-            /* Push panel content up so it isn't hidden behind the bar */
-            .content { padding-bottom: 64px; }
+            /* Services strip: fixed just above the action bar */
+            .svc-strip-panel {
+                position: fixed !important;
+                bottom: 52px;
+                left: 0; right: 0;
+                z-index: 199;
+                margin: 0 !important;
+                border-radius: 0 !important;
+                border-left: none !important;
+                border-right: none !important;
+                border-top: 1px solid #2a2a2a !important;
+                box-shadow: none !important;
+            }
+            .svc-strip-panel .status-strip { gap: 10px; padding: 4px 8px; }
+            /* Push content clear of status strip (24px) + action bar (52px) + gap */
+            .content { padding-bottom: 88px; }
         }
     </style>
 </head>
@@ -2605,13 +2624,14 @@ HTML = '''
                 </div>
 
                 <!-- STATUS STRIP -->
-                <div class="collapse-panel mobile-hide">
+                <div class="collapse-panel svc-strip-panel">
                     <div class="status-strip">
                         <span class="strip-label">SERVICES</span>
                         <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span>STFU <span id="svc_stfu" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM <span id="svc_mmdvm" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>Analog <span id="svc_analog" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span>USRP <span id="svc_usrp" class="svc-text-off">--</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_ysf"></span>YSF <span id="svc_ysf" class="svc-text-off">--</span></span>
                     </div>
                 </div>
 
@@ -4492,7 +4512,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     tgInputPopulated = true;
                 }
 
-                ['stfu', 'mmdvm', 'analog'].forEach(svc => {
+                ['stfu', 'mmdvm', 'analog', 'ysf'].forEach(svc => {
                     const running = d['svc_' + svc] === 'RUNNING';
                     document.getElementById('svc_' + svc).textContent = running ? 'RUN' : 'STOP';
                     document.getElementById('svc_' + svc).className   = running ? 'stat-val svc-text-on' : 'stat-val svc-text-off';
