@@ -248,6 +248,8 @@ usrp_state = {
     "last_reg_sent": 0,
 }
 
+ysf_relay_state = {"connected": False}
+
 sse_clients = []
 sse_lock    = threading.Lock()
 
@@ -619,7 +621,13 @@ def get_status():
     else:
         conn_state = "offline"      # radio stack is down
 
-    svc_ysf = "RUNNING" if (svc_ysf_gw == "RUNNING" and svc_ysf_ab == "RUNNING") else "STOPPED"
+    ysf_core_up = (svc_ysf_gw == "RUNNING" and svc_ysf_ab == "RUNNING")
+    if ysf_relay_state["connected"] and ysf_core_up:
+        ysf_conn_state = "idle"
+    elif ysf_core_up:
+        ysf_conn_state = "starting"
+    else:
+        ysf_conn_state = "offline"
 
     return {
         "mode":             mode,
@@ -630,11 +638,11 @@ def get_status():
         "svc_stfu":         svc_stfu,
         "svc_mmdvm":        svc_mmdvm,
         "svc_analog":       svc_analog,
-        "svc_ysf":          svc_ysf,
         "usrp_connected":   usrp_state["connected"],
         "usrp_registered":  usrp_state["registered"],
         "status_source":    status_source,
         "conn_state":       conn_state,
+        "ysf_conn_state":   ysf_conn_state,
         "last_tg":          last_state.get("tg", ""),
         "last_tg_name":     last_state.get("tg_name", ""),
         "last_network":     last_state.get("network", ""),
@@ -1097,6 +1105,7 @@ class _YsfAudioRelay:
                 if len(hdr) < _YSF_WAV_HDR:
                     raise IOError('short WAV header')
                 print(f'[YSF relay] connected to {url}')
+                ysf_relay_state["connected"] = True
                 while True:
                     chunk = resp.read(_YSF_CHUNK)
                     if not chunk:
@@ -1105,6 +1114,7 @@ class _YsfAudioRelay:
                         self._broadcast(chunk)
             except Exception as e:
                 print(f'[YSF relay] error: {e}')
+            ysf_relay_state["connected"] = False
             time.sleep(3)
 
     def _broadcast(self, data: bytes):
@@ -1316,11 +1326,13 @@ HTML = '''
             border-radius: 50%; margin-right: 5px;
             background: #333;
         }
-        .dot-on  { background: lime; }
-        .dot-off { background: #444; }
+        .dot-on   { background: lime; }
+        .dot-off  { background: #444; }
+        .dot-warn { background: gold; }
 
-        .svc-text-on  { color: lime; font-size: 11px; }
-        .svc-text-off { color: #999; font-size: 11px; }
+        .svc-text-on   { color: lime; font-size: 11px; }
+        .svc-text-off  { color: #999; font-size: 11px; }
+        .svc-text-warn { color: gold; font-size: 11px; }
 
         /* ---- ACTIVE RX INDICATOR (dot only, no background change) ---- */
         .tx-pulse { display: none; }
@@ -2626,10 +2638,9 @@ HTML = '''
                 <!-- STATUS STRIP -->
                 <div class="collapse-panel svc-strip-panel">
                     <div class="status-strip">
-                        <span class="strip-label">SERVICES</span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span>STFU <span id="svc_stfu" class="svc-text-off">--</span></span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM <span id="svc_mmdvm" class="svc-text-off">--</span></span>
-                        <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>Analog <span id="svc_analog" class="svc-text-off">--</span></span>
+                        <span class="strip-label">STATUS</span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_dmr"></span>DMR <span id="svc_dmr" class="svc-text-off">--</span></span>
+                        <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>AB <span id="svc_analog" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span>USRP <span id="svc_usrp" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_ysf"></span>YSF <span id="svc_ysf" class="svc-text-off">--</span></span>
                     </div>
@@ -4512,12 +4523,53 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     tgInputPopulated = true;
                 }
 
-                ['stfu', 'mmdvm', 'analog', 'ysf'].forEach(svc => {
-                    const running = d['svc_' + svc] === 'RUNNING';
-                    document.getElementById('svc_' + svc).textContent = running ? 'RUN' : 'STOP';
-                    document.getElementById('svc_' + svc).className   = running ? 'stat-val svc-text-on' : 'stat-val svc-text-off';
-                    document.getElementById('dot_' + svc).className   = 'svc-dot ' + (running ? 'dot-on' : 'dot-off');
-                });
+                // DMR health — driven by conn_state
+                (function() {
+                    const dot = document.getElementById('dot_dmr');
+                    const lbl = document.getElementById('svc_dmr');
+                    const st  = d.conn_state;
+                    if (st === 'rx' || st === 'idle') {
+                        dot.className = 'svc-dot dot-on';
+                        lbl.textContent = st === 'rx' ? 'RX' : 'IDLE';
+                        lbl.className = 'stat-val svc-text-on';
+                    } else if (st === 'starting') {
+                        dot.className = 'svc-dot dot-warn';
+                        lbl.textContent = 'WAIT';
+                        lbl.className = 'stat-val svc-text-warn';
+                    } else {
+                        dot.className = 'svc-dot dot-off';
+                        lbl.textContent = 'OFF';
+                        lbl.className = 'stat-val svc-text-off';
+                    }
+                })();
+
+                // Analog Bridge — raw service state
+                (function() {
+                    const running = d.svc_analog === 'RUNNING';
+                    document.getElementById('svc_analog').textContent = running ? 'RUN' : 'STOP';
+                    document.getElementById('svc_analog').className   = running ? 'stat-val svc-text-on' : 'stat-val svc-text-off';
+                    document.getElementById('dot_analog').className   = 'svc-dot ' + (running ? 'dot-on' : 'dot-off');
+                })();
+
+                // YSF health — driven by ysf_conn_state
+                (function() {
+                    const dot = document.getElementById('dot_ysf');
+                    const lbl = document.getElementById('svc_ysf');
+                    const st  = d.ysf_conn_state;
+                    if (st === 'idle') {
+                        dot.className = 'svc-dot dot-on';
+                        lbl.textContent = 'RDY';
+                        lbl.className = 'stat-val svc-text-on';
+                    } else if (st === 'starting') {
+                        dot.className = 'svc-dot dot-warn';
+                        lbl.textContent = 'WAIT';
+                        lbl.className = 'stat-val svc-text-warn';
+                    } else {
+                        dot.className = 'svc-dot dot-off';
+                        lbl.textContent = 'OFF';
+                        lbl.className = 'stat-val svc-text-off';
+                    }
+                })();
 
                 const usrpEl  = document.getElementById('svc_usrp');
                 const usrpDot = document.getElementById('dot_usrp');
