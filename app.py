@@ -242,10 +242,11 @@ active_tx = {
 clear_tx_gen = [0]  # mutable counter; increment to cancel pending clear_tx threads
 
 usrp_state = {
-    "connected":     False,
-    "registered":    False,
-    "last_packet":   0,
-    "last_reg_sent": 0,
+    "connected":       False,
+    "registered":      False,
+    "last_packet":     0,
+    "last_reg_sent":   0,
+    "last_connected":  0,   # last time a USRP packet was actually received
 }
 
 ysf_relay_state = {"connected": False}
@@ -481,7 +482,8 @@ def usrp_listener():
         if not frame:
             continue
 
-        usrp_state["last_packet"] = time.time()
+        usrp_state["last_packet"]    = time.time()
+        usrp_state["last_connected"] = time.time()
         if not usrp_state["connected"]:
             usrp_state["connected"]  = True
             usrp_state["registered"] = True
@@ -612,12 +614,17 @@ def get_status():
         core_up = svc_mmdvm == "RUNNING" and svc_analog == "RUNNING"
 
     # Connection state: answers "am I tuned or just quiet?"
+    # AB only sends USRP packets when audio is flowing (no keepalive acks), so
+    # "connected" drops after 35s of silence even though the stack is healthy.
+    # Use last_connected within 5 minutes as the idle threshold so quiet talkgroups
+    # show IDLE rather than falsely WAIT.
+    usrp_recently_seen = (time.time() - usrp_state["last_connected"]) < 300
     if active_tx["active"]:
         conn_state = "rx"           # audio actively flowing
-    elif usrp_state["connected"] and core_up:
+    elif (usrp_state["connected"] or usrp_recently_seen) and core_up:
         conn_state = "idle"         # tuned and ready, no traffic
     elif core_up:
-        conn_state = "starting"     # services up, USRP not yet connected
+        conn_state = "starting"     # services up, never seen USRP from AB
     else:
         conn_state = "offline"      # radio stack is down
 
