@@ -1309,13 +1309,16 @@ HTML = '''
         .conn-badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-weight: bold; font-size: 11px; }
         .conn-active   { background: #0a2a0a; color: #4f4; }
         .rx-dot { display:none; }
-        /* ---- SECTION ACTIVE STRIP ---- */
+        /* ---- SECTION ACTIVE HIGHLIGHT ---- */
+        .collapse-panel.rx-active {
+            background: rgba(4, 25, 184, 0.5);
+            border-color: rgba(4, 25, 184, 0.8);
+        }
         .collapse-panel.rx-active > .collapse-header {
-            box-shadow: inset 0 -3px 0 lime;
-            border-radius: var(--radius-panel) var(--radius-panel) 4px 4px;
+            background: transparent;
         }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
-        .collapse-panel.as-rx { transition: box-shadow 0.3s; }
+        .collapse-panel.as-rx { transition: background 0.3s, border-color 0.3s; }
         .status-strip { display:flex; align-items:center; gap:14px; padding:6px 12px; background:#1a1a1a; flex-wrap:wrap; }
         .strip-label { font-size:9px; color:#888; letter-spacing:1px; text-transform:uppercase; flex-shrink:0; }
         .strip-item { display:flex; align-items:center; gap:4px; font-size:10px; color:#bbb; }
@@ -1461,6 +1464,7 @@ HTML = '''
             box-shadow: var(--panel-shadow);
             backdrop-filter: var(--panel-blur);
             -webkit-backdrop-filter: var(--panel-blur);
+            transition: background 0.3s, border-color 0.3s;
         }
         .collapse-header {
             display: flex; align-items: center; justify-content: space-between;
