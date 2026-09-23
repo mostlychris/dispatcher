@@ -610,27 +610,19 @@ def get_status():
             tg      = last_state["tg"]
             tg_name = last_state.get("tg_name") or lookup_tg(tg)
 
-    # YSF gateway linkage: check for recent received-network-data entries in the
-    # MMDVM_Bridge_YSF log. Audio flowing through means the gateway is linked to
-    # a reflector. A 5-minute window covers normal inter-transmission gaps without
-    # falsely clearing on a quiet but linked reflector.
+    # YSF gateway linkage: scan the tail of today's YSFGateway log for the most
+    # recent link/disconnect event. "Linked to <reflector>" = linked;
+    # "Disconnecting" or "Closing YSF network connection" = not linked.
     ysf_gw_linked = False
     try:
-        import re as _re
         today = datetime.now().strftime('%Y-%m-%d')
-        ysf_log = f'/var/log/mmdvm/MMDVM_Bridge_YSF-{today}.log'
-        r = subprocess.run(['tail', '-200', ysf_log], capture_output=True, text=True, timeout=3)
-        now_ts = datetime.now()
+        ysf_log = f'/var/log/mmdvm/YSFGateway-{today}.log'
+        r = subprocess.run(['tail', '-100', ysf_log], capture_output=True, text=True, timeout=3)
         for line in reversed(r.stdout.splitlines()):
-            if 'received network' in line:
-                m = _re.search(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
-                if m:
-                    try:
-                        log_ts = datetime.strptime(m.group(1), '%Y-%m-%d %H:%M:%S')
-                        if (now_ts - log_ts).total_seconds() < 300:
-                            ysf_gw_linked = True
-                    except ValueError:
-                        pass
+            if 'Linked to' in line:
+                ysf_gw_linked = True
+                break
+            if 'Disconnecting' in line or 'Closing YSF network' in line:
                 break
     except Exception:
         pass
