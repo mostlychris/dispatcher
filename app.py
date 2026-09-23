@@ -213,7 +213,7 @@ def _load_all_tg_files():
 _load_all_tg_files()
 
 ABINFO_ACTIVE  = '/tmp/ABInfo_31001.json'
-DVSWITCH_INI   = '/opt/MMDVM_Bridge/DVSwitch.ini'
+AB_LOG         = '/var/log/dvswitch/Analog_Bridge.log'
 TGLIST_BM      = '/tmp/TGList_BM.txt'
 TGLIST_TGIF    = '/tmp/TGList_TGIF.txt'
 TGIF_NODE_LIST = '/tmp/TGIF_node_list.txt'
@@ -613,11 +613,8 @@ def get_status():
 
     # Scan the MMDVM_Bridge log for:
     #   1. "Logged into the master successfully: <server>" — actual connected network.
-    #   2. "to TG <N>" from received traffic — most recent active TG (within 15 min
-    #      window). This is the most truthful "currently monitoring" signal because
-    #      ABInfo's digital.tg reflects the last tune command (e.g. the local radio ID
-    #      3223583 written by connectTGIF.sh), not what's actually being received.
-    #   3. "exportTG -> <N>" — current subscription when no recent traffic.
+    #   2. "to TG <N>" from received traffic — fallback TG when AB log is unavailable.
+    #   3. "exportTG -> <N>" — startup subscription (only logged once at startup).
     mmdvm_log_tg        = ""  # most recent TG from received traffic (within 15 min)
     mmdvm_export_tg     = ""  # current subscription / last tune
     now_ts = datetime.now()
@@ -657,22 +654,24 @@ def get_status():
     except Exception:
         pass
 
-    # TG priority: DVSwitch.ini > ABInfo > log received traffic.
-    # DVSwitch.ini is updated immediately by every dvswitch.sh tune call so
-    # it reflects the current subscription even before anyone talks.
-    # ABInfo is used when DVSwitch.ini is unreadable.
-    # Log received-traffic TG is the last resort.
-    dvswitch_tg = ""
+    # TG priority: Analog_Bridge log txTg > ABInfo > MMDVM_Bridge received traffic.
+    # AB writes "txTg=: <N>" immediately on every dvswitch.sh tune call — this is
+    # the most accurate real-time source.  ABInfo is fallback when the AB log is
+    # unavailable.  MMDVM_Bridge traffic log is last resort (requires someone to
+    # be actively talking).
+    ab_log_tg = ""
     try:
-        import configparser as _cp
-        cfg = _cp.ConfigParser()
-        cfg.read(DVSWITCH_INI)
-        dvswitch_tg = cfg.get('DMR', 'exportTG', fallback='').strip()
+        r = subprocess.run(['tail', '-50', AB_LOG], capture_output=True, text=True, timeout=3)
+        for line in reversed(r.stdout.splitlines()):
+            m = re.search(r'txTg=:\s*(\d+)', line)
+            if m:
+                ab_log_tg = m.group(1)
+                break
     except Exception:
         pass
 
-    if dvswitch_tg:
-        tg      = dvswitch_tg
+    if ab_log_tg:
+        tg      = ab_log_tg
         tg_name = lookup_tg(tg)
     elif tg in ('', '0', 'N/A') and mmdvm_log_tg:
         tg      = mmdvm_log_tg
