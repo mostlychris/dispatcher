@@ -592,19 +592,32 @@ def get_status():
     # Update the global so get_active_mode() / lookup_tg() pick it up immediately
     current_mode = mode
 
-    # Read TG/call from ABInfo (ground truth for what talkgroup is active)
+    # Read TG/call from ABInfo (ground truth for what talkgroup is active and
+    # which server Analog_Bridge is actually wired to via the TLV port).
+    ab_actual_network = "unknown"
     try:
         with open(ABINFO_ACTIVE) as f:
             abinfo = json.load(f)
         tg      = str(abinfo.get('digital', {}).get('tg', 'N/A'))
         call    = abinfo.get('digital', {}).get('call', '')
         tg_name = lookup_tg(tg)
+        rx_port = abinfo.get('tlv', {}).get('rx_port', '')
+        ab_actual_network = "TGIF" if rx_port == "31100" else ("BM" if rx_port == "36100" else "unknown")
     except Exception:
         # ABInfo unreadable — fall back to what the user last explicitly tuned
         status_source = "cached"
         if last_state.get("tg"):
             tg      = last_state["tg"]
             tg_name = last_state.get("tg_name") or lookup_tg(tg)
+
+    # YSF gateway linkage: UDP socket on local port 42000 means the gateway is
+    # actively linked to a reflector (vs services running but unlinked after inactivity).
+    ysf_gw_linked = False
+    try:
+        r = subprocess.run(['ss', '-unp'], capture_output=True, text=True, timeout=3)
+        ysf_gw_linked = any(':42000' in line for line in r.stdout.splitlines()[1:])
+    except Exception:
+        pass
 
     if mode == "BrandMeister":
         connected_since = get_svc_uptime("stfu.service")
@@ -644,8 +657,10 @@ def get_status():
         "usrp_ever_connected":  usrp_state["last_connected"] > 0,
         "usrp_registered":      usrp_state["registered"],
         "status_source":    status_source,
-        "conn_state":       conn_state,
-        "ysf_conn_state":   ysf_conn_state,
+        "conn_state":           conn_state,
+        "ysf_conn_state":       ysf_conn_state,
+        "ab_actual_network":    ab_actual_network,
+        "ysf_gw_linked":        ysf_gw_linked,
         "last_tg":          last_state.get("tg", ""),
         "last_tg_name":     last_state.get("tg_name", ""),
         "last_network":     last_state.get("network", ""),
@@ -2071,9 +2086,11 @@ HTML = '''
                         <!-- Row 2: connection info -->
                         <div style="display:flex;align-items:center;gap:6px;padding-top:5px;border-top:1px solid #222;">
                             <span class="mode-badge badge-unknown" id="modeValue">--</span>
-
                             <span id="tgValue" style="color:lightgreen;font-size:13px;font-weight:bold;"></span>
                             <span id="tgValueName" style="color:#6c6;font-size:11px;"></span>
+                            <span id="dmrActualBadge" style="display:none;margin-left:auto;font-size:9px;font-weight:bold;
+                                  background:#2a1000;border:1px solid #884400;color:#faa;
+                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;white-space:nowrap;"></span>
                         </div>
                     </div>
                 </div>
@@ -2436,6 +2453,9 @@ HTML = '''
                             <span id="ysfOfflineBadge" style="font-size:9px;font-weight:bold;
                                   background:#2a0000;border:1px solid #660000;color:#f88;
                                   border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">OFFLINE</span>
+                            <span id="ysfGwStateBadge" style="display:none;font-size:9px;font-weight:bold;
+                                  background:#2a2000;border:1px solid #665500;color:#fc8;
+                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">GW STANDBY</span>
                             <span style="margin-left:auto;display:flex;gap:5px;flex-shrink:0;">
                                 <button onclick="openYsfModal()" title="Browse Reflectors"
                                         style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
@@ -4536,32 +4556,46 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     tgInputPopulated = true;
                 }
 
-                // STFU / MMDVM — mode-aware: only alarm red if the ACTIVE service is down.
-                // The inactive service is shown dim (not red) since being stopped/background is expected.
+                // STFU / MMDVM — mode-aware with actual-connection check.
+                // dot-warn/ERR when the service is running but ABInfo shows it's wired
+                // to the wrong server (e.g. MMDVM running but AB still on BM port).
                 (function() {
                     const onBM   = d.mode === 'BrandMeister';
                     const onTGIF = d.mode === 'TGIF';
-                    [['stfu', onBM], ['mmdvm', onTGIF]].forEach(function(pair) {
-                        const key = pair[0], isActive = pair[1];
+                    [['stfu', onBM, 'BM'], ['mmdvm', onTGIF, 'TGIF']].forEach(function(tuple) {
+                        const key = tuple[0], isActive = tuple[1], expectedNet = tuple[2];
                         const running = d['svc_' + key] === 'RUNNING';
                         const dot = document.getElementById('dot_' + key);
                         const lbl = document.getElementById('svc_' + key);
                         if (running) {
-                            dot.className = 'svc-dot dot-on';
-                            lbl.textContent = 'RUN';
-                            lbl.className = 'stat-val svc-text-on';
+                            const wrongServer = isActive
+                                && d.ab_actual_network !== 'unknown'
+                                && d.ab_actual_network !== expectedNet;
+                            dot.className = wrongServer ? 'svc-dot dot-warn' : 'svc-dot dot-on';
+                            lbl.textContent = wrongServer ? 'ERR' : 'RUN';
+                            lbl.className   = wrongServer ? 'stat-val svc-text-warn' : 'stat-val svc-text-on';
                         } else if (isActive) {
-                            // This service should be running — it's the active mode
                             dot.className = 'svc-dot dot-off';
                             lbl.textContent = 'STOP';
                             lbl.className = 'stat-val svc-text-off';
                         } else {
-                            // Stopped because the other mode is active — expected
                             dot.className = 'svc-dot dot-dim';
                             lbl.textContent = 'STOP';
                             lbl.className = 'stat-val svc-text-dim';
                         }
                     });
+                })();
+
+                // DMR actual-connection badge — warns when ABInfo TLV port doesn't
+                // match the inferred mode (e.g. TGIF UI but AB still on BM port).
+                (function() {
+                    const badge = document.getElementById('dmrActualBadge');
+                    if (!badge) return;
+                    const modeNet = d.mode === 'TGIF' ? 'TGIF' : (d.mode === 'BrandMeister' ? 'BM' : null);
+                    const mismatch = modeNet && d.ab_actual_network !== 'unknown'
+                        && d.ab_actual_network !== modeNet;
+                    badge.style.display = mismatch ? '' : 'none';
+                    if (mismatch) badge.textContent = '⚠ AB on ' + d.ab_actual_network;
                 })();
 
                 // AB — raw service state
@@ -4572,20 +4606,34 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     document.getElementById('dot_analog').className   = 'svc-dot ' + (running ? 'dot-on' : 'dot-off');
                 })();
 
-                // YSF health — driven by ysf_conn_state
+                // YSF health — driven by ysf_conn_state + actual gateway linkage.
+                // LINK = gateway actively linked to a reflector (UDP socket on :42000).
+                // RDY  = services up and relay connected, but gateway unlinked (inactivity disconnect).
+                // WAIT = services up but audio relay not yet connected.
+                // OFF  = services down.
                 (function() {
                     const dot = document.getElementById('dot_ysf');
                     const lbl = document.getElementById('svc_ysf');
+                    const gwBadge = document.getElementById('ysfGwStateBadge');
                     const st  = d.ysf_conn_state;
                     if (st === 'idle') {
-                        dot.className = 'svc-dot dot-on'; lbl.textContent = 'RDY';
-                        lbl.className = 'stat-val svc-text-on';
+                        if (d.ysf_gw_linked) {
+                            dot.className = 'svc-dot dot-on'; lbl.textContent = 'LINK';
+                            lbl.className = 'stat-val svc-text-on';
+                        } else {
+                            dot.className = 'svc-dot dot-warn'; lbl.textContent = 'RDY';
+                            lbl.className = 'stat-val svc-text-warn';
+                        }
                     } else if (st === 'starting') {
                         dot.className = 'svc-dot dot-warn'; lbl.textContent = 'WAIT';
                         lbl.className = 'stat-val svc-text-warn';
                     } else {
                         dot.className = 'svc-dot dot-off'; lbl.textContent = 'OFF';
                         lbl.className = 'stat-val svc-text-off';
+                    }
+                    // Panel badge: show GW STANDBY when services are up but not linked
+                    if (gwBadge) {
+                        gwBadge.style.display = (st === 'idle' && !d.ysf_gw_linked) ? '' : 'none';
                     }
                 })();
 
