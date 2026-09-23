@@ -592,8 +592,8 @@ def get_status():
     # Update the global so get_active_mode() / lookup_tg() pick it up immediately
     current_mode = mode
 
-    # Read TG/call from ABInfo (ground truth for what talkgroup is active and
-    # which server Analog_Bridge is actually wired to via the TLV port).
+    # Read TG/call from ABInfo. Also read the TLV rx_port as a first-pass signal
+    # for which server Analog_Bridge is wired to.
     ab_actual_network = "unknown"
     try:
         with open(ABINFO_ACTIVE) as f:
@@ -609,6 +609,25 @@ def get_status():
         if last_state.get("tg"):
             tg      = last_state["tg"]
             tg_name = last_state.get("tg_name") or lookup_tg(tg)
+
+    # Override with the MMDVM_Bridge login confirmation — more authoritative than
+    # the ABInfo port since it reflects the actual server MMDVM_Bridge authenticated
+    # to. Scan the tail of today's log for the most recent "Logged into the master"
+    # line and check whether the address is tgif.network or brandmeister.
+    try:
+        today = datetime.now().strftime('%Y-%m-%d')
+        mmdvm_log = f'/var/log/mmdvm/MMDVM_Bridge-{today}.log'
+        r = subprocess.run(['tail', '-200', mmdvm_log], capture_output=True, text=True, timeout=3)
+        for line in reversed(r.stdout.splitlines()):
+            if 'Logged into the master successfully' in line:
+                addr = line.split('Logged into the master successfully')[-1].strip().lstrip(':').strip()
+                if 'tgif' in addr.lower():
+                    ab_actual_network = "TGIF"
+                elif 'brandmeister' in addr.lower():
+                    ab_actual_network = "BM"
+                break
+    except Exception:
+        pass
 
     # YSF gateway linkage: scan the tail of today's YSFGateway log for the most
     # recent link/disconnect event. "Linked to <reflector>" = linked;
