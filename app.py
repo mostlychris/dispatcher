@@ -1334,10 +1334,12 @@ HTML = '''
         }
         .dot-on   { background: lime; }
         .dot-off  { background: #cc2222; }
+        .dot-dim  { background: #444; }
         .dot-warn { background: gold; }
 
         .svc-text-on   { color: lime; font-size: 11px; }
         .svc-text-off  { color: #cc4444; font-size: 11px; }
+        .svc-text-dim  { color: #555; font-size: 11px; }
         .svc-text-warn { color: gold; font-size: 11px; }
 
         /* ---- ACTIVE RX INDICATOR (dot only, no background change) ---- */
@@ -4534,13 +4536,41 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     tgInputPopulated = true;
                 }
 
-                // STFU, MMDVM, AB — raw service state
-                ['stfu', 'mmdvm', 'analog'].forEach(function(svc) {
-                    const running = d['svc_' + svc] === 'RUNNING';
-                    document.getElementById('svc_' + svc).textContent = running ? 'RUN' : 'STOP';
-                    document.getElementById('svc_' + svc).className   = running ? 'stat-val svc-text-on' : 'stat-val svc-text-off';
-                    document.getElementById('dot_' + svc).className   = 'svc-dot ' + (running ? 'dot-on' : 'dot-off');
-                });
+                // STFU / MMDVM — mode-aware: only alarm red if the ACTIVE service is down.
+                // The inactive service is shown dim (not red) since being stopped/background is expected.
+                (function() {
+                    const onBM   = d.mode === 'BrandMeister';
+                    const onTGIF = d.mode === 'TGIF';
+                    [['stfu', onBM], ['mmdvm', onTGIF]].forEach(function(pair) {
+                        const key = pair[0], isActive = pair[1];
+                        const running = d['svc_' + key] === 'RUNNING';
+                        const dot = document.getElementById('dot_' + key);
+                        const lbl = document.getElementById('svc_' + key);
+                        if (running) {
+                            dot.className = 'svc-dot dot-on';
+                            lbl.textContent = 'RUN';
+                            lbl.className = 'stat-val svc-text-on';
+                        } else if (isActive) {
+                            // This service should be running — it's the active mode
+                            dot.className = 'svc-dot dot-off';
+                            lbl.textContent = 'STOP';
+                            lbl.className = 'stat-val svc-text-off';
+                        } else {
+                            // Stopped because the other mode is active — expected
+                            dot.className = 'svc-dot dot-dim';
+                            lbl.textContent = 'STOP';
+                            lbl.className = 'stat-val svc-text-dim';
+                        }
+                    });
+                })();
+
+                // AB — raw service state
+                (function() {
+                    const running = d.svc_analog === 'RUNNING';
+                    document.getElementById('svc_analog').textContent = running ? 'RUN' : 'STOP';
+                    document.getElementById('svc_analog').className   = running ? 'stat-val svc-text-on' : 'stat-val svc-text-off';
+                    document.getElementById('dot_analog').className   = 'svc-dot ' + (running ? 'dot-on' : 'dot-off');
+                })();
 
                 // YSF health — driven by ysf_conn_state
                 (function() {
