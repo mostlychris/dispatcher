@@ -656,14 +656,16 @@ def get_status():
     except Exception:
         pass
 
-    # TG priority: recent received traffic > ABInfo > exportTG subscription.
-    # Recent traffic (within 15 min) is the most honest "currently monitoring" signal.
-    # ABInfo is used when quiet; exportTG is the last resort.
-    if mmdvm_log_tg:
-        tg      = mmdvm_log_tg
-        tg_name = lookup_tg(tg)
-    elif tg in ('', '0', 'N/A') and mmdvm_export_tg:
+    # TG priority: exportTG > ABInfo > recent received traffic.
+    # exportTG updates on every dvswitch.sh tune call so it gives immediate
+    # feedback when the user changes TG, even before anyone talks.
+    # ABInfo is used when the log has no exportTG entry.
+    # Recent received traffic is the last resort (stale if nobody has talked).
+    if mmdvm_export_tg:
         tg      = mmdvm_export_tg
+        tg_name = lookup_tg(tg)
+    elif tg in ('', '0', 'N/A') and mmdvm_log_tg:
+        tg      = mmdvm_log_tg
         tg_name = lookup_tg(tg)
 
     # YSF gateway linkage: scan the tail of today's YSFGateway log for the most
