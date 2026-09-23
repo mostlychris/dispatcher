@@ -611,17 +611,22 @@ def get_status():
             tg_name = last_state.get("tg_name") or lookup_tg(tg)
 
     # Scan the MMDVM_Bridge log for:
-    #   1. "Logged into the master successfully: <server>" — most authoritative
-    #      signal for which network MMDVM_Bridge is actually connected to.
-    #   2. "exportTG -> <tg>" / "to TG <tg>" — most recently active talkgroup,
-    #      used as fallback when ABInfo shows 0, N/A, or empty.
-    mmdvm_log_tg = ""
+    #   1. "Logged into the master successfully: <server>" — actual connected network.
+    #   2. "to TG <N>" from received traffic — most recent active TG (within 15 min
+    #      window). This is the most truthful "currently monitoring" signal because
+    #      ABInfo's digital.tg reflects the last tune command (e.g. the local radio ID
+    #      3223583 written by connectTGIF.sh), not what's actually being received.
+    #   3. "exportTG -> <N>" — current subscription when no recent traffic.
+    mmdvm_log_tg        = ""  # most recent TG from received traffic (within 15 min)
+    mmdvm_export_tg     = ""  # current subscription / last tune
+    now_ts = datetime.now()
     try:
         today = datetime.now().strftime('%Y-%m-%d')
         mmdvm_log = f'/var/log/mmdvm/MMDVM_Bridge-{today}.log'
-        r = subprocess.run(['tail', '-200', mmdvm_log], capture_output=True, text=True, timeout=3)
-        found_server = False
-        found_tg     = False
+        r = subprocess.run(['tail', '-300', mmdvm_log], capture_output=True, text=True, timeout=3)
+        found_server     = False
+        found_traffic_tg = False
+        found_export_tg  = False
         for line in reversed(r.stdout.splitlines()):
             if not found_server and 'Logged into the master successfully' in line:
                 addr = line.split('Logged into the master successfully')[-1].strip().lstrip(':').strip()
@@ -630,28 +635,35 @@ def get_status():
                 elif 'brandmeister' in addr.lower():
                     ab_actual_network = "BM"
                 found_server = True
-            if not found_tg:
-                # "exportTG -> 3223583" from DVSwitch.ini reads / tune commands
-                if 'exportTG ->' in line:
-                    m = re.search(r'exportTG\s*->\s*(\d+)', line)
-                    if m:
-                        mmdvm_log_tg = m.group(1)
-                        found_tg = True
-                # "to TG 59649" from received network traffic
-                elif 'to TG ' in line:
-                    m = re.search(r'to TG\s+(\d+)', line)
-                    if m:
-                        mmdvm_log_tg = m.group(1)
-                        found_tg = True
-            if found_server and found_tg:
+            if not found_traffic_tg and 'to TG ' in line:
+                m = re.search(r'to TG\s+(\d+)', line)
+                ts = re.search(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+                if m and ts:
+                    try:
+                        age = (now_ts - datetime.strptime(ts.group(1), '%Y-%m-%d %H:%M:%S')).total_seconds()
+                        if age < 900:  # 15-minute window
+                            mmdvm_log_tg = m.group(1)
+                            found_traffic_tg = True
+                    except ValueError:
+                        pass
+            if not found_export_tg and 'exportTG ->' in line:
+                m = re.search(r'exportTG\s*->\s*(\d+)', line)
+                if m:
+                    mmdvm_export_tg = m.group(1)
+                    found_export_tg = True
+            if found_server and found_traffic_tg and found_export_tg:
                 break
     except Exception:
         pass
 
-    # If ABInfo returned an empty, zero, or placeholder TG, substitute the one
-    # extracted from the MMDVM_Bridge log.
-    if tg in ('', '0', 'N/A') and mmdvm_log_tg:
+    # TG priority: recent received traffic > ABInfo > exportTG subscription.
+    # Recent traffic (within 15 min) is the most honest "currently monitoring" signal.
+    # ABInfo is used when quiet; exportTG is the last resort.
+    if mmdvm_log_tg:
         tg      = mmdvm_log_tg
+        tg_name = lookup_tg(tg)
+    elif tg in ('', '0', 'N/A') and mmdvm_export_tg:
+        tg      = mmdvm_export_tg
         tg_name = lookup_tg(tg)
 
     # YSF gateway linkage: scan the tail of today's YSFGateway log for the most
