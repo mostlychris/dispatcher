@@ -610,12 +610,20 @@ def get_status():
             tg      = last_state["tg"]
             tg_name = last_state.get("tg_name") or lookup_tg(tg)
 
-    # YSF gateway linkage: UDP socket on local port 42000 means the gateway is
-    # actively linked to a reflector (vs services running but unlinked after inactivity).
+    # YSF gateway linkage: scan the tail of today's YSFGateway log for the most
+    # recent "Linked to" or "Disconnecting" event. YSFGateway uses sendto/recvfrom
+    # (not connect), so ss shows the socket as UNCONN regardless of link state.
     ysf_gw_linked = False
     try:
-        r = subprocess.run(['ss', '-unp'], capture_output=True, text=True, timeout=3)
-        ysf_gw_linked = any(':42000' in line for line in r.stdout.splitlines()[1:])
+        today = datetime.now().strftime('%Y-%m-%d')
+        ysf_log = f'/var/log/mmdvm/MMDVM_Bridge_YSF-{today}.log'
+        r = subprocess.run(['tail', '-80', ysf_log], capture_output=True, text=True, timeout=3)
+        for line in reversed(r.stdout.splitlines()):
+            if 'Linked to' in line or 'linked to' in line:
+                ysf_gw_linked = True
+                break
+            if 'Disconnecting' in line or 'Disconnected' in line:
+                break
     except Exception:
         pass
 
