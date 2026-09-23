@@ -1333,11 +1333,11 @@ HTML = '''
             background: #333;
         }
         .dot-on   { background: lime; }
-        .dot-off  { background: #444; }
+        .dot-off  { background: #cc2222; }
         .dot-warn { background: gold; }
 
         .svc-text-on   { color: lime; font-size: 11px; }
-        .svc-text-off  { color: #999; font-size: 11px; }
+        .svc-text-off  { color: #cc4444; font-size: 11px; }
         .svc-text-warn { color: gold; font-size: 11px; }
 
         /* ---- ACTIVE RX INDICATOR (dot only, no background change) ---- */
