@@ -213,6 +213,7 @@ def _load_all_tg_files():
 _load_all_tg_files()
 
 ABINFO_ACTIVE  = '/tmp/ABInfo_31001.json'
+DVSWITCH_INI   = '/opt/MMDVM_Bridge/DVSwitch.ini'
 TGLIST_BM      = '/tmp/TGList_BM.txt'
 TGLIST_TGIF    = '/tmp/TGList_TGIF.txt'
 TGIF_NODE_LIST = '/tmp/TGIF_node_list.txt'
@@ -656,13 +657,22 @@ def get_status():
     except Exception:
         pass
 
-    # TG priority: exportTG > ABInfo > recent received traffic.
-    # exportTG updates on every dvswitch.sh tune call so it gives immediate
-    # feedback when the user changes TG, even before anyone talks.
-    # ABInfo is used when the log has no exportTG entry.
-    # Recent received traffic is the last resort (stale if nobody has talked).
-    if mmdvm_export_tg:
-        tg      = mmdvm_export_tg
+    # TG priority: DVSwitch.ini > ABInfo > log received traffic.
+    # DVSwitch.ini is updated immediately by every dvswitch.sh tune call so
+    # it reflects the current subscription even before anyone talks.
+    # ABInfo is used when DVSwitch.ini is unreadable.
+    # Log received-traffic TG is the last resort.
+    dvswitch_tg = ""
+    try:
+        import configparser as _cp
+        cfg = _cp.ConfigParser()
+        cfg.read(DVSWITCH_INI)
+        dvswitch_tg = cfg.get('DMR', 'exportTG', fallback='').strip()
+    except Exception:
+        pass
+
+    if dvswitch_tg:
+        tg      = dvswitch_tg
         tg_name = lookup_tg(tg)
     elif tg in ('', '0', 'N/A') and mmdvm_log_tg:
         tg      = mmdvm_log_tg
