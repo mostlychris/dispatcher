@@ -12,6 +12,7 @@ stfu.service is BM-only — it must never be restarted when on TGIF, because
 the dispatcher uses stfu.service running as the signal that BM is active.
 """
 
+import json
 import subprocess
 import time
 
@@ -26,6 +27,53 @@ SHARED_SVC  = 'analog_bridge.service'
 
 BM_STACK   = [BM_ANCHOR,   SHARED_SVC]
 TGIF_STACK = [TGIF_ANCHOR, SHARED_SVC]
+
+# TGIF re-tune — run after mmdvm_bridge restarts, or when it's running but
+# connected to the wrong server (e.g. after a midnight automatic restart).
+DVSWITCH       = '/opt/MMDVM_Bridge/dvswitch.sh'
+TGIF_SERVER    = '31BEC09E9EF14A69@tgif.network:62031'
+TGIF_LOCAL_ID  = '3223583'
+# Analog_Bridge info file; tlv.rx_port == TGIF_TLV_PORT means AB is wired to
+# MMDVM_Bridge (TGIF), not to STFU (BM port 36100).
+ABINFO_PATH    = '/tmp/ABInfo_31001.json'
+TGIF_TLV_PORT  = '31100'
+
+
+def tgif_retune():
+    """Re-connect MMDVM_Bridge to TGIF after an unexpected restart.
+
+    Runs the same dvswitch.sh tune sequence as connectTGIF.sh, minus the
+    service-stop steps (services are already in their correct run state when
+    the watchdog calls this).
+    """
+    steps = [
+        ([DVSWITCH, 'mode', 'DMR'],         3),
+        ([DVSWITCH, 'tune', TGIF_SERVER],   5),
+        ([DVSWITCH, 'tune', TGIF_LOCAL_ID], 0),
+    ]
+    for cmd, delay in steps:
+        log(f'  retune: {" ".join(cmd[1:])}')
+        try:
+            r = subprocess.run(cmd, capture_output=True, timeout=15)
+            log(f'    {"OK" if r.returncode == 0 else "FAILED"}')
+        except Exception as e:
+            log(f'    ERROR: {e}')
+        if delay:
+            time.sleep(delay)
+
+
+def tgif_actually_connected():
+    """Return True if Analog_Bridge is wired to MMDVM_Bridge (TGIF TLV port).
+
+    When mmdvm_bridge restarts and reconnects to BrandMeister by default,
+    ABInfo still shows the old TLV rx_port (36100 = BM/STFU, 31100 = TGIF).
+    """
+    try:
+        with open(ABINFO_PATH) as f:
+            info = json.load(f)
+        return info.get('tlv', {}).get('rx_port') == TGIF_TLV_PORT
+    except Exception:
+        return False
 
 
 def log(msg):
@@ -103,16 +151,29 @@ def main():
     if not down:
         for s in stack:
             log(f'  OK: {s}')
+        # On TGIF, also verify the bridge is actually tuned to TGIF — catches
+        # the case where mmdvm_bridge restarted externally and reconnected to
+        # BrandMeister by default while the service still shows as running.
+        if network == 'TGIF' and not tgif_actually_connected():
+            log('TGIF stack running but AB not wired to TGIF — re-tuning...')
+            tgif_retune()
         return
 
     log(f'Network: {network} — dead services: {", ".join(down)}')
+    restarted_anchor = False
     for svc in stack:
         if svc in down:
             log(f'Restarting {svc}...')
             ok = systemctl('restart', svc)
             log(f'  {"OK" if ok else "FAILED"}: {svc}')
+            if ok and svc == TGIF_ANCHOR:
+                restarted_anchor = True
             if RESTART_DELAY and svc != stack[-1]:
                 time.sleep(RESTART_DELAY)
+
+    if network == 'TGIF' and restarted_anchor:
+        log('Re-tuning MMDVM_Bridge to TGIF after restart...')
+        tgif_retune()
 
 
 if __name__ == '__main__':
