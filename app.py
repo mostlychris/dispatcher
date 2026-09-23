@@ -610,24 +610,49 @@ def get_status():
             tg      = last_state["tg"]
             tg_name = last_state.get("tg_name") or lookup_tg(tg)
 
-    # Override with the MMDVM_Bridge login confirmation — more authoritative than
-    # the ABInfo port since it reflects the actual server MMDVM_Bridge authenticated
-    # to. Scan the tail of today's log for the most recent "Logged into the master"
-    # line and check whether the address is tgif.network or brandmeister.
+    # Scan the MMDVM_Bridge log for:
+    #   1. "Logged into the master successfully: <server>" — most authoritative
+    #      signal for which network MMDVM_Bridge is actually connected to.
+    #   2. "exportTG -> <tg>" / "to TG <tg>" — most recently active talkgroup,
+    #      used as fallback when ABInfo shows 0, N/A, or empty.
+    mmdvm_log_tg = ""
     try:
         today = datetime.now().strftime('%Y-%m-%d')
         mmdvm_log = f'/var/log/mmdvm/MMDVM_Bridge-{today}.log'
         r = subprocess.run(['tail', '-200', mmdvm_log], capture_output=True, text=True, timeout=3)
+        found_server = False
+        found_tg     = False
         for line in reversed(r.stdout.splitlines()):
-            if 'Logged into the master successfully' in line:
+            if not found_server and 'Logged into the master successfully' in line:
                 addr = line.split('Logged into the master successfully')[-1].strip().lstrip(':').strip()
                 if 'tgif' in addr.lower():
                     ab_actual_network = "TGIF"
                 elif 'brandmeister' in addr.lower():
                     ab_actual_network = "BM"
+                found_server = True
+            if not found_tg:
+                # "exportTG -> 3223583" from DVSwitch.ini reads / tune commands
+                if 'exportTG ->' in line:
+                    m = re.search(r'exportTG\s*->\s*(\d+)', line)
+                    if m:
+                        mmdvm_log_tg = m.group(1)
+                        found_tg = True
+                # "to TG 59649" from received network traffic
+                elif 'to TG ' in line:
+                    m = re.search(r'to TG\s+(\d+)', line)
+                    if m:
+                        mmdvm_log_tg = m.group(1)
+                        found_tg = True
+            if found_server and found_tg:
                 break
     except Exception:
         pass
+
+    # If ABInfo returned an empty, zero, or placeholder TG, substitute the one
+    # extracted from the MMDVM_Bridge log.
+    if tg in ('', '0', 'N/A') and mmdvm_log_tg:
+        tg      = mmdvm_log_tg
+        tg_name = lookup_tg(tg)
 
     # YSF gateway linkage: scan the tail of today's YSFGateway log for the most
     # recent link/disconnect event. "Linked to <reflector>" = linked;
