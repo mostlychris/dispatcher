@@ -680,17 +680,20 @@ def get_status():
     # YSF gateway linkage: scan the tail of today's YSFGateway log for the most
     # recent link/disconnect event. "Linked to <reflector>" = linked;
     # "Disconnecting" or "Closing YSF network connection" = not linked.
+    # grep the entire log for only link/disconnect lines so the result is not
+    # bounded by a tail window (a busy day can push "Linked to" back 100+ lines).
     ysf_gw_linked = False
     try:
         today = datetime.now().strftime('%Y-%m-%d')
         ysf_log = f'/var/log/mmdvm/YSFGateway-{today}.log'
-        r = subprocess.run(['tail', '-100', ysf_log], capture_output=True, text=True, timeout=3)
-        for line in reversed(r.stdout.splitlines()):
-            if 'Linked to' in line:
-                ysf_gw_linked = True
-                break
-            if 'Disconnecting' in line or 'Closing YSF network' in line:
-                break
+        r = subprocess.run(
+            ['grep', '-E', 'Linked to|Disconnecting|Closing YSF network', ysf_log],
+            capture_output=True, text=True, timeout=3
+        )
+        lines = r.stdout.strip().splitlines()
+        if lines:
+            last = lines[-1]
+            ysf_gw_linked = 'Linked to' in last
     except Exception:
         pass
 
