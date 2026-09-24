@@ -678,22 +678,20 @@ def get_status():
         tg_name = lookup_tg(tg)
 
     # YSF gateway linkage: scan the tail of today's YSFGateway log for the most
-    # recent link/disconnect event. "Linked to <reflector>" = linked;
-    # "Disconnecting" or "Closing YSF network connection" = not linked.
-    # grep the entire log for only link/disconnect lines so the result is not
-    # bounded by a tail window (a busy day can push "Linked to" back 100+ lines).
+    # YSFGateway logs link/disconnect events only to the systemd journal, not to
+    # the YSFGateway-{date}.log file (which only captures reflector list reloads).
+    # Query the journal for the most recent link or disconnect event.
     ysf_gw_linked = False
     try:
-        today = datetime.now().strftime('%Y-%m-%d')
-        ysf_log = f'/var/log/mmdvm/YSFGateway-{today}.log'
         r = subprocess.run(
-            ['grep', '-E', 'Linked to|Disconnecting|Closing YSF network', ysf_log],
-            capture_output=True, text=True, timeout=3
+            ['journalctl', '-u', 'ysf_gateway.service', '-u', 'ysfgateway.service',
+             '--no-pager', '--since', '2 days ago', '--output=cat'],
+            capture_output=True, text=True, timeout=5
         )
-        lines = r.stdout.strip().splitlines()
-        if lines:
-            last = lines[-1]
-            ysf_gw_linked = 'Linked to' in last
+        matches = [l for l in r.stdout.splitlines()
+                   if 'Linked to' in l or 'Closing YSF network' in l or 'Disconnecting' in l]
+        if matches:
+            ysf_gw_linked = 'Linked to' in matches[-1]
     except Exception:
         pass
 
