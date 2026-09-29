@@ -654,11 +654,13 @@ def get_status():
     except Exception:
         pass
 
-    # TG priority: Analog_Bridge log txTg > ABInfo > MMDVM_Bridge received traffic.
-    # AB writes "txTg=: <N>" immediately on every dvswitch.sh tune call — this is
-    # the most accurate real-time source.  ABInfo is fallback when the AB log is
-    # unavailable.  MMDVM_Bridge traffic log is last resort (requires someone to
-    # be actively talking).
+    # TG priority: Analog_Bridge log txTg > MMDVM_Bridge received traffic > ABInfo.
+    # AB writes "txTg=: <N>" on every dvswitch.sh tune call — accurate for explicit
+    # tunes.  Exception: connectTGIF.sh ends with "dvswitch.sh tune 3223583" (the
+    # local radio ID), so 3223583 in the AB log is a connection-time artifact, not
+    # a real subscription.  When AB log shows the home ID, fall through to the
+    # MMDVM_Bridge received-traffic TG which reflects what TGIF is actually routing.
+    TGIF_HOME_TG = '3223583'
     ab_log_tg = ""
     try:
         r = subprocess.run(['tail', '-50', AB_LOG], capture_output=True, text=True, timeout=3)
@@ -670,11 +672,14 @@ def get_status():
     except Exception:
         pass
 
-    if ab_log_tg:
+    if ab_log_tg and ab_log_tg != TGIF_HOME_TG:
         tg      = ab_log_tg
         tg_name = lookup_tg(tg)
-    elif tg in ('', '0', 'N/A') and mmdvm_log_tg:
+    elif mmdvm_log_tg:
         tg      = mmdvm_log_tg
+        tg_name = lookup_tg(tg)
+    elif tg in ('', '0', 'N/A') and ab_log_tg:
+        tg      = ab_log_tg
         tg_name = lookup_tg(tg)
 
     # YSF gateway linkage: scan the tail of today's YSFGateway log for the most
