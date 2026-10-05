@@ -4773,7 +4773,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             try {
                 const r = await fetch('/api/as_favorites');
                 const favs = await r.json();
+                _asFavsCache = favs || [];
                 renderAsFavs(favs);
+                if (_asDirectLink) _setDirectLink(_asDirectLink);
             } catch(e) { console.error('loadAsFavorites:', e); }
         }
 
@@ -4856,6 +4858,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         var _asDirectLink = null;
+        var _asFavsCache  = [];       // cached favorites for label lookups
         var _prevLinkedNodes = null;  // tracks last known set for change detection
         var _nodeToastDuration = parseInt(localStorage.getItem('nodeToastDuration') || '10', 10);
         var _nodeAlertSound    = localStorage.getItem('nodeAlertSound') !== '0';  // default on
@@ -4987,7 +4990,11 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (_asDirectLink) {
                 const shown = _asDirectLink.slice(0, 4);
                 const extra = _asDirectLink.length - shown.length;
-                nodeEl.textContent = shown.join(' · ') + (extra > 0 ? ' +' + extra : '');
+                const labels = shown.map(n => {
+                    const fav = _asFavsCache.find(f => f.node === String(n));
+                    return fav && fav.label ? fav.label + ' (' + n + ')' : n;
+                });
+                nodeEl.textContent = labels.join(' · ') + (extra > 0 ? ' +' + extra : '');
                 badge.style.display = '';
             } else {
                 badge.style.display = 'none';
@@ -6221,6 +6228,8 @@ registerProcessor('mic-decimator', MicDecimator);
         _wirePTTButton('btnPTT');
         _wirePTTButton('mobBtnPTT');
         _wirePTTButton('btnPTTOv');
+        // Pre-load AllStar favorites so labels are available for the first status render
+        loadAsFavorites().catch(() => {});
         // Auto-connect to the configured Allstar node
         pollAllstarStatus().then(() => {
             const btn = document.getElementById('btnAsConnect');
