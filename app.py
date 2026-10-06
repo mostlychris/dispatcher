@@ -5830,7 +5830,13 @@ registerProcessor('mic-decimator', MicDecimator);
             if (_isTrDisabled(call)) return;
             if (_trLockedSystem && call.system !== _trLockedSystem) return;
             if (_trLockedTg && String(call.talkgroup) !== _trLockedTg) return;
-            _trQueue.push(call);
+            // Insert in start_time order so calls play chronologically.
+            // On a busy trunked system multiple channels record in parallel;
+            // uploads arrive in completion order which may not match air order.
+            const ts = call.start_time || 0;
+            let i = _trQueue.length;
+            while (i > 0 && (_trQueue[i - 1].start_time || 0) > ts) i--;
+            _trQueue.splice(i, 0, call);
             _updateTrQueueBadge();
             if (!_trPlaying && !_trPaused) _trDequeue();
         }
