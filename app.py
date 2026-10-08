@@ -2076,6 +2076,11 @@ HTML = '''
                 <div class="vol-row">
                     <span class="vol-label">Volume</span>
                     <button id="trAudioToggleOv" onclick="trToggleAudio()" class="btn-sidebar-sm btn-monitor">&#128264; Enable</button>
+                    <button id="trNormBtnOv" onclick="trToggleNorm()"
+                            title="Level normalize OFF — click to enable"
+                            style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;white-space:nowrap;">
+                        Norm
+                    </button>
                     <span class="vol-pct" id="trVolDisplayOv">100%</span>
                 </div>
                 <input type="range" class="vol-slider" id="trVolSliderOv" min="0" max="100" value="100"
@@ -2643,6 +2648,11 @@ HTML = '''
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
                                 <span id="trQueueBadge" style="font-size:10px;color:#666;"></span>
+                                <button onclick="trToggleNorm()" id="trNormBtn"
+                                        title="Level normalize OFF — click to enable"
+                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+                                    &#9632; Norm
+                                </button>
                                 <span style="flex:1;"></span>
                                 <span style="font-size:10px;color:#666;">&#128264;</span>
                                 <input type="range" id="trVolSlider" min="0" max="100" value="100"
@@ -5521,6 +5531,14 @@ registerProcessor('mic-decimator', MicDecimator);
         var _trConsoleTgs = {};       // system → [{id,tag,label,group,description}] for console grid
         var TR_INTER_CALL_MS = 800;   // gap between calls in ms
 
+        // Web Audio normalization chain state
+        var _trNormEnabled    = false;
+        var _trAudioCtx       = null;
+        var _trAudioSrc       = null;   // MediaElementAudioSourceNode (created once)
+        var _trNormPreGain    = null;   // +12 dB boost before compressor
+        var _trNormCompressor = null;   // DynamicsCompressorNode
+        var _trNormBypass     = null;   // direct bypass path when norm is off
+
         // Persist & restore prefs
         (function _initTrPrefs() {
             const ap = localStorage.getItem('trAutoplay');
@@ -5532,6 +5550,7 @@ registerProcessor('mic-decimator', MicDecimator);
             _updateTrAudioBtn();
             const sv = parseInt(localStorage.getItem('trVolume') ?? '100');
             setTrVolume(sv);
+            _trNormEnabled = localStorage.getItem('trNormEnabled') === 'true';
         })();
 
         function saveTrPrefs() {
@@ -5566,6 +5585,66 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         function setTrVolumeOv(val) { setTrVolume(val); }
+
+        // ---- Web Audio normalization chain ----
+        function _trInitAudioChain() {
+            if (_trAudioCtx) return;
+            const audio = document.getElementById('trAudio');
+            try {
+                _trAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                _trAudioSrc = _trAudioCtx.createMediaElementSource(audio);
+
+                _trNormPreGain = _trAudioCtx.createGain();
+                _trNormPreGain.gain.value = 4.0;  // +12 dB pre-boost lifts quiet calls
+
+                _trNormCompressor = _trAudioCtx.createDynamicsCompressor();
+                _trNormCompressor.threshold.value = -40;
+                _trNormCompressor.knee.value       = 20;
+                _trNormCompressor.ratio.value      = 12;
+                _trNormCompressor.attack.value     = 0.003;
+                _trNormCompressor.release.value    = 0.1;
+
+                _trNormBypass = _trAudioCtx.createGain();
+                _trNormBypass.gain.value = 1;
+
+                _trUpdateNormChain();
+            } catch(e) {
+                _trAudioCtx = null;
+            }
+        }
+
+        function _trUpdateNormChain() {
+            if (!_trAudioCtx || !_trAudioSrc) return;
+            try { _trAudioSrc.disconnect(); } catch(e) {}
+            try { _trNormPreGain.disconnect(); } catch(e) {}
+            try { _trNormCompressor.disconnect(); } catch(e) {}
+            try { _trNormBypass.disconnect(); } catch(e) {}
+            if (_trNormEnabled) {
+                _trAudioSrc.connect(_trNormPreGain);
+                _trNormPreGain.connect(_trNormCompressor);
+                _trNormCompressor.connect(_trAudioCtx.destination);
+            } else {
+                _trAudioSrc.connect(_trNormBypass);
+                _trNormBypass.connect(_trAudioCtx.destination);
+            }
+        }
+
+        function trToggleNorm() {
+            _trNormEnabled = !_trNormEnabled;
+            localStorage.setItem('trNormEnabled', _trNormEnabled);
+            _trUpdateNormChain();
+            _updateTrNormBtn();
+        }
+
+        function _updateTrNormBtn() {
+            ['trNormBtn', 'trNormBtnOv'].forEach(function(id) {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                btn.style.borderColor = _trNormEnabled ? '#0af' : '#444';
+                btn.style.color       = _trNormEnabled ? '#0af' : '#aaa';
+                btn.title = _trNormEnabled ? 'Level normalize ON — click to disable' : 'Level normalize OFF — click to enable';
+            });
+        }
 
         // ---- Scanner audio enable/disable ----
         function trToggleAudio() {
@@ -5862,6 +5941,8 @@ registerProcessor('mic-decimator', MicDecimator);
             _updateTrAvoidBtn();
             renderTrCalls();
             const audio = document.getElementById('trAudio');
+            _trInitAudioChain();
+            if (_trAudioCtx && _trAudioCtx.state === 'suspended') _trAudioCtx.resume();
             const vol = parseInt(localStorage.getItem('trVolume') ?? '100');
             audio.volume = vol / 100;
             audio.src = '/api/tr/audio/' + encodeURIComponent(call.audio);
@@ -5923,6 +6004,7 @@ registerProcessor('mic-decimator', MicDecimator);
             const v = parseInt(localStorage.getItem('trVolume') ?? '100');
             setTrVolume(v);
             _updateTrPauseUI();
+            _updateTrNormBtn();
             _trSystemFilterChanged();  // populate TG dropdown on open
         }
         function closeTrModal() { document.getElementById('trModal').style.display = 'none'; }
