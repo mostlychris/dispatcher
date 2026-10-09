@@ -2344,8 +2344,7 @@ HTML = '''
                             </div>
                         </div>
                         <div class="rsys-pills">
-                            <span class="tx-pulse" id="txPulse" style="display:none;"></span>
-                            <div class="tx-pill"><span class="tx-dot"></span><span id="dmrActiveCall" style="font-size:12px;font-weight:bold;letter-spacing:1px;"></span></div>
+                            <div class="tx-pill"><span id="dmrActiveCall" style="font-size:12px;font-weight:bold;letter-spacing:1px;"></span></div>
                         </div>
                         <div class="rsys-btns">
                             <button onclick="openQuickTuneModal()" class="rsys-btn" title="Quick Tune">★</button>
@@ -2402,8 +2401,7 @@ HTML = '''
                             <span id="asDirectLinkBadge" class="rsys-info-pill" style="display:none;"><span id="asDirectLinkNode"></span></span>
                         </div>
                         <div class="rsys-pills">
-                            <span class="rx-dot" id="asRxDot" style="display:none;" title="RX activity"></span>
-                            <div class="tx-pill"><span class="tx-dot"></span><span id="asNodeBadge" style="font-size:12px;font-weight:bold;letter-spacing:0.3px;"></span></div>
+                            <div class="tx-pill"><span id="asNodeBadge" style="font-size:12px;font-weight:bold;letter-spacing:0.3px;"></span></div>
                         </div>
                         <div class="rsys-btns">
                             <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
@@ -2521,8 +2519,6 @@ HTML = '''
                             <span id="trTgBadge" class="rsys-info-pill rsys-val-overflow">--</span>
                         </div>
                         <div class="rsys-pills">
-                            <span class="tx-pulse" id="trPulse" style="display:none;"></span>
-                            <div class="tx-pill"><span class="tx-dot"></span></div>
                         </div>
                         <div class="rsys-btns">
                             <button onclick="trSkip()"             class="rsys-btn rsys-btn-go"   title="Skip current call">⏭</button>
@@ -2562,8 +2558,7 @@ HTML = '''
                             <span id="sdrHoldBadge" style="display:none;font-size:9px;font-weight:bold;background:#003a00;border:1px solid #00aa00;color:#4f4;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">HOLD</span>
                         </div>
                         <div class="rsys-pills">
-                            <span class="tx-pulse" id="sdrPulse" style="display:none;"></span>
-                            <div class="tx-pill"><span class="tx-dot"></span><span id="sdrDbBadge" style="font-size:10px;"></span></div>
+                            <div class="tx-pill"><span id="sdrDbBadge" style="font-size:10px;"></span></div>
                         </div>
                         <div class="rsys-btns">
                             <button onclick="sdrSkip()"          class="rsys-btn rsys-btn-go" title="Next frequency">⏭</button>
@@ -2672,8 +2667,6 @@ HTML = '''
                             <span id="ysfSourceBadge" class="rsys-info-pill" style="display:none;"></span>
                         </div>
                         <div class="rsys-pills">
-                            <span class="tx-pulse" id="ysfPulse" style="display:none;"></span>
-                            <div class="tx-pill"><span class="tx-dot"></span></div>
                         </div>
                         <div class="rsys-btns">
                             <button onclick="openYsfModal()" class="rsys-btn" title="Browse Reflectors">⤦</button>
@@ -4051,7 +4044,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             // OFFLINE only when the HTTP API itself fails — idle silence is normal
             const offline   = !d || !!d.error;
             const badge     = document.getElementById('ysfOfflineBadge');
-            const pulse     = document.getElementById('ysfPulse');
             const refBadge  = document.getElementById('ysfReflectorBadge');
             const srcBadge  = document.getElementById('ysfSourceBadge');
             const rxCount   = document.getElementById('ysfRxCount');
@@ -4065,11 +4057,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             const displaySrc = (d && d.active) ? (d.callsign || d.source || '') : '';
             if (srcBadge) { srcBadge.textContent = displaySrc; srcBadge.style.display = displaySrc ? '' : 'none'; }
             if (rxCount)  rxCount.textContent  = (d && d.rx_count) ? d.rx_count + ' RX' : '';
-            if (pulse) {
-                const on = !!(d && d.active);
-                pulse.style.background = on ? '#0f0' : '';
-                pulse.style.boxShadow  = on ? '0 0 6px #0f0' : '';
-            }
             _ysfCurrentRef = (d && (d.reflector_id || d.reflector)) || _ysfCurrentRef;
         }
 
@@ -5252,7 +5239,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const d   = await res.json();
                 const badge  = document.getElementById('asStateBadge');
                 const nodeEl = document.getElementById('asNodeBadge');
-                const dot    = document.getElementById('asRxDot');
                 const sMap = {
                     idle:       ['',              'conn-offline',  false],
                     connecting: ['CONNECTING...', 'conn-starting', true],
@@ -5267,7 +5253,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 } else {
                     badge.style.display = 'none';
                 }
-                if (dot) dot.className = 'rx-dot' + (d.active ? ' lit' : '');
                 nodeEl.textContent = d.node || '--';
                 // Prefer linked_nodes (live IAX2 'L' frames) over direct_links (dispatcher-managed).
                 // linked_nodes reflects external changes; direct_links is only updated by this app.
