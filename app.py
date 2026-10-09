@@ -1447,12 +1447,21 @@ HTML = '''
             display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
             padding: 3px 10px 5px 70px;
             font-size: 11px; color: #888; min-height: 0;
+            position: relative;
         }
         .rsys-2l > .rsys-sub2 {
             grid-column: 1 / 3; grid-row: 3;
             display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
             padding: 3px 10px 5px 70px;
+            position: relative;
             font-size: 11px; color: #888; min-height: 0;
+        }
+        /* Extend col-sep vertical line through sub rows */
+        .rsys-2l > .rsys-sub::before,
+        .rsys-2l > .rsys-sub2::before {
+            content: ''; position: absolute;
+            left: 70px; top: 0; bottom: 0;
+            width: 1px; background: rgba(255,255,255,0.05);
         }
         /* Buttons column spans both content rows */
         .rsys-2l > .rsys-btns { grid-column: 2; grid-row: 1 / 3; display: flex; align-items: center; padding: 0 6px 0 4px; }
@@ -2195,9 +2204,9 @@ HTML = '''
 
             /* Radio rows: main spans full width, buttons drop to sub line */
             .rsys-2l > .rsys-main  { grid-column: 1 / 3; flex-wrap: nowrap; }
-            .rsys-2l > .rsys-sub   { grid-column: 1; grid-row: 2; padding-left: 12px; padding-right: 4px; }
+            .rsys-2l > .rsys-sub   { grid-column: 1; grid-row: 2; padding-right: 4px; }
             .rsys-2l > .rsys-btns  { grid-column: 2; grid-row: 2; align-self: center; }
-            .rsys-2l > .rsys-sub2  { padding-left: 12px; }
+            .rsys-2l > .rsys-sub2  { }
         }
     </style>
 </head>
