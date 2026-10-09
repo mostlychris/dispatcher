@@ -2064,9 +2064,9 @@ HTML = '''
                 align-items: stretch;
             }
             .mobile-action-bar .mob-btn {
-                flex: 1;
+                flex: 0.7;
                 min-width: 0;
-                font-size: 13px;
+                font-size: 10px;
                 font-weight: bold;
                 text-transform: uppercase;
                 border-radius: 5px;
@@ -2096,7 +2096,7 @@ HTML = '''
                 border-color: rgba(4, 25, 184, 0.9);
                 box-shadow: 0 0 8px rgba(4, 25, 184, 0.6);
             }
-            .mobile-action-bar .mob-btn.mob-ptt  { background: var(--mob-btn-bg); color: var(--mob-btn-color); border-color: var(--mob-btn-border); font-weight: bold; letter-spacing: 1px; }
+            .mobile-action-bar .mob-btn.mob-ptt  { flex: 1.5; font-size: 14px; background: var(--mob-btn-bg); color: var(--mob-btn-color); border-color: var(--mob-btn-border); font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
             .mobile-action-bar .mob-btn:disabled { opacity: 0.35; }
             /* Services strip: fixed just above the action bar */
