@@ -2169,10 +2169,10 @@ HTML = '''
             .mobile-action-bar .mob-btn.mob-ptt  { flex: 1.5; font-size: 14px; background: var(--mob-btn-bg); color: var(--mob-btn-color); border-color: var(--mob-btn-border); font-weight: bold; letter-spacing: 1px; }
             .mobile-action-bar .mob-btn.mob-ptt.keyed { background: #cc2200; color: #fff; border-color: #ff4400; box-shadow: 0 0 12px #ff4400; }
             .mobile-action-bar .mob-btn:disabled { opacity: 0.35; }
-            /* Services strip: fixed just above the action bar */
+            /* Services strip: fixed at the bottom */
             .svc-strip-panel {
                 position: fixed !important;
-                bottom: 52px;
+                bottom: 0;
                 left: 0; right: 0;
                 z-index: 199;
                 margin: 0 !important;
@@ -2183,8 +2183,8 @@ HTML = '''
                 box-shadow: none !important;
             }
             .svc-strip-panel .status-strip { gap: 10px; padding: 4px 8px; }
-            /* Push content clear of status strip (24px) + action bar (52px) + gap */
-            .content { padding-bottom: 88px; }
+            /* Push content clear of status strip only */
+            .content { padding-bottom: 36px; }
         }
     </style>
 </head>
