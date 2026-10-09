@@ -1439,15 +1439,23 @@ HTML = '''
             background: transparent;
             transition: background 0.2s, box-shadow 0.2s;
         }
-        /* Two-line row variant */
-        .rsys-row.rsys-2l { flex-direction: column; align-items: stretch; min-height: unset; }
-        .rsys-2l .rsys-main { display: flex; align-items: center; min-height: 42px; }
-        .rsys-2l .rsys-sub {
+        /* Two-line row variant — grid: content col + buttons col */
+        .rsys-row.rsys-2l { display: grid; grid-template-columns: 1fr auto; min-height: unset; }
+        .rsys-2l > .rsys-main { grid-column: 1; grid-row: 1; display: flex; align-items: center; min-height: 42px; overflow: hidden; }
+        .rsys-2l > .rsys-sub {
+            grid-column: 1; grid-row: 2;
             display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
             padding: 3px 10px 5px 70px;
-            border-top: none;
             font-size: 11px; color: #888; min-height: 0;
         }
+        .rsys-2l > .rsys-sub2 {
+            grid-column: 1 / 3; grid-row: 3;
+            display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
+            padding: 3px 10px 5px 70px;
+            font-size: 11px; color: #888; min-height: 0;
+        }
+        /* Buttons column spans both content rows */
+        .rsys-2l > .rsys-btns { grid-column: 2; grid-row: 1 / 3; display: flex; align-items: center; padding: 0 6px 0 4px; }
         .rsys-sub-label { font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #555; flex-shrink: 0; }
         /* Shared row text tokens */
         .rsys-val  { font-size: 13px; font-weight: 700; color: #ddd; white-space: nowrap; flex-shrink: 0; }
@@ -2184,6 +2192,12 @@ HTML = '''
             .svc-strip-panel .status-strip { gap: 10px; padding: 4px 8px; }
             /* Push content clear of status strip only */
             .content { padding-bottom: 36px; }
+
+            /* Radio rows: main spans full width, buttons drop to sub line */
+            .rsys-2l > .rsys-main  { grid-column: 1 / 3; flex-wrap: nowrap; }
+            .rsys-2l > .rsys-sub   { grid-column: 1; grid-row: 2; padding-left: 10px; padding-right: 4px; }
+            .rsys-2l > .rsys-btns  { grid-column: 2; grid-row: 2; align-self: center; }
+            .rsys-2l > .rsys-sub2  { padding-left: 10px; }
         }
     </style>
 </head>
@@ -2363,13 +2377,13 @@ HTML = '''
                         <div class="rsys-pills">
                             <div class="tx-pill"><span id="dmrActiveCall" style="font-size:12px;font-weight:bold;letter-spacing:1px;"></span></div>
                         </div>
-                        <div class="rsys-btns" onclick="event.stopPropagation()">
-                            <button onclick="openQuickTuneModal()" class="rsys-btn" title="Quick Tune">★</button>
-                            <button onclick="openDmrModal()"       class="rsys-btn" title="DMR Controls">⚙</button>
-                        </div>
                     </div>
                     <div class="rsys-sub">
                         <span id="dmrActualBadge" style="display:none;font-size:9px;font-weight:bold;background:#2a1000;border:1px solid #884400;color:#faa;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;white-space:nowrap;"></span>
+                    </div>
+                    <div class="rsys-btns" onclick="event.stopPropagation()">
+                        <button onclick="openQuickTuneModal()" class="rsys-btn" title="Quick Tune">★</button>
+                        <button onclick="openDmrModal()"       class="rsys-btn" title="DMR Controls">⚙</button>
                     </div>
                 </div>
 
@@ -2421,14 +2435,15 @@ HTML = '''
                         <div class="rsys-pills">
                             <div class="tx-pill"><span id="asNodeBadge" style="font-size:12px;font-weight:bold;letter-spacing:0.3px;"></span></div>
                         </div>
-                        <div class="rsys-btns" onclick="event.stopPropagation()">
-                            <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
-                            <button onclick="openAsModal()"          class="rsys-btn" title="Allstar Controls">⚙</button>
-                        </div>
                     </div>
-                    <div class="rsys-sub">
+                    <div class="rsys-sub"></div>
+                    <div class="rsys-sub2">
                         <span class="rsys-sub-label">Nodes</span>
                         <span id="asNodeListBar" class="rsys-meta">--</span>
+                    </div>
+                    <div class="rsys-btns" onclick="event.stopPropagation()">
+                        <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
+                        <button onclick="openAsModal()"          class="rsys-btn" title="Allstar Controls">⚙</button>
                     </div>
                 </div>
 
@@ -2539,14 +2554,6 @@ HTML = '''
                         </div>
                         <div class="rsys-pills">
                         </div>
-                        <div class="rsys-btns" onclick="event.stopPropagation()">
-                            <button onclick="trSkip()"             class="rsys-btn rsys-btn-go"   title="Skip current call">⏭</button>
-                            <button onclick="trPauseToggle()"      class="rsys-btn rsys-btn-go"   id="trPauseBtn" title="Pause/Resume">⏸</button>
-                            <button onclick="trAvoid()"            class="rsys-btn rsys-btn-warn" id="trAvoidBtn" title="Avoid this TG">⛔</button>
-                            <span id="trAvoidBtnLabel" style="display:none;"></span>
-                            <button onclick="openTrConsoleModal()" class="rsys-btn" title="TG Console">⊞</button>
-                            <button onclick="openTrModal()"        class="rsys-btn" title="Call Log">☰</button>
-                        </div>
                     </div>
                     <div class="rsys-sub">
                         <span id="trSystemBadge" class="rsys-meta" style="margin-right:6px;">--</span>
@@ -2557,6 +2564,14 @@ HTML = '''
                         <span id="trPausedBadge"   style="display:none;font-size:9px;font-weight:bold;background:#3a2a00;border:1px solid #886600;color:#ffcc44;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">PAUSED</span>
                         <span id="trQueueCount"    style="display:none;font-size:9px;font-weight:bold;background:#1a1a2a;border:1px solid #446;color:#88aaff;border-radius:3px;padding:1px 5px;"></span>
                         <span id="trSkippedBadge"  style="display:none;font-size:9px;font-weight:bold;background:#1a1a1a;border:1px solid #666;color:#aaa;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">SKIPPED</span>
+                    </div>
+                    <div class="rsys-btns" onclick="event.stopPropagation()">
+                        <button onclick="trSkip()"             class="rsys-btn rsys-btn-go"   title="Skip current call">⏭</button>
+                        <button onclick="trPauseToggle()"      class="rsys-btn rsys-btn-go"   id="trPauseBtn" title="Pause/Resume">⏸</button>
+                        <button onclick="trAvoid()"            class="rsys-btn rsys-btn-warn" id="trAvoidBtn" title="Avoid this TG">⛔</button>
+                        <span id="trAvoidBtnLabel" style="display:none;"></span>
+                        <button onclick="openTrConsoleModal()" class="rsys-btn" title="TG Console">⊞</button>
+                        <button onclick="openTrModal()"        class="rsys-btn" title="Call Log">☰</button>
                     </div>
                 </div>
                 <!-- trTimeBadge kept in DOM for JS compatibility (not shown in bar) -->
@@ -2578,17 +2593,17 @@ HTML = '''
                             <span id="sdrHoldBadge" style="display:none;font-size:9px;font-weight:bold;background:#003a00;border:1px solid #00aa00;color:#4f4;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">HOLD</span>
                         </div>
                         <div class="rsys-pills"></div>
-                        <div class="rsys-btns" onclick="event.stopPropagation()">
-                            <button onclick="sdrSkip()"          class="rsys-btn rsys-btn-go" title="Next frequency">⏭</button>
-                            <button onclick="sdrBarSkipToggle()" class="rsys-btn" id="sdrSkipBtn" title="Skip/unskip frequency">⊘</button>
-                            <button onclick="sdrHoldToggle()"    class="rsys-btn" id="sdrHoldBtn" title="Hold frequency">🔒</button>
-                            <button id="sdrBarEditBtn" onclick="sdrBarEditCurrent()" class="rsys-btn" title="Edit current channel" style="display:none;">✎</button>
-                            <button onclick="openSdrModal()"     class="rsys-btn" title="SDR Channels">⊞</button>
-                        </div>
                     </div>
                     <div class="rsys-sub">
                         <span id="sdrSignalBars" class="rsys-sigbars"><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span></span>
                         <span id="sdrLabelBadge" class="rsys-meta rsys-val-overflow"></span>
+                    </div>
+                    <div class="rsys-btns" onclick="event.stopPropagation()">
+                        <button onclick="sdrSkip()"          class="rsys-btn rsys-btn-go" title="Next frequency">⏭</button>
+                        <button onclick="sdrBarSkipToggle()" class="rsys-btn" id="sdrSkipBtn" title="Skip/unskip frequency">⊘</button>
+                        <button onclick="sdrHoldToggle()"    class="rsys-btn" id="sdrHoldBtn" title="Hold frequency">🔒</button>
+                        <button id="sdrBarEditBtn" onclick="sdrBarEditCurrent()" class="rsys-btn" title="Edit current channel" style="display:none;">✎</button>
+                        <button onclick="openSdrModal()"     class="rsys-btn" title="SDR Channels">⊞</button>
                     </div>
                 </div>
 
@@ -2688,12 +2703,12 @@ HTML = '''
                         </div>
                         <div class="rsys-pills">
                         </div>
-                        <div class="rsys-btns" onclick="event.stopPropagation()">
-                            <button onclick="openYsfModal()" class="rsys-btn" title="Browse Reflectors">⤦</button>
-                        </div>
                     </div>
                     <div class="rsys-sub">
                         <span id="ysfRxCount" class="rsys-meta"></span>
+                    </div>
+                    <div class="rsys-btns" onclick="event.stopPropagation()">
+                        <button onclick="openYsfModal()" class="rsys-btn" title="Browse Reflectors">⤦</button>
                     </div>
                 </div>
 
@@ -5297,7 +5312,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 _setDirectLink(d.state === 'connected' && liveNodes ? liveNodes : null);
                 // Update both the modal node list and the panel row sub-line.
                 const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
-                const BAR_MAX = 5;
+                const BAR_MAX = 4;
                 function _renderNodeHtml(nodes, maxShow) {
                     const show = maxShow ? nodes.slice(0, maxShow) : nodes;
                     const overflow = maxShow && nodes.length > maxShow ? nodes.length - maxShow : 0;
