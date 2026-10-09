@@ -2551,13 +2551,12 @@ HTML = '''
                             <button onclick="sdrSkip()"          class="rsys-btn rsys-btn-go" title="Next frequency">⏭</button>
                             <button onclick="sdrBarSkipToggle()" class="rsys-btn" id="sdrSkipBtn" title="Skip/unskip frequency">⊘</button>
                             <button onclick="sdrHoldToggle()"    class="rsys-btn" id="sdrHoldBtn" title="Hold frequency">🔒</button>
+                            <button id="sdrBarEditBtn" onclick="sdrBarEditCurrent()" class="rsys-btn" title="Edit current channel" style="display:none;">✎</button>
                             <button onclick="openSdrModal()"     class="rsys-btn" title="SDR Channels">⊞</button>
                         </div>
                     </div>
                     <div class="rsys-sub">
                         <span id="sdrLabelBadge" class="rsys-meta rsys-val-overflow">--</span>
-                        <button id="sdrBarEditBtn" onclick="sdrBarEditCurrent()" title="Edit current channel"
-                                style="display:none;background:#1a1a2a;border:1px solid #334;color:#7af;border-radius:3px;padding:1px 7px;font-size:10px;cursor:pointer;flex-shrink:0;">✎</button>
                     </div>
                 </div>
 
