@@ -2518,6 +2518,7 @@ HTML = '''
                     </div>
                     <div class="rsys-sub">
                         <span id="trSystemBadge" class="rsys-meta" style="margin-right:6px;">--</span>
+                        <span id="trErrBadge" style="display:none;" class="rsys-meta" style="color:#f88;"></span>
                         <span id="trAvoidTimer"    style="display:none;color:#cc6666;font-weight:bold;white-space:nowrap;" class="rsys-meta"></span>
                         <span id="trLockedBadge"   style="display:none;font-size:9px;font-weight:bold;background:#001a2a;border:1px solid #004488;color:#4af;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;"></span>
                         <span id="trLockedTgBadge" style="display:none;font-size:9px;font-weight:bold;background:#001a2a;border:1px solid #004488;color:#4af;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;"></span>
@@ -3671,8 +3672,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 freqEl.textContent  = _sdrHoldFreq;
                 labelEl.textContent = heldLabel + ' 🔒';
             } else {
-                freqEl.textContent  = '';
-                labelEl.textContent = 'SCANNING';
+                freqEl.textContent  = 'SCANNING';
+                labelEl.textContent = '';
             }
             _updateSdrSkipBtn();
             const editBtn = document.getElementById('sdrBarEditBtn');
@@ -6086,11 +6087,17 @@ registerProcessor('mic-decimator', MicDecimator);
                 : '';
             const trTimeBadgeEl = document.getElementById('trTimeBadge');
             if (trTimeBadgeEl) trTimeBadgeEl.textContent = callTime;
-            const errHtml = (call.error_count > 0)
-                ? ' <span style="font-size:10px;color:#f88;font-weight:normal;">Err:' + call.error_count + '</span>'
-                : '';
             document.getElementById('trTgBadge').innerHTML =
-                escHtml(tgLabel) + ' <span style="font-size:11px;color:#aaa;font-weight:normal;">' + call.talkgroup + '</span>' + errHtml;
+                escHtml(tgLabel) + ' <span style="font-size:11px;color:#aaa;font-weight:normal;">' + call.talkgroup + '</span>';
+            const errBadge = document.getElementById('trErrBadge');
+            if (errBadge) {
+                if (call.error_count > 0) {
+                    errBadge.textContent  = 'Err:' + call.error_count;
+                    errBadge.style.cssText = 'display:inline;color:#f88;font-size:10px;';
+                } else {
+                    errBadge.style.display = 'none';
+                }
+            }
 
             // Modal now-playing label
             document.getElementById('trNowPlaying').textContent =
