@@ -1453,6 +1453,15 @@ HTML = '''
         .rsys-val  { font-size: 13px; font-weight: 700; color: #ddd; white-space: nowrap; flex-shrink: 0; }
         .rsys-val-overflow { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 1; }
         .rsys-meta { font-size: 10px; color: #666; white-space: nowrap; flex-shrink: 0; }
+        /* Primary info pill — same style across all protocol rows */
+        .rsys-info-pill {
+            display: inline-flex; align-items: center; gap: 5px;
+            background: #0e1620; border: 1px solid #253550;
+            border-radius: 4px; padding: 2px 8px;
+            font-size: 12px; font-weight: 700; color: #7ab8e0;
+            letter-spacing: 0.3px; white-space: nowrap; flex-shrink: 0;
+        }
+        .rsys-val-overflow.rsys-info-pill { min-width: 0; flex-shrink: 1; }
         /* Button color helpers */
         .rsys-btn-go   { border-color: #2a4a2a !important; color: #6a9a6a !important; }
         .rsys-btn-warn { border-color: #442222 !important; color: #aa6666 !important; }
@@ -2313,8 +2322,10 @@ HTML = '''
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
-                            <span class="mode-badge badge-unknown" id="modeValue">--</span>
-                            <span id="tgValue" class="rsys-val"></span>
+                            <div class="rsys-info-pill" id="dmrInfoPill">
+                                <span class="mode-badge badge-unknown" id="modeValue">--</span>
+                                <span id="tgValue"></span>
+                            </div>
                         </div>
                         <div class="rsys-pills">
                             <span class="tx-pulse" id="txPulse" style="display:none;"></span>
@@ -2372,7 +2383,7 @@ HTML = '''
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
                             <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
-                            <span id="asDirectLinkBadge" style="display:none;" class="rsys-val">&#8594; <span id="asDirectLinkNode"></span></span>
+                            <span id="asDirectLinkBadge" class="rsys-info-pill" style="display:none;"><span id="asDirectLinkNode"></span></span>
                         </div>
                         <div class="rsys-pills">
                             <span class="rx-dot" id="asRxDot" style="display:none;" title="RX activity"></span>
@@ -2490,7 +2501,7 @@ HTML = '''
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
-                            <span id="trTgBadge" class="rsys-val rsys-val-overflow">--</span>
+                            <span id="trTgBadge" class="rsys-info-pill rsys-val-overflow">--</span>
                         </div>
                         <div class="rsys-pills">
                             <span class="tx-pulse" id="trPulse" style="display:none;"></span>
@@ -2528,7 +2539,7 @@ HTML = '''
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
                             <span id="sdrOfflineBadge" style="font-size:9px;font-weight:bold;background:#2a0000;border:1px solid #660000;color:#f88;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">OFFLINE</span>
-                            <span id="sdrFreqBadge" class="rsys-val">--</span>
+                            <span id="sdrFreqBadge" class="rsys-info-pill">--</span>
                             <span id="sdrHoldBadge" style="display:none;font-size:9px;font-weight:bold;background:#003a00;border:1px solid #00aa00;color:#4f4;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">HOLD</span>
                         </div>
                         <div class="rsys-pills">
@@ -2638,7 +2649,7 @@ HTML = '''
                         <div class="rsys-tuned">
                             <span id="ysfOfflineBadge" style="font-size:9px;font-weight:bold;background:#2a0000;border:1px solid #660000;color:#f88;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">OFFLINE</span>
                             <span id="ysfGwStateBadge" style="display:none;font-size:9px;font-weight:bold;background:#2a2000;border:1px solid #665500;color:#fc8;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">GW STANDBY</span>
-                            <span id="ysfReflectorBadge" class="rsys-val" style="color:#c8f;"></span>
+                            <span id="ysfReflectorBadge" class="rsys-info-pill" style="display:none;"></span>
                         </div>
                         <div class="rsys-pills">
                             <span class="tx-pulse" id="ysfPulse" style="display:none;"></span>
@@ -4025,9 +4036,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             const srcBadge  = document.getElementById('ysfSourceBadge');
             const rxCount   = document.getElementById('ysfRxCount');
             const section   = document.getElementById('ysfSection');
-            if (badge)   badge.style.display  = offline ? '' : 'none';
-            if (section) section.classList.toggle('rx-active', !!(d && d.active));
-            if (refBadge) refBadge.textContent = (d && (d.reflector || d.label)) || '';
+            if (badge)    badge.style.display    = offline ? '' : 'none';
+            if (section)  section.classList.toggle('rx-active', !!(d && d.active));
+            if (refBadge) {
+                refBadge.textContent    = (d && (d.reflector || d.label)) || '';
+                refBadge.style.display  = (!offline && refBadge.textContent) ? '' : 'none';
+            }
             const displaySrc = (d && d.active) ? (d.callsign || d.source || '') : '';
             if (srcBadge) srcBadge.textContent = displaySrc;
             if (rxCount)  rxCount.textContent  = (d && d.rx_count) ? d.rx_count + ' RX' : '';
@@ -4159,7 +4173,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     _ysfLastStatus.reflector    = humanName;
                     _ysfLastStatus.reflector_id = id;
                     const refBadge = document.getElementById('ysfReflectorBadge');
-                    if (refBadge) refBadge.textContent = humanName;
+                    if (refBadge) { refBadge.textContent = humanName; refBadge.style.display = humanName ? '' : 'none'; }
                     const row = document.getElementById('ysfStatusRow');
                     if (row) row.textContent = humanName;
                     _ysfSetStatus('Connected to ' + humanName + '. Gateway restarting…', true);
@@ -5103,13 +5117,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             const badge = document.getElementById('asDirectLinkBadge');
             const nodeEl = document.getElementById('asDirectLinkNode');
             if (_asDirectLink) {
-                const shown = _asDirectLink.slice(0, 4);
-                const extra = _asDirectLink.length - shown.length;
-                const labels = shown.map(n => {
-                    const fav = _asFavsCache.find(f => f.node === String(n));
-                    return fav && fav.label ? fav.label + ' (' + n + ')' : n;
-                });
-                nodeEl.textContent = labels.join(' · ') + (extra > 0 ? ' +' + extra : '');
+                const first = _asDirectLink[0];
+                const fav = _asFavsCache.find(f => f.node === String(first));
+                nodeEl.textContent = fav && fav.label ? fav.label + ' (' + first + ')' : first;
                 badge.style.display = '';
             } else {
                 badge.style.display = 'none';
@@ -5248,7 +5258,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 _setDirectLink(d.state === 'connected' && liveNodes ? liveNodes : null);
                 // Update both the modal node list and the panel row sub-line.
                 const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
-                const BAR_MAX = 3;
+                const BAR_MAX = 5;
                 function _renderNodeHtml(nodes, maxShow) {
                     const show = maxShow ? nodes.slice(0, maxShow) : nodes;
                     const overflow = maxShow && nodes.length > maxShow ? nodes.length - maxShow : 0;
