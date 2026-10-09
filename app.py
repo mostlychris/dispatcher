@@ -1460,7 +1460,7 @@ HTML = '''
         .rsys-2l > .rsys-sub::before,
         .rsys-2l > .rsys-sub2::before {
             content: ''; position: absolute;
-            left: 70px; top: 0; bottom: 0;
+            left: 58px; top: 0; bottom: 0;
             width: 1px; background: rgba(255,255,255,0.05);
         }
         /* Buttons column spans both content rows */
