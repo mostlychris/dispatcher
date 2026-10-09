@@ -5550,7 +5550,7 @@ registerProcessor('mic-decimator', MicDecimator);
             _updateTrAudioBtn();
             const sv = parseInt(localStorage.getItem('trVolume') ?? '100');
             setTrVolume(sv);
-            _trNormEnabled = localStorage.getItem('trNormEnabled') === 'true';
+            _trNormEnabled = localStorage.getItem('trNormEnabled') !== 'false';
         })();
 
         function saveTrPrefs() {
