@@ -1439,6 +1439,16 @@ HTML = '''
             background: transparent;
             transition: background 0.2s, box-shadow 0.2s;
         }
+        /* Two-line row variant */
+        .rsys-row.rsys-2l { flex-direction: column; align-items: stretch; min-height: unset; }
+        .rsys-2l .rsys-main { display: flex; align-items: center; min-height: 42px; }
+        .rsys-2l .rsys-sub {
+            display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
+            padding: 3px 10px 5px 70px;
+            border-top: 1px solid rgba(255,255,255,0.03);
+            font-size: 11px; color: #888; min-height: 0;
+        }
+        .rsys-sub-label { font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #555; flex-shrink: 0; }
         /* green = voice RX (DMR/AS/YSF/SDR) */
         .rsys-row.rx-active { background: rgba(20, 140, 60, 0.1); }
         .rsys-row.rx-active::before { background: #3cb860; box-shadow: 0 0 8px rgba(60,200,80,0.4); }
@@ -2342,23 +2352,29 @@ HTML = '''
                 </div>
 
                 <!-- ALLSTAR -->
-                <div class="rsys-row" id="asSidebarSection">
-                    <div class="rsys-proto">
-                        <span class="rsys-proto-icon">⚡</span>
-                        <span class="rsys-proto-name">AllStar</span>
+                <div class="rsys-row rsys-2l" id="asSidebarSection">
+                    <div class="rsys-main">
+                        <div class="rsys-proto">
+                            <span class="rsys-proto-icon">⚡</span>
+                            <span class="rsys-proto-name">AllStar</span>
+                        </div>
+                        <div class="col-sep"></div>
+                        <div class="rsys-tuned">
+                            <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
+                            <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:13px;font-weight:bold;white-space:nowrap;">&#8594; <span id="asDirectLinkNode"></span></span>
+                        </div>
+                        <div class="rsys-pills">
+                            <span class="rx-dot" id="asRxDot" style="display:none;" title="RX activity"></span>
+                            <div class="tx-pill"><span class="tx-dot"></span><span id="asNodeBadge" style="font-size:12px;font-weight:bold;letter-spacing:0.3px;"></span></div>
+                        </div>
+                        <div class="rsys-btns">
+                            <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
+                            <button onclick="openAsModal()"          class="rsys-btn" title="Allstar Controls">⚙</button>
+                        </div>
                     </div>
-                    <div class="col-sep"></div>
-                    <div class="rsys-tuned">
-                        <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
-                        <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:13px;font-weight:bold;white-space:nowrap;">&#8594; <span id="asDirectLinkNode"></span></span>
-                    </div>
-                    <div class="rsys-pills">
-                        <span class="rx-dot" id="asRxDot" style="display:none;" title="RX activity"></span>
-                        <div class="tx-pill"><span class="tx-dot"></span><span id="asNodeBadge" style="font-size:12px;font-weight:bold;letter-spacing:0.3px;"></span></div>
-                    </div>
-                    <div class="rsys-btns">
-                        <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
-                        <button onclick="openAsModal()"          class="rsys-btn" title="Allstar Controls">⚙</button>
+                    <div class="rsys-sub">
+                        <span class="rsys-sub-label">Nodes</span>
+                        <span id="asNodeListBar" style="color:#ddd;">--</span>
                     </div>
                 </div>
 
@@ -2455,32 +2471,36 @@ HTML = '''
                 </div>
 
                 <!-- TRUNK RX -->
-                <div class="rsys-row" id="trSection">
-                    <div class="rsys-proto">
-                        <span class="rsys-proto-icon">📻</span>
-                        <span class="rsys-proto-name">Trunk</span>
+                <div class="rsys-row rsys-2l" id="trSection">
+                    <div class="rsys-main">
+                        <div class="rsys-proto">
+                            <span class="rsys-proto-icon">📻</span>
+                            <span class="rsys-proto-name">Trunk</span>
+                        </div>
+                        <div class="col-sep"></div>
+                        <div class="rsys-tuned">
+                            <span id="trTgBadge" style="font-size:13px;color:#fff;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;letter-spacing:0.3px;">--</span>
+                            <span id="trSystemBadge" style="font-size:10px;color:#888;font-weight:bold;letter-spacing:0.5px;flex-shrink:0;white-space:nowrap;margin-left:auto;">--</span>
+                        </div>
+                        <div class="rsys-pills">
+                            <span class="tx-pulse" id="trPulse" style="display:none;"></span>
+                            <div class="tx-pill"><span class="tx-dot"></span><span id="trTimeBadge" style="font-size:10px;"></span></div>
+                        </div>
+                        <div class="rsys-btns">
+                            <button onclick="trSkip()"             class="rsys-btn" title="Skip current call"          style="border-color:#2a4a2a;color:#6a9a6a;">⏭</button>
+                            <button onclick="trPauseToggle()"      class="rsys-btn" id="trPauseBtn" title="Pause/Resume" style="border-color:#2a4a2a;color:#6a9a6a;">⏸</button>
+                            <button onclick="trAvoid()"            class="rsys-btn" id="trAvoidBtn" title="Avoid this TG (cycles: indefinite→30m→60m→off)" style="border-color:#442222;color:#aa6666;">⛔<span id="trAvoidBtnLabel"></span></button>
+                            <button onclick="openTrConsoleModal()" class="rsys-btn" title="TG Console">⊞</button>
+                            <button onclick="openTrModal()"        class="rsys-btn" title="Call Log">☰</button>
+                        </div>
                     </div>
-                    <div class="col-sep"></div>
-                    <div class="rsys-tuned">
-                        <span id="trAvoidTimer" style="display:none;font-size:10px;color:#cc6666;font-weight:bold;white-space:nowrap;flex-shrink:0;"></span>
-                        <span id="trTgBadge" style="font-size:13px;color:#fff;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;letter-spacing:0.3px;">--</span>
-                        <span id="trLockedBadge"   style="display:none;font-size:9px;font-weight:bold;background:#001a2a;border:1px solid #004488;color:#4af;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;"></span>
-                        <span id="trLockedTgBadge" style="display:none;font-size:9px;font-weight:bold;background:#001a2a;border:1px solid #004488;color:#4af;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;"></span>
-                        <span id="trPausedBadge"   style="display:none;font-size:9px;font-weight:bold;background:#3a2a00;border:1px solid #886600;color:#ffcc44;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">PAUSED</span>
-                        <span id="trQueueCount"    style="display:none;font-size:9px;font-weight:bold;background:#1a1a2a;border:1px solid #446;color:#88aaff;border-radius:3px;padding:1px 5px;flex-shrink:0;"></span>
-                        <span id="trSkippedBadge"  style="display:none;font-size:9px;font-weight:bold;background:#1a1a1a;border:1px solid #666;color:#aaa;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">SKIPPED</span>
-                        <span id="trSystemBadge"   style="font-size:10px;color:#888;font-weight:bold;letter-spacing:0.5px;flex-shrink:0;text-align:right;margin-left:auto;">--</span>
-                    </div>
-                    <div class="rsys-pills">
-                        <span class="tx-pulse" id="trPulse" style="display:none;"></span>
-                        <div class="tx-pill"><span class="tx-dot"></span><span id="trTimeBadge" style="font-size:10px;"></span></div>
-                    </div>
-                    <div class="rsys-btns">
-                        <button onclick="trSkip()"             class="rsys-btn" title="Skip current call"          style="border-color:#2a4a2a;color:#6a9a6a;">⏭</button>
-                        <button onclick="trPauseToggle()"      class="rsys-btn" id="trPauseBtn" title="Pause/Resume" style="border-color:#2a4a2a;color:#6a9a6a;">⏸</button>
-                        <button onclick="trAvoid()"            class="rsys-btn" id="trAvoidBtn" title="Avoid this TG (cycles: indefinite→30m→60m→off)" style="border-color:#442222;color:#aa6666;">⛔<span id="trAvoidBtnLabel"></span></button>
-                        <button onclick="openTrConsoleModal()" class="rsys-btn" title="TG Console">⊞</button>
-                        <button onclick="openTrModal()"        class="rsys-btn" title="Call Log">☰</button>
+                    <div class="rsys-sub">
+                        <span id="trAvoidTimer"    style="display:none;font-size:10px;color:#cc6666;font-weight:bold;white-space:nowrap;"></span>
+                        <span id="trLockedBadge"   style="display:none;font-size:9px;font-weight:bold;background:#001a2a;border:1px solid #004488;color:#4af;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;"></span>
+                        <span id="trLockedTgBadge" style="display:none;font-size:9px;font-weight:bold;background:#001a2a;border:1px solid #004488;color:#4af;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;"></span>
+                        <span id="trPausedBadge"   style="display:none;font-size:9px;font-weight:bold;background:#3a2a00;border:1px solid #886600;color:#ffcc44;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">PAUSED</span>
+                        <span id="trQueueCount"    style="display:none;font-size:9px;font-weight:bold;background:#1a1a2a;border:1px solid #446;color:#88aaff;border-radius:3px;padding:1px 5px;"></span>
+                        <span id="trSkippedBadge"  style="display:none;font-size:9px;font-weight:bold;background:#1a1a1a;border:1px solid #666;color:#aaa;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">SKIPPED</span>
                     </div>
                 </div>
 
@@ -2823,7 +2843,6 @@ HTML = '''
                 <!-- STATUS STRIP -->
                 <div class="collapse-panel svc-strip-panel">
                     <div class="status-strip">
-                        <span class="strip-label">SVCS</span>
                         <span class="strip-item"><span class="svc-dot" id="dot_stfu"></span>STFU <span id="svc_stfu" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_mmdvm"></span>MMDVM <span id="svc_mmdvm" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>AB <span id="svc_analog" class="svc-text-off">--</span></span>
@@ -5205,21 +5224,23 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     : (d.direct_links && d.direct_links.length ? d.direct_links : null);
                 _checkNodeChanges(d.state === 'connected' ? (d.linked_nodes || []) : []);
                 _setDirectLink(d.state === 'connected' && liveNodes ? liveNodes : null);
-                // Also update the panel node list from the same data so both are always in sync.
-                const nodeListEl = document.getElementById('asNodeList');
-                if (nodeListEl) {
-                    if (d.state === 'connected' && d.linked_nodes && d.linked_nodes.length) {
-                        const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
-                        nodeListEl.innerHTML = d.linked_nodes.map(n =>
-                            `<span style="display:inline-block;margin-right:10px;">` +
-                            `<span style="color:#7e7;">${n.node}</span>` +
-                            `<span style="color:#aaa;font-size:10px;">${modeLabel[n.mode] || n.mode}</span>` +
-                            `</span>`
-                        ).join('');
-                    } else {
-                        nodeListEl.textContent = d.state === 'connected' ? '(none)' : '--';
-                    }
+                // Update both the modal node list and the panel row sub-line.
+                const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
+                function _renderNodeHtml(nodes) {
+                    return nodes.map(n =>
+                        `<span style="display:inline-block;margin-right:10px;">` +
+                        `<span style="color:#7e7;">${n.node}</span>` +
+                        `<span style="color:#aaa;font-size:10px;"> ${modeLabel[n.mode] || n.mode}</span>` +
+                        `</span>`
+                    ).join('');
                 }
+                const nodeListEl  = document.getElementById('asNodeList');
+                const nodeListBar = document.getElementById('asNodeListBar');
+                const hasNodes = d.state === 'connected' && d.linked_nodes && d.linked_nodes.length;
+                const nodesHtml = hasNodes ? _renderNodeHtml(d.linked_nodes) : null;
+                const noneText  = d.state === 'connected' ? '(none)' : '--';
+                if (nodeListEl)  { if (nodesHtml) nodeListEl.innerHTML  = nodesHtml; else nodeListEl.textContent  = noneText; }
+                if (nodeListBar) { if (nodesHtml) nodeListBar.innerHTML = nodesHtml; else nodeListBar.textContent = noneText; }
                 const asSec = document.getElementById('asSidebarSection');
                 const wasActive = asSec && asSec.classList.contains('as-rx');
                 const nowActive = !!(d.state === 'connected' && d.active);
@@ -5248,7 +5269,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 } else {
                     if (_asPoller) { clearInterval(_asPoller); _asPoller = null; }
                     _prevLinkedNodes = null;
-                    document.getElementById('asNodeList').textContent = '--';
+                    ['asNodeList', 'asNodeListBar'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.textContent = '--';
+                    });
                 }
             } catch(e) { /* sidebar badge stays stale — non-fatal */ }
         }
