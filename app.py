@@ -1500,6 +1500,24 @@ HTML = '''
             display: inline-block; background: #5aabff;
             box-shadow: 0 0 5px #5aabff; animation: txDotPulse 0.8s ease-in-out infinite;
         }
+        /* Audio enabled indicator dot */
+        .rsys-audio-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #1c1c1c; border: 1px solid #2a2a2a;
+            flex-shrink: 0; align-self: center;
+            transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
+            margin-left: 2px;
+        }
+        .rsys-row.audio-on .rsys-audio-dot {
+            background: #3cb860; border-color: #3cb860;
+            box-shadow: 0 0 5px #3cb860;
+        }
+        /* Rows are click targets for audio toggle */
+        .rsys-row { cursor: pointer; }
+        .rsys-row:hover { background: rgba(255,255,255,0.018); }
+        .rsys-row.rx-active:hover, .rsys-row.as-rx:hover { background: rgba(20,140,60,0.14); }
+        .rsys-row.tr-active:hover { background: rgba(20,80,200,0.17); }
+        .rsys-btns { cursor: default; }
 
         .rsys-proto {
             flex-shrink: 0;
@@ -2314,19 +2332,6 @@ HTML = '''
         </div>
     </div>
 
-    <div class="mobile-action-bar">
-        <button class="mob-btn btn-monitor" id="mobBtnDmrMonitor"
-                onclick="toggleMonitor(this)">DMR</button>
-        <button class="mob-btn btn-monitor" id="mobBtnAsMonitor"
-                onclick="toggleAllstarAudio(this)">Allstar</button>
-        <button class="mob-btn btn-monitor" id="mobBtnTrAudio"
-                onclick="trToggleAudio()">Trunk</button>
-        <button class="mob-btn btn-monitor" id="mobBtnSdrAudio"
-                onclick="sdrToggleAudio()">SDR</button>
-        <button class="mob-btn btn-monitor" id="mobBtnYsfAudio"
-                onclick="ysfToggleAudio()">YSF</button>
-        <button class="mob-btn mob-ptt" id="mobBtnPTT" disabled>PTT</button>
-    </div>
 
         <!-- MAIN CONTENT -->
         <div class="content">
@@ -2340,7 +2345,7 @@ HTML = '''
                 <div class="rsys-panel">
 
                 <!-- DMR -->
-                <div class="rsys-row rsys-2l" id="dmrSection">
+                <div class="rsys-row rsys-2l" id="dmrSection" onclick="toggleMonitor()">
                     <div class="rsys-main">
                         <div class="rsys-proto">
                             <span class="rsys-proto-icon">🎙</span>
@@ -2358,7 +2363,8 @@ HTML = '''
                         <div class="rsys-pills">
                             <div class="tx-pill"><span id="dmrActiveCall" style="font-size:12px;font-weight:bold;letter-spacing:1px;"></span></div>
                         </div>
-                        <div class="rsys-btns">
+                        <span class="rsys-audio-dot" title="Audio"></span>
+                        <div class="rsys-btns" onclick="event.stopPropagation()">
                             <button onclick="openQuickTuneModal()" class="rsys-btn" title="Quick Tune">★</button>
                             <button onclick="openDmrModal()"       class="rsys-btn" title="DMR Controls">⚙</button>
                         </div>
@@ -2400,7 +2406,7 @@ HTML = '''
                 </div>
 
                 <!-- ALLSTAR -->
-                <div class="rsys-row rsys-2l" id="asSidebarSection">
+                <div class="rsys-row rsys-2l" id="asSidebarSection" onclick="toggleAllstarAudio()">
                     <div class="rsys-main">
                         <div class="rsys-proto">
                             <span class="rsys-proto-icon">⚡</span>
@@ -2415,7 +2421,8 @@ HTML = '''
                         <div class="rsys-pills">
                             <div class="tx-pill"><span id="asNodeBadge" style="font-size:12px;font-weight:bold;letter-spacing:0.3px;"></span></div>
                         </div>
-                        <div class="rsys-btns">
+                        <span class="rsys-audio-dot" title="Audio"></span>
+                        <div class="rsys-btns" onclick="event.stopPropagation()">
                             <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
                             <button onclick="openAsModal()"          class="rsys-btn" title="Allstar Controls">⚙</button>
                         </div>
@@ -2519,7 +2526,7 @@ HTML = '''
                 </div>
 
                 <!-- TRUNK RX -->
-                <div class="rsys-row rsys-2l" id="trSection">
+                <div class="rsys-row rsys-2l" id="trSection" onclick="trToggleAudio()">
                     <div class="rsys-main">
                         <div class="rsys-proto">
                             <span class="rsys-proto-icon">📻</span>
@@ -2532,7 +2539,8 @@ HTML = '''
                         </div>
                         <div class="rsys-pills">
                         </div>
-                        <div class="rsys-btns">
+                        <span class="rsys-audio-dot" title="Audio"></span>
+                        <div class="rsys-btns" onclick="event.stopPropagation()">
                             <button onclick="trSkip()"             class="rsys-btn rsys-btn-go"   title="Skip current call">⏭</button>
                             <button onclick="trPauseToggle()"      class="rsys-btn rsys-btn-go"   id="trPauseBtn" title="Pause/Resume">⏸</button>
                             <button onclick="trAvoid()"            class="rsys-btn rsys-btn-warn" id="trAvoidBtn" title="Avoid this TG">⛔</button>
@@ -2556,7 +2564,7 @@ HTML = '''
                 <span id="trTimeBadge" style="display:none;"></span>
 
                 <!-- SDR -->
-                <div class="rsys-row rsys-2l" id="sdrSection">
+                <div class="rsys-row rsys-2l" id="sdrSection" onclick="sdrToggleAudio()">
                     <div class="rsys-main">
                         <div class="rsys-proto">
                             <span class="rsys-proto-icon">📡</span>
@@ -2570,7 +2578,8 @@ HTML = '''
                             <span id="sdrHoldBadge" style="display:none;font-size:9px;font-weight:bold;background:#003a00;border:1px solid #00aa00;color:#4f4;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">HOLD</span>
                         </div>
                         <div class="rsys-pills"></div>
-                        <div class="rsys-btns">
+                        <span class="rsys-audio-dot" title="Audio"></span>
+                        <div class="rsys-btns" onclick="event.stopPropagation()">
                             <button onclick="sdrSkip()"          class="rsys-btn rsys-btn-go" title="Next frequency">⏭</button>
                             <button onclick="sdrBarSkipToggle()" class="rsys-btn" id="sdrSkipBtn" title="Skip/unskip frequency">⊘</button>
                             <button onclick="sdrHoldToggle()"    class="rsys-btn" id="sdrHoldBtn" title="Hold frequency">🔒</button>
@@ -2663,7 +2672,7 @@ HTML = '''
                 </div>
 
                 <!-- YSF -->
-                <div class="rsys-row rsys-2l" id="ysfSection">
+                <div class="rsys-row rsys-2l" id="ysfSection" onclick="ysfToggleAudio()">
                     <div class="rsys-main">
                         <div class="rsys-proto">
                             <span class="rsys-proto-icon">🎙</span>
@@ -2679,7 +2688,8 @@ HTML = '''
                         </div>
                         <div class="rsys-pills">
                         </div>
-                        <div class="rsys-btns">
+                        <span class="rsys-audio-dot" title="Audio"></span>
+                        <div class="rsys-btns" onclick="event.stopPropagation()">
                             <button onclick="openYsfModal()" class="rsys-btn" title="Browse Reflectors">⤦</button>
                         </div>
                     </div>
@@ -3477,6 +3487,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('active', active);
             });
+            const row = document.getElementById('dmrSection');
+            if (row) row.classList.toggle('audio-on', active);
         }
 
         async function toggleMonitor(btn) {
@@ -3809,6 +3821,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function _updateSdrAudioBtn() {
             const streaming = _sdrAudioEnabled && _sdrActive;
+            const row = document.getElementById('sdrSection');
+            if (row) row.classList.toggle('audio-on', _sdrAudioEnabled);
             ['mobBtnSdrAudio', 'sdrAudioToggleOv'].forEach(id => {
                 const el = document.getElementById(id);
                 if (!el) return;
@@ -3975,6 +3989,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         function _updateYsfAudioBtn() {
+            const row = document.getElementById('ysfSection');
+            if (row) row.classList.toggle('audio-on', _ysfAudioEnabled);
             ['mobBtnYsfAudio', 'ysfAudioToggleOv'].forEach(id => {
                 const el = document.getElementById(id);
                 if (!el) return;
@@ -5224,6 +5240,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('active', active);
             });
+            const row = document.getElementById('asSidebarSection');
+            if (row) row.classList.toggle('audio-on', active);
         }
 
         async function toggleAllstarAudio(btn) {
@@ -5822,6 +5840,8 @@ registerProcessor('mic-decimator', MicDecimator);
             if (mob) mob.textContent = 'Trunk';
             const ov = document.getElementById('trAudioToggleOv');
             if (ov) ov.textContent = _trAudioEnabled ? '🔊 Enable' : '🔇 Muted';
+            const row = document.getElementById('trSection');
+            if (row) row.classList.toggle('audio-on', _trAudioEnabled);
         }
 
         // ---- System Lock ----
