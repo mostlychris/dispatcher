@@ -2325,6 +2325,7 @@ HTML = '''
                             <div class="rsys-info-pill" id="dmrInfoPill">
                                 <span class="mode-badge badge-unknown" id="modeValue">--</span>
                                 <span id="tgValue"></span>
+                                <span id="tgValueName" style="font-size:10px;color:#5a8ab0;font-weight:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;"></span>
                             </div>
                         </div>
                         <div class="rsys-pills">
@@ -2337,8 +2338,7 @@ HTML = '''
                         </div>
                     </div>
                     <div class="rsys-sub">
-                        <span id="tgValueName" class="rsys-meta rsys-val-overflow" style="color:#999;font-size:11px;"></span>
-                        <span id="dmrActualBadge" style="display:none;font-size:9px;font-weight:bold;background:#2a1000;border:1px solid #884400;color:#faa;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;white-space:nowrap;margin-left:auto;"></span>
+                        <span id="dmrActualBadge" style="display:none;font-size:9px;font-weight:bold;background:#2a1000;border:1px solid #884400;color:#faa;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;white-space:nowrap;"></span>
                     </div>
                 </div>
 
@@ -2650,10 +2650,11 @@ HTML = '''
                             <span id="ysfOfflineBadge" style="font-size:9px;font-weight:bold;background:#2a0000;border:1px solid #660000;color:#f88;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">OFFLINE</span>
                             <span id="ysfGwStateBadge" style="display:none;font-size:9px;font-weight:bold;background:#2a2000;border:1px solid #665500;color:#fc8;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">GW STANDBY</span>
                             <span id="ysfReflectorBadge" class="rsys-info-pill" style="display:none;"></span>
+                            <span id="ysfSourceBadge" class="rsys-info-pill" style="display:none;"></span>
                         </div>
                         <div class="rsys-pills">
                             <span class="tx-pulse" id="ysfPulse" style="display:none;"></span>
-                            <div class="tx-pill"><span class="tx-dot"></span><span id="ysfSourceBadge" style="font-size:12px;font-weight:bold;white-space:nowrap;"></span></div>
+                            <div class="tx-pill"><span class="tx-dot"></span></div>
                         </div>
                         <div class="rsys-btns">
                             <button onclick="openYsfModal()" class="rsys-btn" title="Browse Reflectors">⤦</button>
@@ -3663,13 +3664,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             const labelEl = document.getElementById('sdrLabelBadge');
             if (!freqEl || !labelEl) return;
             if (_sdrActive && _sdrCurrentFreq) {
-                freqEl.textContent  = _sdrCurrentFreq;
-                labelEl.textContent = _sdrCurrentLabel || _sdrCurrentFreq;
+                freqEl.textContent  = _sdrCurrentLabel || _sdrCurrentFreq;
+                labelEl.textContent = _sdrCurrentFreq;
             } else if (_sdrHoldFreq) {
                 // Show held freq even when signal is inactive
                 const heldLabel = (_sdrLastChannelData.channels[_sdrHoldFreq] || {}).label || _sdrHoldFreq;
-                freqEl.textContent  = _sdrHoldFreq;
-                labelEl.textContent = heldLabel + ' 🔒';
+                freqEl.textContent  = heldLabel + ' 🔒';
+                labelEl.textContent = _sdrHoldFreq;
             } else {
                 freqEl.textContent  = 'SCANNING';
                 labelEl.textContent = '';
@@ -4043,7 +4044,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 refBadge.style.display  = (!offline && refBadge.textContent) ? '' : 'none';
             }
             const displaySrc = (d && d.active) ? (d.callsign || d.source || '') : '';
-            if (srcBadge) srcBadge.textContent = displaySrc;
+            if (srcBadge) { srcBadge.textContent = displaySrc; srcBadge.style.display = displaySrc ? '' : 'none'; }
             if (rxCount)  rxCount.textContent  = (d && d.rx_count) ? d.rx_count + ' RX' : '';
             if (pulse) {
                 const on = !!(d && d.active);
