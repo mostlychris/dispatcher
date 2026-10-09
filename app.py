@@ -1445,7 +1445,7 @@ HTML = '''
         .rsys-2l .rsys-sub {
             display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
             padding: 3px 10px 5px 70px;
-            border-top: 1px solid rgba(255,255,255,0.03);
+            border-top: none;
             font-size: 11px; color: #888; min-height: 0;
         }
         .rsys-sub-label { font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #555; flex-shrink: 0; }
@@ -2499,7 +2499,8 @@ HTML = '''
                         <div class="rsys-btns">
                             <button onclick="trSkip()"             class="rsys-btn rsys-btn-go"   title="Skip current call">⏭</button>
                             <button onclick="trPauseToggle()"      class="rsys-btn rsys-btn-go"   id="trPauseBtn" title="Pause/Resume">⏸</button>
-                            <button onclick="trAvoid()"            class="rsys-btn rsys-btn-warn" id="trAvoidBtn" title="Avoid this TG">⛔<span id="trAvoidBtnLabel"></span></button>
+                            <button onclick="trAvoid()"            class="rsys-btn rsys-btn-warn" id="trAvoidBtn" title="Avoid this TG">⛔</button>
+                            <span id="trAvoidBtnLabel" style="display:none;"></span>
                             <button onclick="openTrConsoleModal()" class="rsys-btn" title="TG Console">⊞</button>
                             <button onclick="openTrModal()"        class="rsys-btn" title="Call Log">☰</button>
                         </div>
@@ -2644,7 +2645,7 @@ HTML = '''
                             <div class="tx-pill"><span class="tx-dot"></span><span id="ysfSourceBadge" style="font-size:12px;font-weight:bold;white-space:nowrap;"></span></div>
                         </div>
                         <div class="rsys-btns">
-                            <button onclick="openYsfModal()" class="rsys-btn" title="Browse Reflectors">⤦ Refs</button>
+                            <button onclick="openYsfModal()" class="rsys-btn" title="Browse Reflectors">⤦</button>
                         </div>
                     </div>
                     <div class="rsys-sub">
