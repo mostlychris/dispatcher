@@ -2195,9 +2195,9 @@ HTML = '''
 
             /* Radio rows: main spans full width, buttons drop to sub line */
             .rsys-2l > .rsys-main  { grid-column: 1 / 3; flex-wrap: nowrap; }
-            .rsys-2l > .rsys-sub   { grid-column: 1; grid-row: 2; padding-left: 10px; padding-right: 4px; }
+            .rsys-2l > .rsys-sub   { grid-column: 1; grid-row: 2; padding-left: 12px; padding-right: 4px; }
             .rsys-2l > .rsys-btns  { grid-column: 2; grid-row: 2; align-self: center; }
-            .rsys-2l > .rsys-sub2  { padding-left: 10px; }
+            .rsys-2l > .rsys-sub2  { padding-left: 12px; }
         }
     </style>
 </head>
