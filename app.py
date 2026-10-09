@@ -1503,23 +1503,11 @@ HTML = '''
         /* AllStar RX reuses rx-active */
         .rsys-row.as-rx { background: rgba(20, 140, 60, 0.1); transition: background 0.3s; }
         .rsys-row.as-rx::before { background: #3cb860; }
-        /* Activity dot — first element in rsys-tuned, shown on any active state */
-        .rsys-act-dot {
-            display: none; width: 7px; height: 7px; border-radius: 50%;
-            flex-shrink: 0; align-self: center;
-        }
-        .rsys-row.rx-active .rsys-act-dot,
-        .rsys-row.as-rx     .rsys-act-dot {
-            display: inline-block; background: #3cb860;
-            box-shadow: 0 0 5px #3cb860; animation: txDotPulse 1s ease-in-out infinite;
-        }
-        .rsys-row.tr-active .rsys-act-dot {
-            display: inline-block; background: #5aabff;
-            box-shadow: 0 0 5px #5aabff; animation: txDotPulse 0.8s ease-in-out infinite;
-        }
+        /* Activity dot — hidden; activity now shown via audio dot pulsation */
+        .rsys-act-dot { display: none; }
         /* Audio enabled indicator dot */
         .rsys-audio-dot {
-            width: 7px; height: 7px; border-radius: 50%;
+            width: 9px; height: 9px; border-radius: 50%;
             background: #1a1200; border: 1px solid #443300;
             flex-shrink: 0;
             transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
@@ -1527,6 +1515,14 @@ HTML = '''
         .rsys-row.audio-on .rsys-audio-dot {
             background: #ffaa00; border-color: #ffaa00;
             box-shadow: 0 0 5px #ffaa00;
+        }
+        /* Pulsate when audio is on and a transmission is active */
+        .rsys-row.audio-on.rx-active .rsys-audio-dot,
+        .rsys-row.audio-on.as-rx     .rsys-audio-dot {
+            animation: txDotPulse 1s ease-in-out infinite;
+        }
+        .rsys-row.audio-on.tr-active .rsys-audio-dot {
+            animation: txDotPulse 0.8s ease-in-out infinite;
         }
         /* Rows are click targets for audio toggle */
         .rsys-row { cursor: pointer; }
