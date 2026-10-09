@@ -1463,13 +1463,16 @@ HTML = '''
         }
         .rsys-val-overflow.rsys-info-pill { min-width: 0; flex-shrink: 1; }
         /* Signal bar indicator (SDR sub line) */
-        .rsys-sigbars { display:inline-flex; align-items:flex-end; gap:2px; height:14px; flex-shrink:0; margin-right:6px; }
-        .rsys-sigbars .sbar { width:4px; border-radius:1px 1px 0 0; background:#252525; transition:background 0.15s; }
-        .rsys-sigbars .sbar:nth-child(1) { height:4px;  }
-        .rsys-sigbars .sbar:nth-child(2) { height:6px;  }
-        .rsys-sigbars .sbar:nth-child(3) { height:8px;  }
-        .rsys-sigbars .sbar:nth-child(4) { height:10px; }
-        .rsys-sigbars .sbar:nth-child(5) { height:12px; }
+        .rsys-sigbars { display:inline-flex; align-items:flex-end; gap:2px; height:16px; flex-shrink:0; margin-right:6px; }
+        .rsys-sigbars .sbar { width:6px; border-radius:1px 1px 0 0; background:#252525; transition:background 0.15s; }
+        .rsys-sigbars .sbar:nth-child(1) { height:3px;  }
+        .rsys-sigbars .sbar:nth-child(2) { height:5px;  }
+        .rsys-sigbars .sbar:nth-child(3) { height:7px;  }
+        .rsys-sigbars .sbar:nth-child(4) { height:9px;  }
+        .rsys-sigbars .sbar:nth-child(5) { height:11px; }
+        .rsys-sigbars .sbar:nth-child(6) { height:13px; }
+        .rsys-sigbars .sbar:nth-child(7) { height:15px; }
+        .rsys-sigbars .sbar:nth-child(8) { height:16px; }
         .rsys-sigbars .sbar.lit         { background:#3cb860; }
         /* Button color helpers */
         .rsys-btn-go   { border-color: #2a4a2a !important; color: #6a9a6a !important; }
@@ -2576,7 +2579,7 @@ HTML = '''
                         </div>
                     </div>
                     <div class="rsys-sub">
-                        <span id="sdrSignalBars" class="rsys-sigbars"><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span></span>
+                        <span id="sdrSignalBars" class="rsys-sigbars"><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span></span>
                         <span id="sdrLabelBadge" class="rsys-meta rsys-val-overflow"></span>
                     </div>
                 </div>
@@ -3681,7 +3684,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function _sdrSetSignalBars(db) {
             const bars = document.querySelectorAll('#sdrSignalBars .sbar');
-            const level = db == null ? 0 : Math.max(0, Math.min(5, Math.ceil((db + 35) / 7)));
+            const level = db == null ? 0 : Math.max(0, Math.min(8, Math.ceil((db + 40) / 5)));
             bars.forEach((bar, i) => bar.classList.toggle('lit', i < level));
         }
 
