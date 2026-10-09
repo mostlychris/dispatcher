@@ -2382,7 +2382,7 @@ HTML = '''
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
-                            <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
+                            <span class="conn-badge conn-offline" id="asStateBadge" style="display:none;"></span>
                             <span id="asDirectLinkBadge" class="rsys-info-pill" style="display:none;"><span id="asDirectLinkNode"></span></span>
                         </div>
                         <div class="rsys-pills">
@@ -5234,18 +5234,18 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const nodeEl = document.getElementById('asNodeBadge');
                 const dot    = document.getElementById('asRxDot');
                 const sMap = {
-                    idle:       ['OFFLINE',    'conn-offline'],
-                    connecting: ['CONNECTING', 'conn-starting'],
-                    connected:  ['CONNECTED',  'conn-idle'],
-                    error:      ['ERROR',      'conn-offline'],
+                    idle:       ['',              'conn-offline',  false],
+                    connecting: ['CONNECTING...', 'conn-starting', true],
+                    connected:  ['',              'conn-idle',     false],
+                    error:      ['NOT CONNECTED', 'conn-offline',  true],
                 };
-                const [label, cls] = sMap[d.state] || ['--', 'conn-offline'];
-                if (d.state === 'connected' && d.active) {
-                    badge.textContent = 'RX';
-                    badge.className   = 'conn-badge conn-active';
+                const [label, cls, show] = sMap[d.state] || ['NOT CONNECTED', 'conn-offline', true];
+                if (show || d.error) {
+                    badge.textContent  = d.error || label;
+                    badge.className    = 'conn-badge ' + cls;
+                    badge.style.display = '';
                 } else {
-                    badge.textContent = d.error || label;
-                    badge.className   = 'conn-badge ' + cls;
+                    badge.style.display = 'none';
                 }
                 if (dot) dot.className = 'rx-dot' + (d.active ? ' lit' : '');
                 nodeEl.textContent = d.node || '--';
