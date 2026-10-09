@@ -1502,15 +1502,15 @@ HTML = '''
         }
         /* Audio enabled indicator dot */
         .rsys-audio-dot {
-            width: 7px; height: 7px; border-radius: 50%;
-            background: #1c1c1c; border: 1px solid #2a2a2a;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #2a1f00; border: 1px solid #6b4f00;
             flex-shrink: 0; align-self: center;
             transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
             margin-right: 10px;
         }
         .rsys-row.audio-on .rsys-audio-dot {
-            background: #3cb860; border-color: #3cb860;
-            box-shadow: 0 0 5px #3cb860;
+            background: #ffaa00; border-color: #ffaa00;
+            box-shadow: 0 0 6px #ffaa00;
         }
         /* Rows are click targets for audio toggle */
         .rsys-row { cursor: pointer; }
