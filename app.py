@@ -1462,6 +1462,15 @@ HTML = '''
             letter-spacing: 0.3px; white-space: nowrap; flex-shrink: 0;
         }
         .rsys-val-overflow.rsys-info-pill { min-width: 0; flex-shrink: 1; }
+        /* Signal bar indicator (SDR sub line) */
+        .rsys-sigbars { display:inline-flex; align-items:flex-end; gap:2px; height:14px; flex-shrink:0; margin-right:6px; }
+        .rsys-sigbars .sbar { width:4px; border-radius:1px 1px 0 0; background:#252525; transition:background 0.15s; }
+        .rsys-sigbars .sbar:nth-child(1) { height:4px;  }
+        .rsys-sigbars .sbar:nth-child(2) { height:6px;  }
+        .rsys-sigbars .sbar:nth-child(3) { height:8px;  }
+        .rsys-sigbars .sbar:nth-child(4) { height:10px; }
+        .rsys-sigbars .sbar:nth-child(5) { height:12px; }
+        .rsys-sigbars .sbar.lit         { background:#3cb860; }
         /* Button color helpers */
         .rsys-btn-go   { border-color: #2a4a2a !important; color: #6a9a6a !important; }
         .rsys-btn-warn { border-color: #442222 !important; color: #aa6666 !important; }
@@ -2557,9 +2566,7 @@ HTML = '''
                             <span id="sdrFreqBadge" class="rsys-info-pill">--</span>
                             <span id="sdrHoldBadge" style="display:none;font-size:9px;font-weight:bold;background:#003a00;border:1px solid #00aa00;color:#4f4;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">HOLD</span>
                         </div>
-                        <div class="rsys-pills">
-                            <div class="tx-pill"><span id="sdrDbBadge" style="font-size:10px;"></span></div>
-                        </div>
+                        <div class="rsys-pills"></div>
                         <div class="rsys-btns">
                             <button onclick="sdrSkip()"          class="rsys-btn rsys-btn-go" title="Next frequency">⏭</button>
                             <button onclick="sdrBarSkipToggle()" class="rsys-btn" id="sdrSkipBtn" title="Skip/unskip frequency">⊘</button>
@@ -2569,7 +2576,8 @@ HTML = '''
                         </div>
                     </div>
                     <div class="rsys-sub">
-                        <span id="sdrLabelBadge" class="rsys-meta rsys-val-overflow">--</span>
+                        <span id="sdrSignalBars" class="rsys-sigbars"><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span></span>
+                        <span id="sdrLabelBadge" class="rsys-meta rsys-val-overflow"></span>
                     </div>
                 </div>
 
@@ -3142,7 +3150,7 @@ HTML = '''
                     if (_sdrClearTimer)    { clearTimeout(_sdrClearTimer);    _sdrClearTimer    = null; }
                     _sdrActive = false;
                     document.getElementById('sdrSection').classList.remove('rx-active');
-                    document.getElementById('sdrDbBadge').textContent = '';
+                    _sdrSetSignalBars(null);
                     _updateSdrDisplay();
                     _updateSdrAudioBtn();
                 } else if (data.event === 'sdr_audio_stats') {
@@ -3671,6 +3679,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (raw < 30000) _sdrLagMs = raw;
         }, 200);
 
+        function _sdrSetSignalBars(db) {
+            const bars = document.querySelectorAll('#sdrSignalBars .sbar');
+            const level = db == null ? 0 : Math.max(0, Math.min(5, Math.ceil((db + 35) / 7)));
+            bars.forEach((bar, i) => bar.classList.toggle('lit', i < level));
+        }
+
         function _updateSdrDisplay() {
             const freqEl  = document.getElementById('sdrFreqBadge');
             const labelEl = document.getElementById('sdrLabelBadge');
@@ -3812,7 +3826,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _sdrCurrentLabel = connected ? (d.label || null) : null;
             _sdrActive       = connected ? !!d.active : false;
             _sdrHoldFreq     = connected ? (d.holdFreq || null) : null;
-            document.getElementById('sdrDbBadge').textContent = '';
+            _sdrSetSignalBars(null);
             document.getElementById('sdrSection').classList.toggle('rx-active', _sdrActive);
             _updateSdrDisplay();
             const holdBadge = document.getElementById('sdrHoldBadge');
@@ -3833,7 +3847,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (_sdrActivateTimer) { clearTimeout(_sdrActivateTimer); _sdrActivateTimer = null; }
             if (_sdrClearTimer)    { clearTimeout(_sdrClearTimer);    _sdrClearTimer    = null; }
             _sdrActive = false;
-            document.getElementById('sdrDbBadge').textContent = '';
+            _sdrSetSignalBars(null);
             document.getElementById('sdrSection').classList.remove('rx-active');
             _updateSdrDisplay();
             _updateSdrAudioBtn();
@@ -3846,7 +3860,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 if (_sdrClearTimer) { clearTimeout(_sdrClearTimer); _sdrClearTimer = null; }
                 if (_sdrActive) {
                     // Already displayed — just update dB live
-                    document.getElementById('sdrDbBadge').textContent = db != null ? db + ' dB' : '';
+                    _sdrSetSignalBars(db);
                     return;
                 }
                 // First active signal — delay display by lag captured at freq_change
@@ -3856,7 +3870,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                         _sdrActivateTimer = null;
                         _sdrActive = true;
                         document.getElementById('sdrSection').classList.add('rx-active');
-                        document.getElementById('sdrDbBadge').textContent = db != null ? db + ' dB' : '';
+                        _sdrSetSignalBars(db);
                         _updateSdrDisplay();
                         _updateSdrAudioBtn();
                     }, lag);
@@ -3871,7 +3885,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     _sdrClearTimer = null;
                     _sdrActive = false;
                     document.getElementById('sdrSection').classList.remove('rx-active');
-                    document.getElementById('sdrDbBadge').textContent = '';
+                    _sdrSetSignalBars(null);
                     _updateSdrDisplay();
                     _updateSdrAudioBtn();
                 }, lag);
