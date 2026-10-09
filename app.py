@@ -1474,6 +1474,20 @@ HTML = '''
         /* AllStar RX reuses rx-active */
         .rsys-row.as-rx { background: rgba(20, 140, 60, 0.1); transition: background 0.3s; }
         .rsys-row.as-rx::before { background: #3cb860; }
+        /* Activity dot — first element in rsys-tuned, shown on any active state */
+        .rsys-act-dot {
+            display: none; width: 7px; height: 7px; border-radius: 50%;
+            flex-shrink: 0; align-self: center;
+        }
+        .rsys-row.rx-active .rsys-act-dot,
+        .rsys-row.as-rx     .rsys-act-dot {
+            display: inline-block; background: #3cb860;
+            box-shadow: 0 0 5px #3cb860; animation: txDotPulse 1s ease-in-out infinite;
+        }
+        .rsys-row.tr-active .rsys-act-dot {
+            display: inline-block; background: #5aabff;
+            box-shadow: 0 0 5px #5aabff; animation: txDotPulse 0.8s ease-in-out infinite;
+        }
 
         .rsys-proto {
             flex-shrink: 0;
@@ -2322,10 +2336,11 @@ HTML = '''
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
+                            <span class="rsys-act-dot"></span>
                             <div class="rsys-info-pill" id="dmrInfoPill">
                                 <span class="mode-badge badge-unknown" id="modeValue">--</span>
                                 <span id="tgValue"></span>
-                                <span id="tgValueName" style="font-size:10px;color:#5a8ab0;font-weight:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;"></span>
+                                <span id="tgValueName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;"></span>
                             </div>
                         </div>
                         <div class="rsys-pills">
@@ -2382,6 +2397,7 @@ HTML = '''
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
+                            <span class="rsys-act-dot"></span>
                             <span class="conn-badge conn-offline" id="asStateBadge" style="display:none;"></span>
                             <span id="asDirectLinkBadge" class="rsys-info-pill" style="display:none;"><span id="asDirectLinkNode"></span></span>
                         </div>
@@ -2501,6 +2517,7 @@ HTML = '''
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
+                            <span class="rsys-act-dot"></span>
                             <span id="trTgBadge" class="rsys-info-pill rsys-val-overflow">--</span>
                         </div>
                         <div class="rsys-pills">
@@ -2539,6 +2556,7 @@ HTML = '''
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
+                            <span class="rsys-act-dot"></span>
                             <span id="sdrOfflineBadge" style="font-size:9px;font-weight:bold;background:#2a0000;border:1px solid #660000;color:#f88;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">OFFLINE</span>
                             <span id="sdrFreqBadge" class="rsys-info-pill">--</span>
                             <span id="sdrHoldBadge" style="display:none;font-size:9px;font-weight:bold;background:#003a00;border:1px solid #00aa00;color:#4f4;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">HOLD</span>
@@ -2647,6 +2665,7 @@ HTML = '''
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
+                            <span class="rsys-act-dot"></span>
                             <span id="ysfOfflineBadge" style="font-size:9px;font-weight:bold;background:#2a0000;border:1px solid #660000;color:#f88;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">OFFLINE</span>
                             <span id="ysfGwStateBadge" style="display:none;font-size:9px;font-weight:bold;background:#2a2000;border:1px solid #665500;color:#fc8;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">GW STANDBY</span>
                             <span id="ysfReflectorBadge" class="rsys-info-pill" style="display:none;"></span>
