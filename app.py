@@ -1502,15 +1502,14 @@ HTML = '''
         }
         /* Audio enabled indicator dot */
         .rsys-audio-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: #2a1f00; border: 1px solid #6b4f00;
-            flex-shrink: 0; align-self: center;
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #2a1010; border: 1px solid #551010;
+            flex-shrink: 0;
             transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
-            margin-right: 10px;
         }
         .rsys-row.audio-on .rsys-audio-dot {
-            background: #ffaa00; border-color: #ffaa00;
-            box-shadow: 0 0 6px #ffaa00;
+            background: #ff3333; border-color: #ff3333;
+            box-shadow: 0 0 5px #ff3333;
         }
         /* Rows are click targets for audio toggle */
         .rsys-row { cursor: pointer; }
@@ -1525,8 +1524,8 @@ HTML = '''
             padding: 0 8px 0 12px;
             display: flex;
             flex-direction: column;
-            align-items: flex-start;
-            gap: 1px;
+            align-items: center;
+            gap: 3px;
         }
         .rsys-proto-icon { font-size: 10px; opacity: 0.45; line-height: 1; }
         .rsys-proto-name {
@@ -2350,6 +2349,7 @@ HTML = '''
                         <div class="rsys-proto">
                             <span class="rsys-proto-icon">🎙</span>
                             <span class="rsys-proto-name">DMR</span>
+                            <span class="rsys-audio-dot" title="Audio"></span>
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
@@ -2367,7 +2367,6 @@ HTML = '''
                             <button onclick="openQuickTuneModal()" class="rsys-btn" title="Quick Tune">★</button>
                             <button onclick="openDmrModal()"       class="rsys-btn" title="DMR Controls">⚙</button>
                         </div>
-                        <span class="rsys-audio-dot" title="Audio"></span>
                     </div>
                     <div class="rsys-sub">
                         <span id="dmrActualBadge" style="display:none;font-size:9px;font-weight:bold;background:#2a1000;border:1px solid #884400;color:#faa;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;white-space:nowrap;"></span>
@@ -2411,6 +2410,7 @@ HTML = '''
                         <div class="rsys-proto">
                             <span class="rsys-proto-icon">⚡</span>
                             <span class="rsys-proto-name">AllStar</span>
+                            <span class="rsys-audio-dot" title="Audio"></span>
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
@@ -2425,7 +2425,6 @@ HTML = '''
                             <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
                             <button onclick="openAsModal()"          class="rsys-btn" title="Allstar Controls">⚙</button>
                         </div>
-                        <span class="rsys-audio-dot" title="Audio"></span>
                     </div>
                     <div class="rsys-sub">
                         <span class="rsys-sub-label">Nodes</span>
@@ -2531,6 +2530,7 @@ HTML = '''
                         <div class="rsys-proto">
                             <span class="rsys-proto-icon">📻</span>
                             <span class="rsys-proto-name">Trunk</span>
+                            <span class="rsys-audio-dot" title="Audio"></span>
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
@@ -2547,7 +2547,6 @@ HTML = '''
                             <button onclick="openTrConsoleModal()" class="rsys-btn" title="TG Console">⊞</button>
                             <button onclick="openTrModal()"        class="rsys-btn" title="Call Log">☰</button>
                         </div>
-                        <span class="rsys-audio-dot" title="Audio"></span>
                     </div>
                     <div class="rsys-sub">
                         <span id="trSystemBadge" class="rsys-meta" style="margin-right:6px;">--</span>
@@ -2569,6 +2568,7 @@ HTML = '''
                         <div class="rsys-proto">
                             <span class="rsys-proto-icon">📡</span>
                             <span class="rsys-proto-name">SDR</span>
+                            <span class="rsys-audio-dot" title="Audio"></span>
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
@@ -2585,7 +2585,6 @@ HTML = '''
                             <button id="sdrBarEditBtn" onclick="sdrBarEditCurrent()" class="rsys-btn" title="Edit current channel" style="display:none;">✎</button>
                             <button onclick="openSdrModal()"     class="rsys-btn" title="SDR Channels">⊞</button>
                         </div>
-                        <span class="rsys-audio-dot" title="Audio"></span>
                     </div>
                     <div class="rsys-sub">
                         <span id="sdrSignalBars" class="rsys-sigbars"><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span></span>
@@ -2677,6 +2676,7 @@ HTML = '''
                         <div class="rsys-proto">
                             <span class="rsys-proto-icon">🎙</span>
                             <span class="rsys-proto-name">YSF</span>
+                            <span class="rsys-audio-dot" title="Audio"></span>
                         </div>
                         <div class="col-sep"></div>
                         <div class="rsys-tuned">
@@ -2691,7 +2691,6 @@ HTML = '''
                         <div class="rsys-btns" onclick="event.stopPropagation()">
                             <button onclick="openYsfModal()" class="rsys-btn" title="Browse Reflectors">⤦</button>
                         </div>
-                        <span class="rsys-audio-dot" title="Audio"></span>
                     </div>
                     <div class="rsys-sub">
                         <span id="ysfRxCount" class="rsys-meta"></span>
