@@ -1520,13 +1520,13 @@ HTML = '''
         /* Audio enabled indicator dot */
         .rsys-audio-dot {
             width: 7px; height: 7px; border-radius: 50%;
-            background: #2a1010; border: 1px solid #551010;
+            background: #1a1200; border: 1px solid #443300;
             flex-shrink: 0;
             transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
         }
         .rsys-row.audio-on .rsys-audio-dot {
-            background: #ff3333; border-color: #ff3333;
-            box-shadow: 0 0 5px #ff3333;
+            background: #ffaa00; border-color: #ffaa00;
+            box-shadow: 0 0 5px #ffaa00;
         }
         /* Rows are click targets for audio toggle */
         .rsys-row { cursor: pointer; }
