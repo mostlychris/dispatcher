@@ -5551,6 +5551,7 @@ registerProcessor('mic-decimator', MicDecimator);
             const sv = parseInt(localStorage.getItem('trVolume') ?? '100');
             setTrVolume(sv);
             _trNormEnabled = localStorage.getItem('trNormEnabled') !== 'false';
+            _updateTrNormBtn();
         })();
 
         function saveTrPrefs() {
