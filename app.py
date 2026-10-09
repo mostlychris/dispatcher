@@ -1410,11 +1410,145 @@ HTML = '''
             background: rgba(4, 25, 184, 0.5);
             border-color: rgba(4, 25, 184, 0.8);
         }
-        .collapse-panel.rx-active > .collapse-header {
-            background: transparent;
-        }
+        .collapse-panel.rx-active > .collapse-header { background: transparent; }
         .conn-rx       { background: #0d2a0d; color: lime; box-shadow: 0 0 5px lime; animation: pulse 1s infinite; }
         .collapse-panel.as-rx { transition: background 0.3s, border-color 0.3s; }
+
+        /* ---- UNIFIED RADIO SYSTEMS PANEL ---- */
+        .rsys-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-panel);
+            border-radius: var(--radius-panel);
+            box-shadow: var(--panel-shadow);
+            overflow: hidden;
+        }
+        .rsys-row {
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            min-height: 42px;
+            cursor: default;
+            transition: background 0.25s;
+            position: relative;
+        }
+        .rsys-row:last-child { border-bottom: none; }
+        .rsys-row::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0; width: 3px;
+            background: transparent;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        /* green = voice RX (DMR/AS/YSF/SDR) */
+        .rsys-row.rx-active { background: rgba(20, 140, 60, 0.1); }
+        .rsys-row.rx-active::before { background: #3cb860; box-shadow: 0 0 8px rgba(60,200,80,0.4); }
+        /* blue = trunk audio playback */
+        .rsys-row.tr-active { background: rgba(20, 80, 200, 0.12); }
+        .rsys-row.tr-active::before { background: #5aabff; box-shadow: 0 0 8px rgba(60,130,255,0.4); }
+        /* AllStar RX reuses rx-active */
+        .rsys-row.as-rx { background: rgba(20, 140, 60, 0.1); transition: background 0.3s; }
+        .rsys-row.as-rx::before { background: #3cb860; }
+
+        .rsys-proto {
+            flex-shrink: 0;
+            width: 58px;
+            padding: 0 8px 0 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1px;
+        }
+        .rsys-proto-icon { font-size: 10px; opacity: 0.45; line-height: 1; }
+        .rsys-proto-name {
+            font-size: 8px; font-weight: 700;
+            letter-spacing: 1.5px; text-transform: uppercase;
+            color: var(--text-secondary); opacity: 0.7;
+            line-height: 1;
+        }
+        .col-sep {
+            width: 1px; align-self: stretch;
+            background: rgba(255,255,255,0.05); flex-shrink: 0;
+        }
+        .rsys-tuned {
+            flex: 1; min-width: 0;
+            display: flex; align-items: center; gap: 6px;
+            padding: 0 10px; overflow: hidden;
+        }
+        .rsys-pills {
+            display: flex; align-items: center; gap: 4px;
+            padding: 0; flex-shrink: 0;
+            max-width: 0; overflow: hidden; opacity: 0;
+            transition: max-width 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+        }
+        .rsys-row.rx-active .rsys-pills,
+        .rsys-row.as-rx    .rsys-pills,
+        .rsys-row.tr-active .rsys-pills { max-width: 240px; opacity: 1; padding: 0 6px; }
+        .tx-pill {
+            display: flex; align-items: center; gap: 4px;
+            padding: 2px 7px 2px 5px; border-radius: 10px;
+            font-size: 11px; font-weight: 600; white-space: nowrap;
+            animation: pillIn 0.2s ease forwards;
+        }
+        @keyframes pillIn {
+            from { transform: scale(0.85); opacity: 0; }
+            to   { transform: scale(1);    opacity: 1; }
+        }
+        .rsys-row.rx-active .tx-pill,
+        .rsys-row.as-rx     .tx-pill {
+            background: rgba(30,160,80,0.14);
+            border: 1px solid rgba(30,200,90,0.35);
+            color: #3dd870;
+        }
+        .rsys-row.tr-active .tx-pill {
+            background: rgba(30,90,200,0.15);
+            border: 1px solid rgba(60,130,255,0.35);
+            color: #5aabff;
+        }
+        .tx-dot {
+            display: inline-block; width: 6px; height: 6px;
+            border-radius: 50%; flex-shrink: 0;
+        }
+        .rsys-row.rx-active .tx-dot,
+        .rsys-row.as-rx     .tx-dot { background: #3cb860; box-shadow: 0 0 5px #3cb860; animation: txDotPulse 1s ease-in-out infinite; }
+        .rsys-row.tr-active .tx-dot { background: #5aabff; box-shadow: 0 0 5px #5aabff; animation: txDotPulse 0.8s ease-in-out infinite; }
+        @keyframes txDotPulse {
+            0%,100% { opacity:1; } 50% { opacity:0.3; }
+        }
+        .tx-pill-detail { font-size: 10px; opacity: 0.7; }
+        .rsys-btns {
+            display: flex; gap: 3px; padding: 0 8px; flex-shrink: 0;
+        }
+        .rsys-btn {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--text-secondary);
+            border-radius: 4px; padding: 2px 7px;
+            font-size: 10px; cursor: pointer; white-space: nowrap;
+            line-height: 1.5;
+        }
+        .rsys-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--text-primary); }
+        /* net badges inside rsys rows */
+        .rsys-net {
+            font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+            padding: 1px 5px; border-radius: 3px; flex-shrink: 0;
+            border: 1px solid transparent;
+        }
+        .rsys-net-bm   { background:#1a3a5a; color:#5ab0f0; border-color:#1a4a80; }
+        .rsys-net-tgif { background:#1a2a4a; color:#7090d0; border-color:#1a3060; }
+        .rsys-net-p25  { background:#1a2a1a; color:#5ab070; border-color:#1a4a20; }
+        .rsys-net-sdr  { background:#1a1a2a; color:#7070c0; border-color:#2a2a50; }
+        .rsys-net-c4fm { background:#2a1a2a; color:#c070c0; border-color:#4a1a4a; }
+        .rsys-net-on   { background:#0a2a0a; color:#4fd080; border-color:#1a5a20; }
+        .rsys-net-off  { background:#1a0a0a; color:#884444; border-color:#3a1a1a; font-style:italic; }
+        .rsys-primary {
+            font-size: 13px; font-weight: 700;
+            color: var(--text-primary); white-space: nowrap; flex-shrink: 0;
+        }
+        .rsys-label {
+            font-size: 12px; color: var(--text-secondary);
+            white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis; min-width: 0; flex-shrink: 1;
+        }
         .status-strip { display:flex; align-items:center; gap:14px; padding:6px 12px; background:#1a1a1a; flex-wrap:wrap; }
         .strip-label { font-size:9px; color:#888; letter-spacing:1px; text-transform:uppercase; flex-shrink:0; }
         .strip-item { display:flex; align-items:center; gap:4px; font-size:10px; color:#bbb; }
@@ -2150,34 +2284,29 @@ HTML = '''
             <div class="panels">
 
 
-                <!-- DMR STATUS BAR -->
-                <div class="collapse-panel" id="dmrSection">
-                    <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
-                        <!-- Row 1: title + buttons -->
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <h3 style="margin:0;">&#128251; DMR</h3>
-                            <span class="tx-pulse" id="txPulse"></span>
-                            <span id="dmrActiveCall" style="color:orange;font-size:13px;font-weight:bold;letter-spacing:1px;"></span>
-                            <span style="margin-left:auto;display:flex;gap:5px;">
-                                <button onclick="openQuickTuneModal()"
-                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                               padding:2px 7px;font-size:13px;cursor:pointer;"
-                                        title="Quick Tune">&#9733;</button>
-                                <button onclick="openDmrModal()"
-                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                               padding:2px 7px;font-size:13px;cursor:pointer;"
-                                        title="DMR Controls">&#9881;</button>
-                            </span>
-                        </div>
-                        <!-- Row 2: connection info -->
-                        <div style="display:flex;align-items:center;gap:6px;padding-top:5px;border-top:1px solid #222;">
-                            <span class="mode-badge badge-unknown" id="modeValue">--</span>
-                            <span id="tgValue" style="color:lightgreen;font-size:13px;font-weight:bold;"></span>
-                            <span id="tgValueName" style="color:#6c6;font-size:11px;"></span>
-                            <span id="dmrActualBadge" style="display:none;margin-left:auto;font-size:9px;font-weight:bold;
-                                  background:#2a1000;border:1px solid #884400;color:#faa;
-                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;white-space:nowrap;"></span>
-                        </div>
+                <!-- UNIFIED RADIO SYSTEMS PANEL -->
+                <div class="rsys-panel">
+
+                <!-- DMR -->
+                <div class="rsys-row" id="dmrSection">
+                    <div class="rsys-proto">
+                        <span class="rsys-proto-icon">🎙</span>
+                        <span class="rsys-proto-name">DMR</span>
+                    </div>
+                    <div class="col-sep"></div>
+                    <div class="rsys-tuned">
+                        <span class="mode-badge badge-unknown" id="modeValue">--</span>
+                        <span id="tgValue" style="color:lightgreen;font-size:13px;font-weight:bold;white-space:nowrap;flex-shrink:0;"></span>
+                        <span id="tgValueName" style="color:#6c6;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;"></span>
+                        <span id="dmrActualBadge" style="display:none;font-size:9px;font-weight:bold;background:#2a1000;border:1px solid #884400;color:#faa;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;white-space:nowrap;flex-shrink:0;margin-left:auto;"></span>
+                    </div>
+                    <div class="rsys-pills">
+                        <span class="tx-pulse" id="txPulse" style="display:none;"></span>
+                        <div class="tx-pill"><span class="tx-dot"></span><span id="dmrActiveCall" style="font-size:12px;font-weight:bold;letter-spacing:1px;"></span></div>
+                    </div>
+                    <div class="rsys-btns">
+                        <button onclick="openQuickTuneModal()" class="rsys-btn" title="Quick Tune">★</button>
+                        <button onclick="openDmrModal()"       class="rsys-btn" title="DMR Controls">⚙</button>
                     </div>
                 </div>
 
@@ -2212,32 +2341,24 @@ HTML = '''
                     </div>
                 </div>
 
-                <!-- ALLSTAR STATUS BAR -->
-                <div class="collapse-panel" id="asSidebarSection">
-                    <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
-                        <!-- Row 1: title + pulse + node (active call) + buttons -->
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <h3 style="flex-shrink:0;margin:0;">&#9889; ALLSTAR</h3>
-                            <span class="rx-dot" id="asRxDot" title="RX activity"></span>
-                            <span id="asNodeBadge" style="color:#fff;font-size:16px;font-weight:bold;
-                                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;
-                                  letter-spacing:0.3px;">--</span>
-                            <span style="margin-left:auto;display:flex;gap:5px;flex-shrink:0;">
-                                <button onclick="openAsQuickTuneModal()"
-                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                               padding:2px 7px;font-size:13px;cursor:pointer;"
-                                        title="Allstar Favorites">&#9733;</button>
-                                <button onclick="openAsModal()"
-                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;
-                                               padding:2px 7px;font-size:13px;cursor:pointer;"
-                                        title="Allstar Controls">&#9881;</button>
-                            </span>
-                        </div>
-                        <!-- Row 2: connection info -->
-                        <div style="display:flex;align-items:center;gap:6px;padding-top:5px;border-top:1px solid #222;">
-                            <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
-                            <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:13px;font-weight:bold;">&#8594; <span id="asDirectLinkNode"></span></span>
-                        </div>
+                <!-- ALLSTAR -->
+                <div class="rsys-row" id="asSidebarSection">
+                    <div class="rsys-proto">
+                        <span class="rsys-proto-icon">⚡</span>
+                        <span class="rsys-proto-name">AllStar</span>
+                    </div>
+                    <div class="col-sep"></div>
+                    <div class="rsys-tuned">
+                        <span class="conn-badge conn-offline" id="asStateBadge">OFFLINE</span>
+                        <span id="asDirectLinkBadge" style="display:none;color:#4fc3f7;font-size:13px;font-weight:bold;white-space:nowrap;">&#8594; <span id="asDirectLinkNode"></span></span>
+                    </div>
+                    <div class="rsys-pills">
+                        <span class="rx-dot" id="asRxDot" style="display:none;" title="RX activity"></span>
+                        <div class="tx-pill"><span class="tx-dot"></span><span id="asNodeBadge" style="font-size:12px;font-weight:bold;letter-spacing:0.3px;"></span></div>
+                    </div>
+                    <div class="rsys-btns">
+                        <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
+                        <button onclick="openAsModal()"          class="rsys-btn" title="Allstar Controls">⚙</button>
                     </div>
                 </div>
 
@@ -2333,123 +2454,60 @@ HTML = '''
                     </div>
                 </div>
 
-                <!-- TRUNK RX STATUS BAR -->
-                <div class="collapse-panel" id="trSection">
-                    <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
-                        <!-- Row 1: title + buttons right-aligned -->
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <h3 style="flex-shrink:0;margin:0;">&#128250; TRUNK RX</h3>
-                            <span style="margin-left:auto;display:flex;gap:3px;flex-shrink:0;align-items:center;">
-                                <!-- Playback group -->
-                                <button onclick="trSkip()" title="Skip current call"
-                                        style="background:#111;border:1px solid #2a4a2a;color:#6a9a6a;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;">⏭<span class="btn-label"> Skip</span></button>
-                                <button onclick="trReplay()" id="trReplayBtn"
-                                        style="background:#111;border:1px solid #2a4a2a;color:#6a9a6a;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;"
-                                        title="Replay last call">↩<span class="btn-label"> Replay</span></button>
-                                <button onclick="trPauseToggle()" id="trPauseBtn"
-                                        style="background:#111;border:1px solid #2a4a2a;color:#6a9a6a;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;"
-                                        title="Pause / Resume">⏸<span class="btn-label"> Pause</span></button>
-                                <!-- Divider -->
-                                <span style="width:1px;height:14px;background:#333;margin:0 2px;"></span>
-                                <!-- Lock group -->
-                                <button onclick="trLockSysToggle()" id="trLockSysBtn"
-                                        style="background:#1a1a1a;border:1px solid #1a2a3a;color:#4a7a9a;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;"
-                                        title="Lock to current system">📡<span class="btn-label"> Sys</span></button>
-                                <button onclick="trLockTgToggle()" id="trLockTgBtn"
-                                        style="background:#1a1a1a;border:1px solid #1a2a3a;color:#4a7a9a;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;"
-                                        title="Lock to current talkgroup">#<span class="btn-label"> TG</span></button>
-                                <!-- Divider -->
-                                <span style="width:1px;height:14px;background:#333;margin:0 2px;"></span>
-                                <!-- Destructive -->
-                                <button onclick="trAvoid()" id="trAvoidBtn" title="Avoid this talkgroup (cycles: indefinite→30m→60m→off)"
-                                        style="background:#1a1010;border:1px solid #442222;color:#aa6666;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;">&#128683;<span class="btn-label" id="trAvoidBtnLabel"> Avoid</span></button>
-                                <!-- Divider -->
-                                <span style="width:1px;height:14px;background:#333;margin:0 2px;"></span>
-                                <!-- View group -->
-                                <button onclick="openTrConsoleModal()"
-                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;"
-                                        title="Talkgroup Console">&#9783;<span class="btn-label"> TG Console</span></button>
-                                <button onclick="openTrModal()"
-                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;"
-                                        title="Call Log">&#9776;<span class="btn-label"> Call Log</span></button>
-                            </span>
-                        </div>
-                        <!-- Row 2: pulse · avoid timer · TG name · badges · system -->
-                        <div style="display:flex;align-items:center;gap:6px;min-width:0;padding-top:5px;border-top:1px solid #222;">
-                            <span class="tx-pulse" id="trPulse"></span>
-                            <span id="trAvoidTimer" style="display:none;font-size:10px;color:#cc6666;font-weight:bold;white-space:nowrap;flex-shrink:0;"></span>
-                            <span id="trTgBadge" style="font-size:16px;color:#fff;font-weight:bold;
-                                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;
-                                  letter-spacing:0.3px;">--</span>
-                            <span id="trLockedBadge" style="display:none;font-size:9px;font-weight:bold;
-                                  background:#001a2a;border:1px solid #004488;color:#4af;
-                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;"></span>
-                            <span id="trLockedTgBadge" style="display:none;font-size:9px;font-weight:bold;
-                                  background:#001a2a;border:1px solid #004488;color:#4af;
-                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;"></span>
-                            <span id="trPausedBadge" style="display:none;font-size:9px;font-weight:bold;
-                                  background:#3a2a00;border:1px solid #886600;color:#ffcc44;
-                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">PAUSED</span>
-                            <span id="trQueueCount" style="display:none;font-size:9px;font-weight:bold;
-                                  background:#1a1a2a;border:1px solid #446;color:#88aaff;
-                                  border-radius:3px;padding:1px 5px;flex-shrink:0;"></span>
-                            <span id="trSkippedBadge" style="display:none;font-size:9px;font-weight:bold;
-                                  background:#1a1a1a;border:1px solid #666;color:#aaa;
-                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">SKIPPED</span>
-                            <span id="trTimeBadge" style="font-size:10px;color:#666;flex-shrink:0;"></span>
-                            <span id="trSystemBadge" style="font-size:10px;color:#888;font-weight:bold;
-                                  letter-spacing:0.5px;flex-shrink:0;text-align:right;">--</span>
-                        </div>
+                <!-- TRUNK RX -->
+                <div class="rsys-row" id="trSection">
+                    <div class="rsys-proto">
+                        <span class="rsys-proto-icon">📻</span>
+                        <span class="rsys-proto-name">Trunk</span>
+                    </div>
+                    <div class="col-sep"></div>
+                    <div class="rsys-tuned">
+                        <span id="trAvoidTimer" style="display:none;font-size:10px;color:#cc6666;font-weight:bold;white-space:nowrap;flex-shrink:0;"></span>
+                        <span id="trTgBadge" style="font-size:13px;color:#fff;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;letter-spacing:0.3px;">--</span>
+                        <span id="trLockedBadge"   style="display:none;font-size:9px;font-weight:bold;background:#001a2a;border:1px solid #004488;color:#4af;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;"></span>
+                        <span id="trLockedTgBadge" style="display:none;font-size:9px;font-weight:bold;background:#001a2a;border:1px solid #004488;color:#4af;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;"></span>
+                        <span id="trPausedBadge"   style="display:none;font-size:9px;font-weight:bold;background:#3a2a00;border:1px solid #886600;color:#ffcc44;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">PAUSED</span>
+                        <span id="trQueueCount"    style="display:none;font-size:9px;font-weight:bold;background:#1a1a2a;border:1px solid #446;color:#88aaff;border-radius:3px;padding:1px 5px;flex-shrink:0;"></span>
+                        <span id="trSkippedBadge"  style="display:none;font-size:9px;font-weight:bold;background:#1a1a1a;border:1px solid #666;color:#aaa;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">SKIPPED</span>
+                        <span id="trSystemBadge"   style="font-size:10px;color:#888;font-weight:bold;letter-spacing:0.5px;flex-shrink:0;text-align:right;margin-left:auto;">--</span>
+                    </div>
+                    <div class="rsys-pills">
+                        <span class="tx-pulse" id="trPulse" style="display:none;"></span>
+                        <div class="tx-pill"><span class="tx-dot"></span><span id="trTimeBadge" style="font-size:10px;"></span></div>
+                    </div>
+                    <div class="rsys-btns">
+                        <button onclick="trSkip()"             class="rsys-btn" title="Skip current call"          style="border-color:#2a4a2a;color:#6a9a6a;">⏭</button>
+                        <button onclick="trPauseToggle()"      class="rsys-btn" id="trPauseBtn" title="Pause/Resume" style="border-color:#2a4a2a;color:#6a9a6a;">⏸</button>
+                        <button onclick="trAvoid()"            class="rsys-btn" id="trAvoidBtn" title="Avoid this TG (cycles: indefinite→30m→60m→off)" style="border-color:#442222;color:#aa6666;">⛔<span id="trAvoidBtnLabel"></span></button>
+                        <button onclick="openTrConsoleModal()" class="rsys-btn" title="TG Console">⊞</button>
+                        <button onclick="openTrModal()"        class="rsys-btn" title="Call Log">☰</button>
                     </div>
                 </div>
 
-                <!-- SDR SCANNER STATUS BAR -->
-                <div class="collapse-panel" id="sdrSection">
-                    <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
-                        <!-- Row 1: title + buttons right-aligned -->
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <h3 style="flex-shrink:0;margin:0;">📡 SDR</h3>
-                            <span id="sdrOfflineBadge" style="font-size:9px;font-weight:bold;
-                                  background:#2a0000;border:1px solid #660000;color:#f88;
-                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">OFFLINE</span>
-                            <span style="margin-left:auto;display:flex;gap:5px;flex-shrink:0;">
-                                <button onclick="sdrSkip()" title="Advance to next frequency"
-                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;">⏭<span class="btn-label"> Next</span></button>
-                                <button onclick="sdrBarSkipToggle()" id="sdrSkipBtn" title="Skip / unskip current frequency"
-                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;">⊘<span class="btn-label"> Skip</span></button>
-                                <button onclick="sdrHoldToggle()" id="sdrHoldBtn" title="Hold / unhold current frequency"
-                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;">🔒<span class="btn-label"> Hold</span></button>
-                                <button onclick="openSdrModal()" title="SDR Channels"
-                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;">⊞<span class="btn-label"> Channels</span></button>
-                            </span>
-                        </div>
-                        <!-- Row 2: pulse · freq · label · dB -->
-                        <div style="display:flex;align-items:center;gap:6px;min-width:0;padding-top:5px;border-top:1px solid #222;">
-                            <span class="tx-pulse" id="sdrPulse"></span>
-                            <span id="sdrFreqBadge" style="font-size:13px;color:#fff;font-weight:bold;
-                                  white-space:nowrap;flex-shrink:0;">--</span>
-                            <span id="sdrLabelBadge" style="font-size:14px;color:#fff;font-weight:bold;
-                                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">--</span>
-                            <span id="sdrDbBadge" style="font-size:10px;color:#888;flex-shrink:0;"></span>
-                            <span id="sdrHoldBadge" style="display:none;font-size:9px;font-weight:bold;
-                                  background:#003a00;border:1px solid #00aa00;color:#4f4;
-                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">HOLD</span>
-                            <button id="sdrBarEditBtn" onclick="sdrBarEditCurrent()" title="Edit current channel"
-                                    style="display:none;background:#1a1a2a;border:1px solid #334;color:#7af;
-                                           border-radius:3px;padding:1px 7px;font-size:10px;cursor:pointer;">✎</button>
-                        </div>
+                <!-- SDR -->
+                <div class="rsys-row" id="sdrSection">
+                    <div class="rsys-proto">
+                        <span class="rsys-proto-icon">📡</span>
+                        <span class="rsys-proto-name">SDR</span>
+                    </div>
+                    <div class="col-sep"></div>
+                    <div class="rsys-tuned">
+                        <span id="sdrOfflineBadge" style="font-size:9px;font-weight:bold;background:#2a0000;border:1px solid #660000;color:#f88;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">OFFLINE</span>
+                        <span id="sdrFreqBadge"  style="font-size:13px;color:#fff;font-weight:bold;white-space:nowrap;flex-shrink:0;">--</span>
+                        <span id="sdrLabelBadge" style="font-size:13px;color:#fff;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">--</span>
+                        <span id="sdrHoldBadge"  style="display:none;font-size:9px;font-weight:bold;background:#003a00;border:1px solid #00aa00;color:#4f4;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">HOLD</span>
+                        <button id="sdrBarEditBtn" onclick="sdrBarEditCurrent()" title="Edit current channel"
+                                style="display:none;background:#1a1a2a;border:1px solid #334;color:#7af;border-radius:3px;padding:1px 7px;font-size:10px;cursor:pointer;flex-shrink:0;">✎</button>
+                    </div>
+                    <div class="rsys-pills">
+                        <span class="tx-pulse" id="sdrPulse" style="display:none;"></span>
+                        <div class="tx-pill"><span class="tx-dot"></span><span id="sdrDbBadge" style="font-size:10px;"></span></div>
+                    </div>
+                    <div class="rsys-btns">
+                        <button onclick="sdrSkip()"          class="rsys-btn" title="Next frequency">⏭</button>
+                        <button onclick="sdrBarSkipToggle()" class="rsys-btn" id="sdrSkipBtn" title="Skip/unskip frequency">⊘</button>
+                        <button onclick="sdrHoldToggle()"    class="rsys-btn" id="sdrHoldBtn" title="Hold frequency">🔒</button>
+                        <button onclick="openSdrModal()"     class="rsys-btn" title="SDR Channels">⊞</button>
                     </div>
                 </div>
 
@@ -2531,33 +2589,30 @@ HTML = '''
                     </div>
                 </div>
 
-                <!-- YSF REFLECTOR PANEL -->
-                <div class="collapse-panel" id="ysfSection">
-                    <div class="collapse-header" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px;padding:8px 12px;">
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <h3 style="flex-shrink:0;margin:0;">&#128251; YSF</h3>
-                            <span id="ysfOfflineBadge" style="font-size:9px;font-weight:bold;
-                                  background:#2a0000;border:1px solid #660000;color:#f88;
-                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">OFFLINE</span>
-                            <span id="ysfGwStateBadge" style="display:none;font-size:9px;font-weight:bold;
-                                  background:#2a2000;border:1px solid #665500;color:#fc8;
-                                  border-radius:3px;padding:1px 5px;letter-spacing:0.5px;">GW STANDBY</span>
-                            <span style="margin-left:auto;display:flex;gap:5px;flex-shrink:0;">
-                                <button onclick="openYsfModal()" title="Browse Reflectors"
-                                        style="background:#1a1a1a;border:1px solid #333;color:#777;border-radius:3px;
-                                               padding:2px 7px;font-size:10px;cursor:pointer;">&#10765;<span class="btn-label"> Reflectors</span></button>
-                            </span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;min-width:0;padding-top:5px;border-top:1px solid #222;">
-                            <span class="tx-pulse" id="ysfPulse"></span>
-                            <span id="ysfReflectorBadge" style="font-size:13px;color:#c8f;font-weight:bold;
-                                  white-space:nowrap;flex-shrink:0;"></span>
-                            <span id="ysfSourceBadge" style="font-size:14px;color:#fff;font-weight:bold;
-                                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;"></span>
-                            <span id="ysfRxCount" style="font-size:10px;color:#888;flex-shrink:0;"></span>
-                        </div>
+                <!-- YSF -->
+                <div class="rsys-row" id="ysfSection">
+                    <div class="rsys-proto">
+                        <span class="rsys-proto-icon">🎙</span>
+                        <span class="rsys-proto-name">YSF</span>
+                    </div>
+                    <div class="col-sep"></div>
+                    <div class="rsys-tuned">
+                        <span id="ysfOfflineBadge"  style="font-size:9px;font-weight:bold;background:#2a0000;border:1px solid #660000;color:#f88;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">OFFLINE</span>
+                        <span id="ysfGwStateBadge"  style="display:none;font-size:9px;font-weight:bold;background:#2a2000;border:1px solid #665500;color:#fc8;border-radius:3px;padding:1px 5px;letter-spacing:0.5px;flex-shrink:0;">GW STANDBY</span>
+                        <span id="ysfReflectorBadge" style="font-size:13px;color:#c8f;font-weight:bold;white-space:nowrap;flex-shrink:0;"></span>
+                        <span id="ysfRxCount" style="font-size:10px;color:#888;flex-shrink:0;margin-left:auto;"></span>
+                    </div>
+                    <div class="rsys-pills">
+                        <span class="tx-pulse" id="ysfPulse" style="display:none;"></span>
+                        <div class="tx-pill"><span class="tx-dot"></span><span id="ysfSourceBadge" style="font-size:12px;font-weight:bold;white-space:nowrap;"></span></div>
+                    </div>
+                    <div class="rsys-btns">
+                        <button onclick="openYsfModal()" class="rsys-btn" title="Browse Reflectors">⤦ Refs</button>
                     </div>
                 </div>
+
+                </div>
+                <!-- END UNIFIED RADIO SYSTEMS PANEL -->
 
                 <!-- YSF REFLECTOR MODAL -->
                 <div id="ysfModal" onclick="closeYsfModalIfBackdrop(event)"
@@ -2645,6 +2700,15 @@ HTML = '''
                                         style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">
                                     ⏸ Pause
                                 </button>
+                                <button onclick="trReplay()" id="trReplayBtn"
+                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;"
+                                        title="Replay last call">↩ Replay</button>
+                                <button onclick="trLockSysToggle()" id="trLockSysBtn"
+                                        style="background:#1a1a1a;border:1px solid #1a2a3a;color:#4a7a9a;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;"
+                                        title="Lock to current system">📡 Sys</button>
+                                <button onclick="trLockTgToggle()" id="trLockTgBtn"
+                                        style="background:#1a1a1a;border:1px solid #1a2a3a;color:#4a7a9a;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;"
+                                        title="Lock to current talkgroup"># TG</button>
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
                                 <span id="trQueueBadge" style="font-size:10px;color:#666;"></span>
@@ -5657,7 +5721,7 @@ registerProcessor('mic-decimator', MicDecimator);
                 audio.src = '';
                 _trQueue = [];
                 _trPlaying = null;
-                document.getElementById('trSection').classList.remove('rx-active');
+                document.getElementById('trSection').classList.remove('tr-active');
                 _updateTrQueueBadge();
             }
             _updateTrAudioBtn();
@@ -5954,7 +6018,7 @@ registerProcessor('mic-decimator', MicDecimator);
             const sys     = _trSystems[call.system] || call.system || '';
 
             // Status bar — show what's actually playing
-            document.getElementById('trSection').classList.add('rx-active');
+            document.getElementById('trSection').classList.add('tr-active');
             document.getElementById('trSystemBadge').textContent = sys.toUpperCase() || '--';
             const callTime = call.start_time
                 ? new Date(call.start_time * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})
@@ -5973,7 +6037,7 @@ registerProcessor('mic-decimator', MicDecimator);
 
         // Wire audio ended event
         document.getElementById('trAudio').addEventListener('ended', function() {
-            document.getElementById('trSection').classList.remove('rx-active');
+            document.getElementById('trSection').classList.remove('tr-active');
             document.getElementById('trTimeBadge').textContent = '';
             _trLastCall = _trPlaying || _trLastCall;
             _trPlaying = null;
