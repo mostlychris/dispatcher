@@ -5725,6 +5725,7 @@ registerProcessor('mic-decimator', MicDecimator);
         var _trNormPreGain    = null;   // +12 dB boost before compressor
         var _trNormCompressor = null;   // DynamicsCompressorNode
         var _trNormBypass     = null;   // direct bypass path when norm is off
+        var _trMasterGain     = null;   // master volume — last node before destination
 
         // Persist & restore prefs
         (function _initTrPrefs() {
@@ -5768,7 +5769,13 @@ registerProcessor('mic-decimator', MicDecimator);
             document.getElementById('trVolSlider').value = val;
             document.getElementById('trVolDisplayOv').textContent = val + '%';
             document.getElementById('trVolSliderOv').value = val;
-            document.getElementById('trAudio').volume = val / 100;
+            // When the Web Audio chain is active, audio.volume is bypassed by the
+            // MediaElementSource node — drive the master gain node instead.
+            if (_trMasterGain) {
+                _trMasterGain.gain.value = val / 100;
+            } else {
+                document.getElementById('trAudio').volume = val / 100;
+            }
             localStorage.setItem('trVolume', val);
         }
 
@@ -5795,6 +5802,9 @@ registerProcessor('mic-decimator', MicDecimator);
                 _trNormBypass = _trAudioCtx.createGain();
                 _trNormBypass.gain.value = 1;
 
+                _trMasterGain = _trAudioCtx.createGain();
+                _trMasterGain.gain.value = parseInt(localStorage.getItem('trVolume') ?? '100') / 100;
+
                 _trUpdateNormChain();
             } catch(e) {
                 _trAudioCtx = null;
@@ -5807,14 +5817,16 @@ registerProcessor('mic-decimator', MicDecimator);
             try { _trNormPreGain.disconnect(); } catch(e) {}
             try { _trNormCompressor.disconnect(); } catch(e) {}
             try { _trNormBypass.disconnect(); } catch(e) {}
+            try { _trMasterGain.disconnect(); } catch(e) {}
             if (_trNormEnabled) {
                 _trAudioSrc.connect(_trNormPreGain);
                 _trNormPreGain.connect(_trNormCompressor);
-                _trNormCompressor.connect(_trAudioCtx.destination);
+                _trNormCompressor.connect(_trMasterGain);
             } else {
                 _trAudioSrc.connect(_trNormBypass);
-                _trNormBypass.connect(_trAudioCtx.destination);
+                _trNormBypass.connect(_trMasterGain);
             }
+            _trMasterGain.connect(_trAudioCtx.destination);
         }
 
         function trToggleNorm() {
