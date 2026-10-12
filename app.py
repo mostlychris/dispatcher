@@ -1523,8 +1523,8 @@ HTML = '''
             width: auto; height: auto;
             border-radius: 4px;
             padding: 2px 5px;
-            background: #ffffff; border-color: #ffffff;
-            box-shadow: 0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.3);
+            background: #ffaa00; border-color: #ffaa00;
+            box-shadow: none;
             display: inline-flex; align-items: center; justify-content: center;
             animation: txDotPulse 0.9s ease-in-out infinite;
         }
@@ -1534,7 +1534,7 @@ HTML = '''
             content: 'RX';
             font-size: 8px; font-weight: 800;
             letter-spacing: 0.8px; line-height: 1;
-            color: #111;
+            color: #000;
         }
         /* Rows are click targets for audio toggle */
         .rsys-row { cursor: pointer; }
