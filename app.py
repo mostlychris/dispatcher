@@ -1507,24 +1507,21 @@ HTML = '''
         .rsys-act-dot { display: none; }
         /* Audio enabled indicator dot */
         .rsys-audio-dot {
-            width: 9px; height: 9px; border-radius: 50%;
+            min-width: 22px; height: 13px; border-radius: 7px;
             background: #1a1200; border: 1px solid #443300;
             flex-shrink: 0;
-            transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
+            transition: background 0.2s, border-color 0.2s;
         }
         .rsys-row.audio-on .rsys-audio-dot {
             background: #ffaa00; border-color: #ffaa00;
             box-shadow: 0 0 5px #ffaa00;
+            display: inline-flex; align-items: center; justify-content: center;
         }
-        /* Active transmission: morph dot into a pulsing RX pill */
+        /* Active transmission: fill the reserved pill shape with amber + RX label */
         .rsys-row.audio-on.rx-active .rsys-audio-dot,
         .rsys-row.audio-on.as-rx     .rsys-audio-dot,
         .rsys-row.audio-on.tr-active .rsys-audio-dot {
-            width: auto; height: auto;
-            border-radius: 4px;
-            padding: 2px 5px;
             background: #ffaa00; border-color: #ffaa00;
-            box-shadow: none;
             display: inline-flex; align-items: center; justify-content: center;
             animation: txDotPulse 0.9s ease-in-out infinite;
         }
