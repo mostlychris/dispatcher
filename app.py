@@ -2303,6 +2303,11 @@ HTML = '''
                             style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;white-space:nowrap;">
                         Norm
                     </button>
+                    <button id="trFilterBtnOv" onclick="trToggleFilter()"
+                            title="Voice filter OFF — click to enable"
+                            style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;white-space:nowrap;">
+                        Filter
+                    </button>
                     <span class="vol-pct" id="trVolDisplayOv">100%</span>
                 </div>
                 <input type="range" class="vol-slider" id="trVolSliderOv" min="0" max="100" value="100"
@@ -2825,6 +2830,11 @@ HTML = '''
                                         title="Level normalize OFF — click to enable"
                                         style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0;">
                                     &#9632; Norm
+                                </button>
+                                <button onclick="trToggleFilter()" id="trFilterBtn"
+                                        title="Voice filter OFF — click to enable"
+                                        style="background:#222;border:1px solid #444;color:#aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+                                    &#9636; Filter
                                 </button>
                                 <span style="flex:1;"></span>
                                 <span style="font-size:10px;color:#666;">&#128264;</span>
@@ -5720,12 +5730,16 @@ registerProcessor('mic-decimator', MicDecimator);
 
         // Web Audio normalization chain state
         var _trNormEnabled    = false;
+        var _trFilterEnabled  = false;
         var _trAudioCtx       = null;
         var _trAudioSrc       = null;   // MediaElementAudioSourceNode (created once)
         var _trNormPreGain    = null;   // +12 dB boost before compressor
         var _trNormCompressor = null;   // DynamicsCompressorNode
         var _trNormBypass     = null;   // direct bypass path when norm is off
         var _trMasterGain     = null;   // master volume — last node before destination
+        var _trHPFilter       = null;   // highpass 300 Hz — removes low rumble
+        var _trLPFilter       = null;   // lowpass 3400 Hz — removes hiss above voice band
+        var _trPresenceEQ     = null;   // peaking +4 dB @ 2 kHz — voice presence boost
 
         // Persist & restore prefs
         (function _initTrPrefs() {
@@ -5740,6 +5754,8 @@ registerProcessor('mic-decimator', MicDecimator);
             setTrVolume(sv);
             _trNormEnabled = localStorage.getItem('trNormEnabled') !== 'false';
             _updateTrNormBtn();
+            _trFilterEnabled = localStorage.getItem('trFilterEnabled') === 'true';
+            _updateTrFilterBtn();
         })();
 
         function saveTrPrefs() {
@@ -5805,6 +5821,22 @@ registerProcessor('mic-decimator', MicDecimator);
                 _trMasterGain = _trAudioCtx.createGain();
                 _trMasterGain.gain.value = parseInt(localStorage.getItem('trVolume') ?? '100') / 100;
 
+                _trHPFilter = _trAudioCtx.createBiquadFilter();
+                _trHPFilter.type = 'highpass';
+                _trHPFilter.frequency.value = 300;
+                _trHPFilter.Q.value = 0.7;
+
+                _trLPFilter = _trAudioCtx.createBiquadFilter();
+                _trLPFilter.type = 'lowpass';
+                _trLPFilter.frequency.value = 3400;
+                _trLPFilter.Q.value = 0.7;
+
+                _trPresenceEQ = _trAudioCtx.createBiquadFilter();
+                _trPresenceEQ.type = 'peaking';
+                _trPresenceEQ.frequency.value = 2000;
+                _trPresenceEQ.gain.value = 4;
+                _trPresenceEQ.Q.value = 1.0;
+
                 _trUpdateNormChain();
             } catch(e) {
                 _trAudioCtx = null;
@@ -5813,25 +5845,29 @@ registerProcessor('mic-decimator', MicDecimator);
 
         function _trUpdateNormChain() {
             if (!_trAudioCtx || !_trAudioSrc) return;
-            try { _trAudioSrc.disconnect(); } catch(e) {}
-            try { _trNormPreGain.disconnect(); } catch(e) {}
-            try { _trNormCompressor.disconnect(); } catch(e) {}
-            try { _trNormBypass.disconnect(); } catch(e) {}
-            try { _trMasterGain.disconnect(); } catch(e) {}
-            if (_trNormEnabled) {
-                _trAudioSrc.connect(_trNormPreGain);
-                _trNormPreGain.connect(_trNormCompressor);
-                _trNormCompressor.connect(_trMasterGain);
-            } else {
-                _trAudioSrc.connect(_trNormBypass);
-                _trNormBypass.connect(_trMasterGain);
-            }
+            // Disconnect everything first
+            [_trAudioSrc, _trNormPreGain, _trNormCompressor,
+             _trNormBypass, _trHPFilter, _trLPFilter, _trPresenceEQ, _trMasterGain
+            ].forEach(function(n) { if (n) try { n.disconnect(); } catch(e) {} });
+
+            // Build chain: [preGain?] → [filters?] → [compressor?] → masterGain → dest
+            // Use an array of active nodes and connect them in series.
+            var chain = [];
+            if (_trNormEnabled)   chain.push(_trNormPreGain);
+            if (_trFilterEnabled) chain.push(_trHPFilter, _trLPFilter, _trPresenceEQ);
+            if (_trNormEnabled)   chain.push(_trNormCompressor);
+            if (chain.length === 0) chain.push(_trNormBypass);  // passthrough when both off
+
+            _trAudioSrc.connect(chain[0]);
+            for (var i = 0; i < chain.length - 1; i++) chain[i].connect(chain[i + 1]);
+            chain[chain.length - 1].connect(_trMasterGain);
             _trMasterGain.connect(_trAudioCtx.destination);
         }
 
         function trToggleNorm() {
             _trNormEnabled = !_trNormEnabled;
             localStorage.setItem('trNormEnabled', _trNormEnabled);
+            _trInitAudioChain();
             _trUpdateNormChain();
             _updateTrNormBtn();
         }
@@ -5843,6 +5879,24 @@ registerProcessor('mic-decimator', MicDecimator);
                 btn.style.borderColor = _trNormEnabled ? '#0af' : '#444';
                 btn.style.color       = _trNormEnabled ? '#0af' : '#aaa';
                 btn.title = _trNormEnabled ? 'Level normalize ON — click to disable' : 'Level normalize OFF — click to enable';
+            });
+        }
+
+        function trToggleFilter() {
+            _trFilterEnabled = !_trFilterEnabled;
+            localStorage.setItem('trFilterEnabled', _trFilterEnabled);
+            _trInitAudioChain();
+            _trUpdateNormChain();
+            _updateTrFilterBtn();
+        }
+
+        function _updateTrFilterBtn() {
+            ['trFilterBtn', 'trFilterBtnOv'].forEach(function(id) {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                btn.style.borderColor = _trFilterEnabled ? '#0af' : '#444';
+                btn.style.color       = _trFilterEnabled ? '#0af' : '#aaa';
+                btn.title = _trFilterEnabled ? 'Voice filter ON — click to disable' : 'Voice filter OFF — click to enable';
             });
         }
 
