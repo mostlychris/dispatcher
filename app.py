@@ -1516,17 +1516,13 @@ HTML = '''
             background: #ffaa00; border-color: #ffaa00;
             box-shadow: 0 0 5px #ffaa00;
         }
-        /* Active transmission: change color and pulsate */
+        /* Active transmission: bright white so it pops against the colored section background */
         .rsys-row.audio-on.rx-active .rsys-audio-dot,
-        .rsys-row.audio-on.as-rx     .rsys-audio-dot {
-            background: #3cb860; border-color: #3cb860;
-            box-shadow: 0 0 6px #3cb860;
-            animation: txDotPulse 1s ease-in-out infinite;
-        }
+        .rsys-row.audio-on.as-rx     .rsys-audio-dot,
         .rsys-row.audio-on.tr-active .rsys-audio-dot {
-            background: #5aabff; border-color: #5aabff;
-            box-shadow: 0 0 6px #5aabff;
-            animation: txDotPulse 0.8s ease-in-out infinite;
+            background: #ffffff; border-color: #ffffff;
+            box-shadow: 0 0 8px rgba(255,255,255,0.9), 0 0 16px rgba(255,255,255,0.4);
+            animation: txDotPulse 0.9s ease-in-out infinite;
         }
         /* Rows are click targets for audio toggle */
         .rsys-row { cursor: pointer; }
