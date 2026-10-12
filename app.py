@@ -2576,6 +2576,8 @@ HTML = '''
                         <button onclick="trReplay()"           class="rsys-btn"               title="Replay last call">↩</button>
                         <button onclick="trAvoid()"            class="rsys-btn rsys-btn-warn" id="trAvoidBtn" title="Avoid this TG">⛔</button>
                         <span id="trAvoidBtnLabel" style="display:none;"></span>
+                        <button onclick="trLockSysToggle()"    class="rsys-btn"               id="trLockSysBtnRow" title="Lock to current system">📡</button>
+                        <button onclick="trLockTgToggle()"     class="rsys-btn"               id="trLockTgBtnRow"  title="Lock to current talkgroup">#</button>
                         <button onclick="openTrConsoleModal()" class="rsys-btn" title="TG Console">⊞</button>
                         <button onclick="openTrModal()"        class="rsys-btn" title="Call Log">☰</button>
                     </div>
@@ -5892,10 +5894,12 @@ registerProcessor('mic-decimator', MicDecimator);
         }
 
         function _updateTrLockUI() {
-            const sysBtn   = document.getElementById('trLockSysBtn');
-            const tgBtn    = document.getElementById('trLockTgBtn');
-            const sysBadge = document.getElementById('trLockedBadge');
-            const tgBadge  = document.getElementById('trLockedTgBadge');
+            const sysBtn    = document.getElementById('trLockSysBtn');
+            const tgBtn     = document.getElementById('trLockTgBtn');
+            const sysBtnRow = document.getElementById('trLockSysBtnRow');
+            const tgBtnRow  = document.getElementById('trLockTgBtnRow');
+            const sysBadge  = document.getElementById('trLockedBadge');
+            const tgBadge   = document.getElementById('trLockedTgBadge');
             const LOCK_ON  = {background:'#001a2a', borderColor:'#0066cc', color:'#4af'};
             const LOCK_OFF = {background:'#1a1a1a', borderColor:'#1a2a3a', color:'#4a7a9a'};
             if (sysBtn) {
@@ -5905,12 +5909,26 @@ registerProcessor('mic-decimator', MicDecimator);
                 sysBtn.style.color       = s.color;
                 sysBtn.innerHTML = (_trLockedSystem ? '📡🔒' : '📡') + '<span class="btn-label"> Sys</span>';
             }
+            if (sysBtnRow) {
+                const s = _trLockedSystem ? LOCK_ON : LOCK_OFF;
+                sysBtnRow.style.background  = s.background;
+                sysBtnRow.style.borderColor = s.borderColor;
+                sysBtnRow.style.color       = s.color;
+                sysBtnRow.textContent = _trLockedSystem ? '📡🔒' : '📡';
+            }
             if (tgBtn) {
                 const s = _trLockedTg ? LOCK_ON : LOCK_OFF;
                 tgBtn.style.background  = s.background;
                 tgBtn.style.borderColor = s.borderColor;
                 tgBtn.style.color       = s.color;
                 tgBtn.innerHTML = (_trLockedTg ? '#🔒' : '#') + '<span class="btn-label"> TG</span>';
+            }
+            if (tgBtnRow) {
+                const s = _trLockedTg ? LOCK_ON : LOCK_OFF;
+                tgBtnRow.style.background  = s.background;
+                tgBtnRow.style.borderColor = s.borderColor;
+                tgBtnRow.style.color       = s.color;
+                tgBtnRow.textContent = _trLockedTg ? '#🔒' : '#';
             }
             if (sysBadge) {
                 sysBadge.style.display = _trLockedSystem ? '' : 'none';
