@@ -4903,9 +4903,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                         dot.className = 'svc-dot dot-off'; lbl.textContent = 'OFF';
                         lbl.className = 'stat-val svc-text-off';
                     }
-                    // Panel badge: show GW STANDBY when services are up but not linked
+                    // Panel badge: show GW STANDBY when services are up but not linked and nothing active
                     if (gwBadge) {
-                        gwBadge.style.display = (st === 'idle' && !d.ysf_gw_linked) ? '' : 'none';
+                        gwBadge.style.display = (st === 'idle' && !d.ysf_gw_linked && !_ysfActive) ? '' : 'none';
                     }
                 })();
 
