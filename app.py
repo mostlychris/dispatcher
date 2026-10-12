@@ -1494,50 +1494,59 @@ HTML = '''
         /* Button color helpers */
         .rsys-btn-go   { border-color: #2a4a2a !important; color: #6a9a6a !important; }
         .rsys-btn-warn { border-color: #442222 !important; color: #aa6666 !important; }
-        /* green = voice RX (DMR/AS/YSF/SDR) */
-        .rsys-row.rx-active { background: rgba(20, 160, 60, 0.22); }
+        /* left accent bar lights up on activity; no background fill */
         .rsys-row.rx-active::before { background: #3cb860; box-shadow: 0 0 10px rgba(60,200,80,0.7); }
-        /* blue = trunk audio playback */
-        .rsys-row.tr-active { background: rgba(20, 90, 220, 0.22); }
         .rsys-row.tr-active::before { background: #5aabff; box-shadow: 0 0 10px rgba(60,130,255,0.7); }
-        /* AllStar RX reuses rx-active */
-        .rsys-row.as-rx { background: rgba(20, 160, 60, 0.22); transition: background 0.3s; }
-        .rsys-row.as-rx::before { background: #3cb860; box-shadow: 0 0 10px rgba(60,200,80,0.7); }
-        /* Activity dot — hidden; activity now shown via audio dot pulsation */
+        .rsys-row.as-rx::before     { background: #3cb860; box-shadow: 0 0 10px rgba(60,200,80,0.7); }
+        /* Activity dot — hidden; activity shown via audio dot pill */
         .rsys-act-dot { display: none; }
-        /* Audio enabled indicator dot */
+        /* Audio enabled indicator pill */
         .rsys-audio-dot {
             min-width: 22px; height: 13px; border-radius: 7px;
             background: #1a1200; border: 1px solid #443300;
             flex-shrink: 0;
+            display: inline-flex; align-items: center; justify-content: center;
             transition: background 0.2s, border-color 0.2s;
         }
         .rsys-row.audio-on .rsys-audio-dot {
             background: #ffaa00; border-color: #ffaa00;
             box-shadow: 0 0 5px #ffaa00;
-            display: inline-flex; align-items: center; justify-content: center;
         }
-        /* Active transmission: fill the reserved pill shape with amber + RX label */
+        /* Active + audio OFF: outlined pill in section color */
+        .rsys-row.rx-active:not(.audio-on) .rsys-audio-dot,
+        .rsys-row.as-rx:not(.audio-on)     .rsys-audio-dot {
+            background: transparent; border-color: #3cb860;
+            animation: txDotPulse 1s ease-in-out infinite;
+        }
+        .rsys-row.rx-active:not(.audio-on) .rsys-audio-dot::after,
+        .rsys-row.as-rx:not(.audio-on)     .rsys-audio-dot::after {
+            content: 'RX'; font-size: 8px; font-weight: 800;
+            letter-spacing: 0.8px; line-height: 1; color: #3cb860;
+        }
+        .rsys-row.tr-active:not(.audio-on) .rsys-audio-dot {
+            background: transparent; border-color: #5aabff;
+            animation: txDotPulse 0.8s ease-in-out infinite;
+        }
+        .rsys-row.tr-active:not(.audio-on) .rsys-audio-dot::after {
+            content: 'RX'; font-size: 8px; font-weight: 800;
+            letter-spacing: 0.8px; line-height: 1; color: #5aabff;
+        }
+        /* Active + audio ON: solid amber pill */
         .rsys-row.audio-on.rx-active .rsys-audio-dot,
         .rsys-row.audio-on.as-rx     .rsys-audio-dot,
         .rsys-row.audio-on.tr-active .rsys-audio-dot {
-            background: #ffaa00; border-color: #ffaa00;
-            display: inline-flex; align-items: center; justify-content: center;
+            background: #ffaa00; border-color: #ffaa00; box-shadow: none;
             animation: txDotPulse 0.9s ease-in-out infinite;
         }
         .rsys-row.audio-on.rx-active .rsys-audio-dot::after,
         .rsys-row.audio-on.as-rx     .rsys-audio-dot::after,
         .rsys-row.audio-on.tr-active .rsys-audio-dot::after {
-            content: 'RX';
-            font-size: 8px; font-weight: 800;
-            letter-spacing: 0.8px; line-height: 1;
-            color: #000;
+            content: 'RX'; font-size: 8px; font-weight: 800;
+            letter-spacing: 0.8px; line-height: 1; color: #000;
         }
         /* Rows are click targets for audio toggle */
         .rsys-row { cursor: pointer; }
-        .rsys-row:hover { background: rgba(255,255,255,0.018); }
-        .rsys-row.rx-active:hover, .rsys-row.as-rx:hover { background: rgba(20,160,60,0.30); }
-        .rsys-row.tr-active:hover { background: rgba(20,90,220,0.30); }
+        .rsys-row:hover { background: rgba(255,255,255,0.025); }
         .rsys-btns { cursor: default; }
 
         .rsys-proto {
