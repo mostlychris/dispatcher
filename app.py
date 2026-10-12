@@ -1435,7 +1435,7 @@ HTML = '''
         .rsys-row::before {
             content: '';
             position: absolute;
-            left: 0; top: 0; bottom: 0; width: 3px;
+            left: 0; top: 0; bottom: 0; width: 4px;
             background: transparent;
             transition: background 0.2s, box-shadow 0.2s;
         }
@@ -1495,14 +1495,14 @@ HTML = '''
         .rsys-btn-go   { border-color: #2a4a2a !important; color: #6a9a6a !important; }
         .rsys-btn-warn { border-color: #442222 !important; color: #aa6666 !important; }
         /* green = voice RX (DMR/AS/YSF/SDR) */
-        .rsys-row.rx-active { background: rgba(20, 140, 60, 0.1); }
-        .rsys-row.rx-active::before { background: #3cb860; box-shadow: 0 0 8px rgba(60,200,80,0.4); }
+        .rsys-row.rx-active { background: rgba(20, 160, 60, 0.22); }
+        .rsys-row.rx-active::before { background: #3cb860; box-shadow: 0 0 10px rgba(60,200,80,0.7); }
         /* blue = trunk audio playback */
-        .rsys-row.tr-active { background: rgba(20, 80, 200, 0.12); }
-        .rsys-row.tr-active::before { background: #5aabff; box-shadow: 0 0 8px rgba(60,130,255,0.4); }
+        .rsys-row.tr-active { background: rgba(20, 90, 220, 0.22); }
+        .rsys-row.tr-active::before { background: #5aabff; box-shadow: 0 0 10px rgba(60,130,255,0.7); }
         /* AllStar RX reuses rx-active */
-        .rsys-row.as-rx { background: rgba(20, 140, 60, 0.1); transition: background 0.3s; }
-        .rsys-row.as-rx::before { background: #3cb860; }
+        .rsys-row.as-rx { background: rgba(20, 160, 60, 0.22); transition: background 0.3s; }
+        .rsys-row.as-rx::before { background: #3cb860; box-shadow: 0 0 10px rgba(60,200,80,0.7); }
         /* Activity dot — hidden; activity now shown via audio dot pulsation */
         .rsys-act-dot { display: none; }
         /* Audio enabled indicator dot */
@@ -1527,8 +1527,8 @@ HTML = '''
         /* Rows are click targets for audio toggle */
         .rsys-row { cursor: pointer; }
         .rsys-row:hover { background: rgba(255,255,255,0.018); }
-        .rsys-row.rx-active:hover, .rsys-row.as-rx:hover { background: rgba(20,140,60,0.14); }
-        .rsys-row.tr-active:hover { background: rgba(20,80,200,0.17); }
+        .rsys-row.rx-active:hover, .rsys-row.as-rx:hover { background: rgba(20,160,60,0.30); }
+        .rsys-row.tr-active:hover { background: rgba(20,90,220,0.30); }
         .rsys-btns { cursor: default; }
 
         .rsys-proto {
