@@ -1516,13 +1516,25 @@ HTML = '''
             background: #ffaa00; border-color: #ffaa00;
             box-shadow: 0 0 5px #ffaa00;
         }
-        /* Active transmission: bright white so it pops against the colored section background */
+        /* Active transmission: morph dot into a pulsing RX pill */
         .rsys-row.audio-on.rx-active .rsys-audio-dot,
         .rsys-row.audio-on.as-rx     .rsys-audio-dot,
         .rsys-row.audio-on.tr-active .rsys-audio-dot {
+            width: auto; height: auto;
+            border-radius: 4px;
+            padding: 2px 5px;
             background: #ffffff; border-color: #ffffff;
-            box-shadow: 0 0 8px rgba(255,255,255,0.9), 0 0 16px rgba(255,255,255,0.4);
+            box-shadow: 0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.3);
+            display: inline-flex; align-items: center; justify-content: center;
             animation: txDotPulse 0.9s ease-in-out infinite;
+        }
+        .rsys-row.audio-on.rx-active .rsys-audio-dot::after,
+        .rsys-row.audio-on.as-rx     .rsys-audio-dot::after,
+        .rsys-row.audio-on.tr-active .rsys-audio-dot::after {
+            content: 'RX';
+            font-size: 8px; font-weight: 800;
+            letter-spacing: 0.8px; line-height: 1;
+            color: #111;
         }
         /* Rows are click targets for audio toggle */
         .rsys-row { cursor: pointer; }
