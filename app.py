@@ -2573,6 +2573,7 @@ HTML = '''
                     <div class="rsys-btns" onclick="event.stopPropagation()">
                         <button onclick="trSkip()"             class="rsys-btn rsys-btn-go"   title="Skip current call">⏭</button>
                         <button onclick="trPauseToggle()"      class="rsys-btn rsys-btn-go"   id="trPauseBtn" title="Pause/Resume">⏸</button>
+                        <button onclick="trReplay()"           class="rsys-btn"               title="Replay last call">↩</button>
                         <button onclick="trAvoid()"            class="rsys-btn rsys-btn-warn" id="trAvoidBtn" title="Avoid this TG">⛔</button>
                         <span id="trAvoidBtnLabel" style="display:none;"></span>
                         <button onclick="openTrConsoleModal()" class="rsys-btn" title="TG Console">⊞</button>
