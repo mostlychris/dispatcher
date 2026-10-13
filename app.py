@@ -1557,6 +1557,7 @@ HTML = '''
             flex-direction: column;
             align-items: center;
             gap: 3px;
+            transition: background 0.2s;
         }
         .rsys-proto-icon { font-size: 10px; opacity: 0.45; line-height: 1; }
         .rsys-proto-name {
@@ -1564,7 +1565,26 @@ HTML = '''
             letter-spacing: 1.5px; text-transform: uppercase;
             color: var(--text-secondary); opacity: 0.7;
             line-height: 1;
+            transition: color 0.2s, opacity 0.2s;
         }
+        /* Active + audio on: illuminate the protocol column */
+        .rsys-row.audio-on.rx-active .rsys-proto,
+        .rsys-row.audio-on.as-rx     .rsys-proto {
+            background: rgba(20, 160, 60, 0.38);
+        }
+        .rsys-row.audio-on.rx-active .rsys-proto-name,
+        .rsys-row.audio-on.as-rx     .rsys-proto-name {
+            color: #5ee87a; opacity: 1;
+        }
+        .rsys-row.audio-on.rx-active .rsys-proto-icon,
+        .rsys-row.audio-on.as-rx     .rsys-proto-icon { opacity: 0.8; }
+        .rsys-row.audio-on.tr-active .rsys-proto {
+            background: rgba(20, 90, 220, 0.38);
+        }
+        .rsys-row.audio-on.tr-active .rsys-proto-name {
+            color: #7ac4ff; opacity: 1;
+        }
+        .rsys-row.audio-on.tr-active .rsys-proto-icon { opacity: 0.8; }
         .col-sep {
             width: 1px; align-self: stretch;
             background: rgba(255,255,255,0.05); flex-shrink: 0;
