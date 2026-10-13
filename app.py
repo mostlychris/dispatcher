@@ -1547,6 +1547,21 @@ HTML = '''
         /* Rows are click targets for audio toggle */
         .rsys-row { cursor: pointer; }
         .rsys-row:hover { background: rgba(255,255,255,0.025); }
+        /* Active + audio on: gradient fills exactly the 58px proto column for the full row height */
+        .rsys-row.audio-on.rx-active,
+        .rsys-row.audio-on.as-rx {
+            background: linear-gradient(to right, rgba(20,160,60,0.38) 58px, transparent 58px);
+        }
+        .rsys-row.audio-on.rx-active:hover,
+        .rsys-row.audio-on.as-rx:hover {
+            background: linear-gradient(to right, rgba(20,160,60,0.50) 58px, rgba(255,255,255,0.025) 58px);
+        }
+        .rsys-row.audio-on.tr-active {
+            background: linear-gradient(to right, rgba(20,90,220,0.38) 58px, transparent 58px);
+        }
+        .rsys-row.audio-on.tr-active:hover {
+            background: linear-gradient(to right, rgba(20,90,220,0.50) 58px, rgba(255,255,255,0.025) 58px);
+        }
         .rsys-btns { cursor: default; }
 
         .rsys-proto {
@@ -1556,10 +1571,8 @@ HTML = '''
             display: flex;
             flex-direction: column;
             align-items: center;
-            align-self: stretch;
             justify-content: center;
             gap: 3px;
-            transition: background 0.2s;
         }
         .rsys-proto-icon { font-size: 10px; opacity: 0.45; line-height: 1; }
         .rsys-proto-name {
@@ -1569,23 +1582,12 @@ HTML = '''
             line-height: 1;
             transition: color 0.2s, opacity 0.2s;
         }
-        /* Active + audio on: illuminate the protocol column */
-        .rsys-row.audio-on.rx-active .rsys-proto,
-        .rsys-row.audio-on.as-rx     .rsys-proto {
-            background: rgba(20, 160, 60, 0.38);
-        }
+        /* Brighten label text when proto column is active */
         .rsys-row.audio-on.rx-active .rsys-proto-name,
-        .rsys-row.audio-on.as-rx     .rsys-proto-name {
-            color: #5ee87a; opacity: 1;
-        }
+        .rsys-row.audio-on.as-rx     .rsys-proto-name { color: #5ee87a; opacity: 1; }
         .rsys-row.audio-on.rx-active .rsys-proto-icon,
         .rsys-row.audio-on.as-rx     .rsys-proto-icon { opacity: 0.8; }
-        .rsys-row.audio-on.tr-active .rsys-proto {
-            background: rgba(20, 90, 220, 0.38);
-        }
-        .rsys-row.audio-on.tr-active .rsys-proto-name {
-            color: #7ac4ff; opacity: 1;
-        }
+        .rsys-row.audio-on.tr-active .rsys-proto-name { color: #7ac4ff; opacity: 1; }
         .rsys-row.audio-on.tr-active .rsys-proto-icon { opacity: 0.8; }
         .col-sep {
             width: 1px; align-self: stretch;
