@@ -1556,6 +1556,8 @@ HTML = '''
             display: flex;
             flex-direction: column;
             align-items: center;
+            align-self: stretch;
+            justify-content: center;
             gap: 3px;
             transition: background 0.2s;
         }
