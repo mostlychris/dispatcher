@@ -5744,7 +5744,9 @@ registerProcessor('mic-decimator', MicDecimator);
         var _trLockedSystem = null;   // when set, only calls from this system are played
         var _trLockedTg     = null;   // when set, only calls matching this talkgroup are played
         var _trConsoleTgs = {};       // system → [{id,tag,label,group,description}] for console grid
-        var TR_INTER_CALL_MS = 800;   // gap between calls in ms
+        var TR_INTER_CALL_MS   = 800;   // gap between calls in ms
+        var TR_BATCH_WINDOW_MS = 3000;  // hold before playing first call after silence (out-of-order arrival window)
+        var _trBatchTimer      = null;  // pending batch-window timeout id
 
         // Web Audio normalization chain state
         var _trNormEnabled    = false;
@@ -6207,10 +6209,25 @@ registerProcessor('mic-decimator', MicDecimator);
             while (i > 0 && (_trQueue[i - 1].start_time || 0) > ts) i--;
             _trQueue.splice(i, 0, call);
             _updateTrQueueBadge();
-            if (!_trPlaying && !_trPaused) _trDequeue();
+            if (!_trPlaying && !_trPaused) {
+                // When the queue transitions from empty to non-empty, hold for
+                // TR_BATCH_WINDOW_MS before playing.  Trunked systems record
+                // multiple channels in parallel; shorter calls finish and upload
+                // first even if they started later.  The window lets out-of-order
+                // arrivals sort themselves in before playback begins.
+                // If a call arrives while already playing or while the timer is
+                // pending, the insertion-sort above has already placed it correctly.
+                if (_trBatchTimer === null) {
+                    _trBatchTimer = setTimeout(function() {
+                        _trBatchTimer = null;
+                        _trDequeue();
+                    }, TR_BATCH_WINDOW_MS);
+                }
+            }
         }
 
         function _trDequeue() {
+            if (_trBatchTimer !== null) { clearTimeout(_trBatchTimer); _trBatchTimer = null; }
             if (_trPaused || _trQueue.length === 0) return;
             // Drain any queued calls that don't match locks
             while (_trQueue.length && (
