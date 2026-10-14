@@ -3267,7 +3267,8 @@ HTML = '''
             document.getElementById('volDisplay').textContent = val + '%';
             document.getElementById('volSlider').value = val;
             document.getElementById('volSlider').style.setProperty('--vol-pct', val + '%');
-            if (!_dmrMuted && dvsp && dvsp.player) dvsp.player.volume(val / 100);
+            if (!_dmrMuted && dvsp && dvsp.player)
+                dvsp.player.volume((_trDucking ? val * TR_DUCK_LEVEL : val) / 100);
             localStorage.setItem('rxVolume', val);
         }
 
@@ -3867,8 +3868,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function sdrSetVolume(val) {
             val = parseInt(val);
             _sdrVolume = val;
-            if (_sdrGainNode) _sdrGainNode.gain.value = val / 100;
-            else if (_sdrAudioEl) _sdrAudioEl.volume = val / 100;
+            const effective = (_trDucking ? val * TR_DUCK_LEVEL : val) / 100;
+            if (_sdrGainNode) _sdrGainNode.gain.value = effective;
+            else if (_sdrAudioEl) _sdrAudioEl.volume = effective;
             document.getElementById('sdrVolDisplayOv').textContent = val + '%';
             document.getElementById('sdrVolSliderOv').value = val;
             localStorage.setItem('sdrVolume', val);
@@ -4054,7 +4056,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function ysfSetVolume(val) {
             val = parseInt(val);
             _ysfVolume = val;
-            if (_ysfPlayer) _ysfPlayer.volume(val / 100);
+            if (_ysfPlayer) _ysfPlayer.volume((_trDucking ? val * TR_DUCK_LEVEL : val) / 100);
             const lbl = document.getElementById('ysfVolDisplayOv');
             const sl  = document.getElementById('ysfVolSliderOv');
             if (lbl) lbl.textContent = val + '%';
@@ -5336,7 +5338,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             document.getElementById('asVolDisplay').textContent = val + '%';
             document.getElementById('asVolSlider').value = val;
             document.getElementById('asVolSlider').style.setProperty('--vol-pct', val + '%');
-            if (!_asMuted && asPlayer) asPlayer.setVolume(val);
+            if (!_asMuted && asPlayer) {
+                const effective = _trDucking ? val * TR_DUCK_LEVEL : val;
+                asPlayer.setVolume(effective);
+            }
             localStorage.setItem('asVolume', val);
         }
 
@@ -5765,6 +5770,8 @@ registerProcessor('mic-decimator', MicDecimator);
         var _trAudioEnabled = true;
         var _trDisabled   = {};       // 'system:tg' → true (disabled), 'avoided' → true (avoided/reddish)
         var _trAvoidLevelMap = {};    // 'system:tg' → 1..4 (current avoid level index)
+        var _trDucking    = false;    // true while trunk audio is playing and other protos are ducked
+        var TR_DUCK_LEVEL = 0.15;     // duck others to 15% of their set volume
         var _trLockedSystem = null;   // when set, only calls from this system are played
         var _trLockedTg     = null;   // when set, only calls matching this talkgroup are played
         var _trConsoleTgs = {};       // system → [{id,tag,label,group,description}] for console grid
@@ -6091,6 +6098,8 @@ registerProcessor('mic-decimator', MicDecimator);
             audio.pause();
             audio.src = '';
             _trPlaying = null;
+            // Unduck immediately on skip; _trDequeue will re-duck if queue has more calls
+            if (_trQueue.length === 0) _trSetDuck(false);
             _updateTrAudioBtn();
             // Skip only removes the currently playing call — queue stays intact
             // (Avoid is what purges future calls from the same channel)
@@ -6219,6 +6228,38 @@ registerProcessor('mic-decimator', MicDecimator);
             renderTrConsole();
         }, 30000);
 
+        // ---- Audio ducking ----
+        function _trSetDuck(duck) {
+            if (_trDucking === duck) return;
+            _trDucking = duck;
+            const tau = duck ? 0.05 : 0.15;  // 50 ms duck-in, 150 ms release
+
+            function ramp(gainNode, ctx, target) {
+                if (!gainNode || !ctx) return;
+                const now = ctx.currentTime;
+                gainNode.gain.cancelScheduledValues(now);
+                gainNode.gain.setTargetAtTime(target, now, tau);
+            }
+            // DMR
+            if (dvsp && dvsp.player && dvsp.player.gainNode && dvsp.player.audioCtx) {
+                const base = parseInt(localStorage.getItem('rxVolume') ?? '100') / 100;
+                ramp(dvsp.player.gainNode, dvsp.player.audioCtx, duck ? base * TR_DUCK_LEVEL : base);
+            }
+            // AllStar
+            if (asPlayer && asPlayer._wp && asPlayer._wp.gainNode && asPlayer._wp.audioCtx) {
+                const base = parseInt(localStorage.getItem('asVolume') ?? '100') / 100;
+                ramp(asPlayer._wp.gainNode, asPlayer._wp.audioCtx, duck ? base * TR_DUCK_LEVEL : base);
+            }
+            // SDR
+            if (_sdrGainNode && _sdrCtx) {
+                ramp(_sdrGainNode, _sdrCtx, duck ? (_sdrVolume / 100) * TR_DUCK_LEVEL : _sdrVolume / 100);
+            }
+            // YSF
+            if (_ysfPlayer && _ysfPlayer.gainNode && _ysfPlayer.audioCtx) {
+                ramp(_ysfPlayer.gainNode, _ysfPlayer.audioCtx, duck ? (_ysfVolume / 100) * TR_DUCK_LEVEL : _ysfVolume / 100);
+            }
+        }
+
         // ---- Playback queue ----
         function _trEnqueue(call) {
             if (!call.audio) return;
@@ -6267,6 +6308,7 @@ registerProcessor('mic-decimator', MicDecimator);
         function _trStartPlay(call) {
             _trPlaying = call;
             _trLastCall = call;
+            _trSetDuck(true);
             document.getElementById('trSkippedBadge').style.display = 'none';
             clearTimeout(_trSkippedTimer);
             _updateTrAvoidBtn();
@@ -6315,6 +6357,9 @@ registerProcessor('mic-decimator', MicDecimator);
             if (_trTimeClear) _trTimeClear.textContent = '';
             _trLastCall = _trPlaying || _trLastCall;
             _trPlaying = null;
+            // Only unduck if the queue is empty — if another call is about to play,
+            // _trDequeue → _trStartPlay will keep ducking without a gap.
+            if (_trQueue.length === 0) _trSetDuck(false);
             _updateTrAudioBtn();
             renderTrCalls();
             // Status bar badges intentionally left showing the last played call
