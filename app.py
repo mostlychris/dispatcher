@@ -2293,6 +2293,8 @@ HTML = '''
             .rsys-2l > .rsys-sub   { grid-column: 1; grid-row: 2; padding-right: 4px; }
             .rsys-2l > .rsys-btns  { grid-column: 2; grid-row: 2; align-self: center; }
             .rsys-2l > .rsys-sub2  { }
+            /* Trunk: hide secondary buttons on mobile — still accessible via ☰ modal */
+            .tr-mob-hide { display: none !important; }
         }
     </style>
 </head>
@@ -2668,12 +2670,12 @@ HTML = '''
                     <div class="rsys-btns" onclick="event.stopPropagation()">
                         <button onclick="trSkip()"             class="rsys-btn rsys-btn-go"   title="Skip current call">⏭</button>
                         <button onclick="trPauseToggle()"      class="rsys-btn rsys-btn-go"   id="trPauseBtn" title="Pause/Resume">⏸</button>
-                        <button onclick="trReplay()"           class="rsys-btn"               title="Replay last call">↩</button>
+                        <button onclick="trReplay()"           class="rsys-btn tr-mob-hide"   title="Replay last call">↩</button>
                         <button onclick="trAvoid()"            class="rsys-btn rsys-btn-warn" id="trAvoidBtn" title="Avoid this TG">⛔</button>
                         <span id="trAvoidBtnLabel" style="display:none;"></span>
-                        <button onclick="trLockSysToggle()"    class="rsys-btn"               id="trLockSysBtnRow" title="Lock to current system">📡</button>
-                        <button onclick="trLockTgToggle()"     class="rsys-btn"               id="trLockTgBtnRow"  title="Lock to current talkgroup">#</button>
-                        <button onclick="openTrConsoleModal()" class="rsys-btn" title="TG Console">⊞</button>
+                        <button onclick="trLockSysToggle()"    class="rsys-btn tr-mob-hide"   id="trLockSysBtnRow" title="Lock to current system">📡</button>
+                        <button onclick="trLockTgToggle()"     class="rsys-btn tr-mob-hide"   id="trLockTgBtnRow"  title="Lock to current talkgroup">#</button>
+                        <button onclick="openTrConsoleModal()" class="rsys-btn tr-mob-hide"   title="TG Console">⊞</button>
                         <button onclick="openTrModal()"        class="rsys-btn" title="Call Log">☰</button>
                     </div>
                 </div>
