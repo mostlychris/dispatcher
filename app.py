@@ -1252,6 +1252,49 @@ tg_refresh_thread.start()
 _start_sdr_relay()
 ysf_audio_relay.start()
 
+# -------------------------
+# BANDWIDTH MONITOR
+# -------------------------
+_bw_rates  = {'rx': 0.0, 'tx': 0.0}  # bytes/sec, updated every second
+_bw_prev   = {}
+
+def _read_net_dev():
+    totals = {}
+    try:
+        with open('/proc/net/dev') as f:
+            for line in f:
+                if ':' not in line:
+                    continue
+                iface, data = line.split(':', 1)
+                iface = iface.strip()
+                if iface == 'lo':
+                    continue
+                fields = data.split()
+                totals[iface] = {'rx': int(fields[0]), 'tx': int(fields[8])}
+    except Exception:
+        pass
+    return totals
+
+def _bw_monitor_loop():
+    global _bw_rates, _bw_prev
+    while True:
+        time.sleep(1)
+        now = time.time()
+        current = _read_net_dev()
+        if _bw_prev:
+            dt = now - _bw_prev.get('_time', now)
+            if dt > 0:
+                rx = tx = 0
+                for iface, vals in current.items():
+                    prev = _bw_prev.get(iface)
+                    if prev:
+                        rx += max(0, vals['rx'] - prev['rx'])
+                        tx += max(0, vals['tx'] - prev['tx'])
+                _bw_rates = {'rx': rx / dt, 'tx': tx / dt}
+        _bw_prev = {**current, '_time': now}
+
+threading.Thread(target=_bw_monitor_loop, daemon=True, name='bw-monitor').start()
+
 HTML = '''
 <!DOCTYPE html>
 <html>
@@ -1695,6 +1738,11 @@ HTML = '''
         .svc-text-off  { color: #cc4444; font-size: 11px; }
         .svc-text-dim  { color: #555; font-size: 11px; }
         .svc-text-warn { color: gold; font-size: 11px; }
+        .strip-bw { margin-left: auto; gap: 6px; }
+        .bw-arrow { font-size: 8px; opacity: 0.6; }
+        .bw-down  { color: #4fc; }
+        .bw-up    { color: #f84; }
+        #bwRx, #bwTx { font-size: 11px; font-variant-numeric: tabular-nums; min-width: 52px; }
 
         /* ---- ACTIVE RX INDICATOR (dot only, no background change) ---- */
         .tx-pulse { display: none; }
@@ -2989,6 +3037,10 @@ HTML = '''
                         <span class="strip-item"><span class="svc-dot" id="dot_analog"></span>AB <span id="svc_analog" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_usrp"></span>USRP <span id="svc_usrp" class="svc-text-off">--</span></span>
                         <span class="strip-item"><span class="svc-dot" id="dot_ysf"></span>YSF <span id="svc_ysf" class="svc-text-off">--</span></span>
+                        <span class="strip-item strip-bw" id="bwWidget" title="Network bandwidth (all interfaces)">
+                            <span class="bw-arrow bw-down">&#9660;</span><span id="bwRx">--</span>
+                            <span class="bw-arrow bw-up">&#9650;</span><span id="bwTx">--</span>
+                        </span>
                     </div>
                 </div>
 
@@ -6694,6 +6746,22 @@ registerProcessor('mic-decimator', MicDecimator);
         fetch('/api/sdr/state').then(r=>r.json()).then(_onSdrState).catch(()=>{});
         _initYsf();
         _initYsfPanel();
+
+        // ---- Bandwidth widget ----
+        function _fmtBw(bps) {
+            if (bps >= 1e6)       return (bps / 1e6).toFixed(1) + ' MB/s';
+            else if (bps >= 1e3)  return (bps / 1e3).toFixed(0) + ' KB/s';
+            else                  return Math.round(bps) + ' B/s';
+        }
+        function _pollBw() {
+            fetch('/api/stats/bw').then(r => r.json()).then(d => {
+                document.getElementById('bwRx').textContent = _fmtBw(d.rx || 0);
+                document.getElementById('bwTx').textContent = _fmtBw(d.tx || 0);
+            }).catch(() => {});
+        }
+        _pollBw();
+        setInterval(_pollBw, 2000);
+
         log('Dispatcher ready', 'ok');
         // Populate device list on load (labels appear only after mic permission granted via Test or PTT)
         populateMicDevices().catch(() => {});
@@ -6908,6 +6976,10 @@ def remove_as_fav(node):
 @app.route('/api/tune_history', methods=['GET'])
 def get_tune_history():
     return jsonify(tune_history)
+
+@app.route('/api/stats/bw')
+def get_bw_stats():
+    return jsonify(_bw_rates)
 
 @app.route('/api/debug/abinfo')
 def debug_abinfo():
