@@ -2702,6 +2702,7 @@ HTML = '''
                     <div class="rsys-sub">
                         <span id="sdrSignalBars" class="rsys-sigbars"><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span></span>
                         <span id="sdrLabelBadge" class="rsys-meta rsys-val-overflow"></span>
+                        <span id="sdrLagBadge" style="font-size:9px;color:#555;margin-left:auto;font-family:monospace;flex-shrink:0" title="Audio buffer lag / last freq_change delay">lag: —</span>
                     </div>
                     <div class="rsys-btns" onclick="event.stopPropagation()">
                         <button onclick="sdrSkip()"          class="rsys-btn rsys-btn-go" title="Next frequency">⏭</button>
@@ -3815,12 +3816,24 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         // Lag measurement (mirrors scanner app's _audioLagMs logic)
         var _SDR_AUDIO_RATE   = 24000;
         var _sdrOutSamples    = 0;    // latest out_samples from sdr_audio_stats
-        var _sdrLagMs         = 0;    // current measured lag in ms
-        var _sdrTxLagMs       = 0;    // lag captured at freq_change time
+        var _sdrLagMs            = 0;    // current measured lag in ms
+        var _sdrTxLagMs          = 0;    // lag captured at freq_change time
+        var _sdrLagReloadPending = false;
+        const _SDR_LAG_MAX_MS    = 2000;
+
+        function _updateSdrLagBadge() {
+            const el = document.getElementById('sdrLagBadge');
+            if (!el) return;
+            if (!_sdrAudioEnabled) { el.textContent = 'lag: —'; return; }
+            const fcPart = _sdrTxLagMs > 0 ? '  fc:' + Math.round(_sdrTxLagMs) + 'ms' : '';
+            el.textContent = 'lag: ' + Math.round(_sdrLagMs) + 'ms' + fcPart;
+        }
+
         setInterval(function() {
             if (!_sdrAudioEl || _sdrAudioEl.paused || _sdrAudioEl.currentTime < 0.3) return;
             const raw = Math.max(0, (_sdrOutSamples - _sdrAudioEl.currentTime * _SDR_AUDIO_RATE) / _SDR_AUDIO_RATE * 1000);
-            if (raw < 30000) _sdrLagMs = raw;
+            if (raw < _SDR_LAG_MAX_MS) { _sdrLagMs = raw; } else if (!_sdrLagReloadPending) { _sdrLagMs = 0; _sdrLagReloadPending = true; setTimeout(function() { _sdrLagReloadPending = false; if (_sdrAudioEnabled) { _sdrOutSamples = 0; _sdrConnectAudio(); } }, 800); }
+            _updateSdrLagBadge();
         }, 200);
 
         function _sdrSetSignalBars(db) {
