@@ -1035,7 +1035,9 @@ _sdr_state = {
     'defaultSquelch': None,
     'defaultGain':    None,
 }
-_sdr_state_lock = threading.Lock()
+_sdr_state_lock    = threading.Lock()
+_sdr_proxy_samples = 0          # cumulative PCM samples sent to browser (reset on reconnect)
+_sdr_proxy_lock    = threading.Lock()
 
 def _sdr_ws_url():
     base = SDR_SCANNER_URL.rstrip('/')
@@ -1165,6 +1167,15 @@ def _sdr_on_message(ws, raw):
             _sdr_state['holdFreq'] = m.get('holdFreq')
     push_event({'event': 'sdr_' + t, **m})
 
+def _sdr_audio_stats_loop():
+    """Emit sdr_audio_stats SSE event every second so the browser can measure lag."""
+    while True:
+        time.sleep(1)
+        with _sdr_proxy_lock:
+            samples = _sdr_proxy_samples
+        if samples > 0:
+            push_event({'event': 'sdr_audio_stats', 'out_samples': samples})
+
 def _start_sdr_relay():
     try:
         import websocket  # noqa
@@ -1173,6 +1184,7 @@ def _start_sdr_relay():
         return
     t = threading.Thread(target=_sdr_relay_loop, daemon=True)
     t.start()
+    threading.Thread(target=_sdr_audio_stats_loop, daemon=True, name='sdr-audio-stats').start()
 
 
 # ── YSF audio relay ─────────────────────────────────────────────────────────
@@ -3825,8 +3837,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             const el = document.getElementById('sdrLagBadge');
             if (!el) return;
             if (!_sdrAudioEnabled) { el.textContent = 'lag: —'; return; }
-            const fcPart = _sdrTxLagMs > 0 ? '  fc:' + Math.round(_sdrTxLagMs) + 'ms' : '';
-            el.textContent = 'lag: ' + Math.round(_sdrLagMs) + 'ms' + fcPart;
+            const fcPart  = _sdrTxLagMs > 0 ? '  fc:' + Math.round(_sdrTxLagMs) + 'ms' : '';
+            const elState = _sdrAudioEl ? (_sdrAudioEl.paused ? 'paused' : 'playing') + '/rs' + _sdrAudioEl.readyState : 'none';
+            el.textContent = 'lag: ' + Math.round(_sdrLagMs) + 'ms' + fcPart + '  ' + elState;
         }
 
         setInterval(function() {
@@ -3866,6 +3879,21 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function _initSdr() {
             _sdrAudioEl = new Audio();
             _sdrAudioEl.crossOrigin = 'anonymous';
+            // Auto-reconnect when the upstream stream closes (e.g. scanner resets between transmissions)
+            _sdrAudioEl.addEventListener('ended', function() {
+                if (_sdrAudioEnabled) {
+                    console.log('[sdr] stream ended — reconnecting');
+                    _sdrOutSamples = 0; _sdrLagMs = 0;
+                    setTimeout(_sdrConnectAudio, 400);
+                }
+            });
+            _sdrAudioEl.addEventListener('error', function() {
+                if (_sdrAudioEnabled) {
+                    console.log('[sdr] stream error — reconnecting');
+                    _sdrOutSamples = 0; _sdrLagMs = 0;
+                    setTimeout(_sdrConnectAudio, 1000);
+                }
+            });
             const sv = parseInt(localStorage.getItem('sdrVolume') ?? '100');
             const lv = parseInt(localStorage.getItem('sdrLp')     ?? '3000');
             const hv = parseInt(localStorage.getItem('sdrHp')     ?? '0');
@@ -3905,6 +3933,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function _sdrConnectAudio() {
             if (!_sdrAudioEl) return;
             _sdrEnsureCtx();
+            _sdrOutSamples = 0; _sdrLagMs = 0;  // server resets counter on each new connection
             _sdrAudioEl.src = '/api/sdr/stream';
             if (_sdrCtx && _sdrCtx.state === 'suspended') _sdrCtx.resume();
             _sdrAudioEl.play().catch(() => {});
@@ -7458,6 +7487,9 @@ def sdr_bank():
 @app.route('/api/sdr/stream')
 def sdr_stream():
     """Proxy the scanner's HTTP WAV audio stream to the browser."""
+    global _sdr_proxy_samples
+    with _sdr_proxy_lock:
+        _sdr_proxy_samples = 0   # reset per-connection so browser currentTime=0 aligns
     url = _sdr_api_url('/stream')
     try:
         req = urllib.request.Request(url)
@@ -7466,11 +7498,14 @@ def sdr_stream():
         return jsonify({'error': str(e)}), 502
     content_type = r.headers.get('Content-Type', 'audio/wav')
     def generate():
+        global _sdr_proxy_samples
         try:
             while True:
                 chunk = r.read(4096)
                 if not chunk:
                     break
+                with _sdr_proxy_lock:
+                    _sdr_proxy_samples += len(chunk) // 2  # 16-bit mono PCM samples
                 yield chunk
         finally:
             try: r.close()
