@@ -3830,7 +3830,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _sdrOutSamples    = 0;    // latest out_samples from sdr_audio_stats
         var _sdrLagMs            = 0;    // current measured lag in ms
         var _sdrTxLagMs          = 0;    // lag captured at freq_change time
-        var _sdrLagReloadPending = false;
         const _SDR_LAG_MAX_MS    = 2000;
 
         function _updateSdrLagBadge() {
@@ -3843,9 +3842,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         setInterval(function() {
-            if (!_sdrAudioEl || _sdrAudioEl.paused || _sdrAudioEl.currentTime < 0.3) return;
+            // Wait until currentTime has advanced past the initial buffering phase before
+            // computing lag — early reads produce inflated raw values because out_samples
+            // arrives via SSE before the audio element has caught up.
+            if (!_sdrAudioEl || _sdrAudioEl.paused || _sdrAudioEl.currentTime < 1.5 || !_sdrOutSamples) return;
             const raw = Math.max(0, (_sdrOutSamples - _sdrAudioEl.currentTime * _SDR_AUDIO_RATE) / _SDR_AUDIO_RATE * 1000);
-            if (raw < _SDR_LAG_MAX_MS) { _sdrLagMs = raw; } else if (!_sdrLagReloadPending) { _sdrLagMs = 0; _sdrLagReloadPending = true; setTimeout(function() { _sdrLagReloadPending = false; if (_sdrAudioEnabled) { _sdrOutSamples = 0; _sdrConnectAudio(); } }, 800); }
+            if (raw < _SDR_LAG_MAX_MS) _sdrLagMs = raw;
             _updateSdrLagBadge();
         }, 200);
 
