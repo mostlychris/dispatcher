@@ -192,12 +192,8 @@ class IAX2Client:
             self._oseqno = (self._oseqno + 1) & 0xFF
 
     def reset_voice_ts(self):
-        """No-op kept for API compatibility.
-        Voice timestamps now advance continuously across PTT presses to prevent
-        Asterisk's jitter buffer from resyncing (and buffering frames for the
-        resync delay) on every new press.  The timestamp is only reset to None
-        when a new IAX2 call is accepted so the first press of a fresh call
-        seeds from the wall clock."""
+        """Call before each PTT press to seed a fresh voice timestamp sequence."""
+        self._voice_ts = None
 
     def send_voice(self, pcm_bytes: bytes) -> None:
         """Send 16-bit 8kHz PCM as IAX2 voice frames (160 samples = 20ms each).
@@ -470,7 +466,6 @@ class IAX2Client:
 
             elif sub == self.IAX_ACCEPT:
                 self._send_iax(self.IAX_ACK)
-                self._voice_ts = None  # new call — seed fresh on first PTT press
                 self._set_state('connected')
                 log.info(f'IAX2: connected to node {self.node}')
 
