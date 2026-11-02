@@ -526,7 +526,7 @@ class IAX2Client:
             ctrl_names = {self.CTRL_HANGUP: 'HANGUP', self.CTRL_RINGING: 'RINGING',
                           self.CTRL_ANSWER: 'ANSWER', self.CTRL_HOLD: 'HOLD',
                           self.CTRL_UNHOLD: 'UNHOLD'}
-            log.debug(f'IAX2: CONTROL sub=0x{sub:02x} ({ctrl_names.get(sub, "?")}) — ACKing')
+            log.info(f'IAX2: CONTROL sub=0x{sub:02x} ({ctrl_names.get(sub, "?")}) — ACKing')
             self._send_iax(self.IAX_ACK)
 
         elif ftype == self.FRAME_VOICE:
