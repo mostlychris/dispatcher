@@ -5807,16 +5807,15 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 });
                 if (!_pttActive) { pttStop(); return; }
 
-                let _firstFrame = true;
+                let _frameCount = 0, _maxRms = 0;
                 _pttNode.port.onmessage = (e) => {
-                    if (_firstFrame) {
-                        _firstFrame = false;
-                        const arr = new Int16Array(e.data);
-                        const rms = Math.sqrt(arr.reduce((s, v) => s + v*v, 0) / arr.length);
-                        log('PTT: mic rms=' + rms.toFixed(0) + (rms < 200 ? ' (too quiet?)' : ' (ok)'), rms < 200 ? 'warn' : 'ok');
-                    }
+                    _frameCount++;
+                    const arr = new Int16Array(e.data);
+                    const rms = Math.sqrt(arr.reduce((s, v) => s + v*v, 0) / arr.length);
+                    if (rms > _maxRms) _maxRms = rms;
                     if (_pttWs && _pttWs.readyState === WebSocket.OPEN) _pttWs.send(e.data);
                 };
+                _pttNode._logStats = () => log('PTT: ' + _frameCount + ' frames, peak rms=' + _maxRms.toFixed(0) + (_maxRms < 200 ? ' (silent — mic issue?)' : ' (ok)'), _maxRms < 200 ? 'warn' : 'ok');
 
                 // VU meter
                 if (_pttAnalyser) {
@@ -5850,6 +5849,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _setPTTKeyed(false);
             log('Allstar TX: unkeyed', 'info');
             if (_pttNode && _pttNode._stopMeter) { _pttNode._stopMeter(); _pttNode._stopMeter = null; }
+            if (_pttNode && _pttNode._logStats)  { _pttNode._logStats();  _pttNode._logStats = null; }
             if (_pttNode) _pttNode.port.onmessage = null;
             if (_pttWs)  { try { _pttWs.close(); } catch(e) {} _pttWs = null; }
             const bar = document.getElementById('micMeterBar');
