@@ -944,9 +944,9 @@ class AllstarManager:
         self._last_text_frames.append(msg)
         if len(self._last_text_frames) > 20:
             self._last_text_frames.pop(0)
-        # app_rpt sends 'L node1,node2,...' to report currently linked nodes.
-        # An empty list arrives as 'L ' (space only).
+
         if msg.startswith('L '):
+            # ASL1/2: complete snapshot — 'L R556981,T556982,...' or 'L ' for empty
             raw = msg[2:].strip()
             nodes = []
             if raw:
@@ -959,6 +959,23 @@ class AllstarManager:
                     if number.isdigit():
                         nodes.append({'node': number, 'mode': mode})
             self.linked_nodes = nodes
+
+        elif msg.startswith('T '):
+            # ASL3: incremental telemetry events
+            # T <node> CONNECTED,<local>,<remote>  — node linked
+            # T <node> REMDISC,<remote>             — node unlinked
+            parts = msg.split(None, 2)
+            if len(parts) == 3:
+                sub_parts = parts[2].split(',')
+                event = sub_parts[0]
+                if event == 'CONNECTED' and len(sub_parts) >= 3:
+                    remote = sub_parts[2].strip()
+                    if remote.isdigit() and remote != self.client.node:
+                        if not any(n['node'] == remote for n in self.linked_nodes):
+                            self.linked_nodes.append({'node': remote, 'mode': 'T'})
+                elif event == 'REMDISC' and len(sub_parts) >= 2:
+                    remote = sub_parts[1].strip()
+                    self.linked_nodes = [n for n in self.linked_nodes if n['node'] != remote]
 
     def connect(self, node=None):
         if self.client and self.client.state in ('connecting', 'connected'):
