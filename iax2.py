@@ -62,8 +62,16 @@ class IAX2Client:
     FRAME_DTMF_END   = 0x01
     FRAME_DTMF_BEGIN = 0x0E
     FRAME_VOICE      = 0x02
+    FRAME_CONTROL    = 0x04
     FRAME_TEXT       = 0x07
     FRAME_IAX        = 0x06
+
+    # FRAME_CONTROL subclasses (AST_CONTROL_*)
+    CTRL_HANGUP      = 0x01
+    CTRL_RINGING     = 0x03
+    CTRL_ANSWER      = 0x0F
+    CTRL_HOLD        = 0x11
+    CTRL_UNHOLD      = 0x12
 
     # IAX subclasses
     IAX_NEW       = 0x01
@@ -510,6 +518,16 @@ class IAX2Client:
             elif sub != self.IAX_INVAL:
                 log.debug(f'IAX2: unhandled IAX sub=0x{sub:02x}, sending ACK')
                 self._send_iax(self.IAX_ACK)
+
+        elif ftype == self.FRAME_CONTROL:
+            # ASL3/Asterisk 20 sends CONTROL frames (RINGING, ANSWER, etc.) that
+            # require ACKs.  Missing these ACKs leaves the channel in a half-open
+            # state where RX works but app_rpt won't route TX audio to the radio.
+            ctrl_names = {self.CTRL_HANGUP: 'HANGUP', self.CTRL_RINGING: 'RINGING',
+                          self.CTRL_ANSWER: 'ANSWER', self.CTRL_HOLD: 'HOLD',
+                          self.CTRL_UNHOLD: 'UNHOLD'}
+            log.debug(f'IAX2: CONTROL sub=0x{sub:02x} ({ctrl_names.get(sub, "?")}) — ACKing')
+            self._send_iax(self.IAX_ACK)
 
         elif ftype == self.FRAME_VOICE:
             self._send_iax(self.IAX_ACK)

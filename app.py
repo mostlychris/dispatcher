@@ -2595,7 +2595,6 @@ HTML = '''
                         <span id="asNodeListBar" class="rsys-meta">--</span>
                     </div>
                     <div class="rsys-btns" onclick="event.stopPropagation()">
-                        <button id="mobBtnPTT" class="rsys-btn btn-ptt" disabled title="PTT — Hold to Talk">🎙</button>
                         <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
                         <button onclick="openAsModal()"          class="rsys-btn" title="Allstar Controls">⚙</button>
                     </div>
