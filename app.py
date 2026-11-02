@@ -921,7 +921,14 @@ class AllstarManager:
         self.direct_links = []   # not restored from disk — live L frames are authoritative
 
     def _on_audio(self, pcm: bytes):
-        self._last_audio = time.time()
+        # Only mark active when amplitude exceeds the silence/comfort-noise floor.
+        # Asterisk 18+ sends continuous silence frames; without this check the RX
+        # pill would flash constantly even when nobody is transmitting.
+        n = len(pcm) // 2
+        if n:
+            samples = struct.unpack_from(f'<{n}h', pcm)
+            if any(abs(s) > 500 for s in samples):
+                self._last_audio = time.time()
         with self._lock:
             dead = []
             for q in self._ws_qs:
