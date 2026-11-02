@@ -5744,6 +5744,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
                     : { echoCancellation: true, noiseSuppression: true };
                 _pttStream = await _getMicWithRetry(pttAudio, 'PTT');
+                const _tr = _pttStream && _pttStream.getAudioTracks();
+                log('PTT: mic track ' + (_tr && _tr[0] ? _tr[0].readyState + (_tr[0].muted ? '/MUTED' : '/unmuted') + ' label=' + _tr[0].label : 'NONE'), _tr && _tr[0] && !_tr[0].muted ? 'ok' : 'warn');
                 if (_pttCtx) { try { await _pttCtx.close(); } catch(e) {} }
                 _pttCtx = new AudioContext();
                 await _pttCtx.resume();
