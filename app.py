@@ -5802,7 +5802,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 });
                 if (!_pttActive) { pttStop(); return; }
 
+                let _firstFrame = true;
                 _pttNode.port.onmessage = (e) => {
+                    if (_firstFrame) {
+                        _firstFrame = false;
+                        const arr = new Int16Array(e.data);
+                        const rms = Math.sqrt(arr.reduce((s, v) => s + v*v, 0) / arr.length);
+                        log('PTT: mic rms=' + rms.toFixed(0) + (rms < 200 ? ' (too quiet?)' : ' (ok)'), rms < 200 ? 'warn' : 'ok');
+                    }
                     if (_pttWs && _pttWs.readyState === WebSocket.OPEN) _pttWs.send(e.data);
                 };
 
@@ -7464,7 +7471,6 @@ def tr_tg_summary():
 @sock.route('/ws/allstar-tx')
 def allstar_tx_ws(ws):
     """Receive Int16 PCM from the browser and send it up the IAX2 stack."""
-    allstar_mgr.reset_voice_ts()  # seed fresh timestamp sequence for this PTT press
     _logged_level = False
     try:
         while True:
