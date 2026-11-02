@@ -5628,47 +5628,6 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         let _pttCtx = null, _pttStream = null, _pttWs = null, _pttNode = null, _pttActive = false;
         let _micDeviceId = null;
         let _micTestRaf = null;
-        let _pttWorkletUrl = null;  // cached blob URL for worklet module
-
-        // Worklet runs at whatever rate the AudioContext actually uses (device native,
-        // typically 48000 Hz). It decimates to 8000 Hz using a box-filter FIR
-        // (simple averaging over `ratio` input samples per output sample — adequate
-        // for voice) and emits 160-sample (20 ms) Int16 frames.
-        const PTT_WORKLET_CODE = `
-class MicDecimator extends AudioWorkletProcessor {
-    constructor(options) {
-        super();
-        this._ratio   = options.processorOptions.ratio; // e.g. 6 for 48k→8k
-        this._acc     = 0.0;
-        this._accN    = 0;
-        this._outBuf  = new Float32Array(160);
-        this._outPos  = 0;
-    }
-    process(inputs) {
-        const ch = inputs[0][0];
-        if (!ch) return true;
-        for (let i = 0; i < ch.length; i++) {
-            this._acc += ch[i];
-            this._accN++;
-            if (this._accN === this._ratio) {
-                const s = this._acc / this._ratio;
-                this._outBuf[this._outPos++] = s;
-                this._acc  = 0.0;
-                this._accN = 0;
-                if (this._outPos === 160) {
-                    const out = new Int16Array(160);
-                    for (let k = 0; k < 160; k++)
-                        out[k] = Math.max(-32768, Math.min(32767, this._outBuf[k] * 32767 | 0));
-                    this.port.postMessage(out.buffer, [out.buffer]);
-                    this._outPos = 0;
-                }
-            }
-        }
-        return true;
-    }
-}
-registerProcessor('mic-decimator', MicDecimator);
-`;
 
         async function populateMicDevices() {
             try {
@@ -5788,18 +5747,16 @@ registerProcessor('mic-decimator', MicDecimator);
                     : { echoCancellation: true, noiseSuppression: true };
                 _pttStream = await _getMicWithRetry(pttAudio, 'PTT');
 
+                // Bail out if the button was released while getUserMedia was pending.
+                if (!_pttActive) { pttStop(); return; }
+
                 // Fresh AudioContext on every PTT press — prevents zombie nodes from
                 // previous presses accumulating in the graph and avoids any stale
                 // worklet scope state that causes ratio=1 (no decimation) on TX2+.
                 if (_pttCtx) { try { await _pttCtx.close(); } catch(e) {} }
                 _pttCtx = new AudioContext();
                 await _pttCtx.resume();
-                // Cache blob URL so addModule has a live URL to load each time.
-                if (!_pttWorkletUrl) {
-                    const blob = new Blob([PTT_WORKLET_CODE], { type: 'application/javascript' });
-                    _pttWorkletUrl = URL.createObjectURL(blob);
-                }
-                await _pttCtx.audioWorklet.addModule(_pttWorkletUrl);
+                await _pttCtx.audioWorklet.addModule('/api/ptt-worklet.js');
 
                 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
                 _pttWs = new WebSocket(proto + '//' + location.host + '/ws/allstar-tx');
@@ -7069,6 +7026,48 @@ def get_tune_history():
 @app.route('/api/stats/bw')
 def get_bw_stats():
     return jsonify(_bw_rates)
+
+_PTT_WORKLET_JS = """\
+class MicDecimator extends AudioWorkletProcessor {
+    constructor(options) {
+        super();
+        this._ratio   = options.processorOptions.ratio;
+        this._acc     = 0.0;
+        this._accN    = 0;
+        this._outBuf  = new Float32Array(160);
+        this._outPos  = 0;
+    }
+    process(inputs) {
+        const ch = inputs[0][0];
+        if (!ch) return true;
+        for (let i = 0; i < ch.length; i++) {
+            this._acc += ch[i];
+            this._accN++;
+            if (this._accN === this._ratio) {
+                const s = this._acc / this._ratio;
+                this._outBuf[this._outPos++] = s;
+                this._acc  = 0.0;
+                this._accN = 0;
+                if (this._outPos === 160) {
+                    const out = new Int16Array(160);
+                    for (let k = 0; k < 160; k++)
+                        out[k] = Math.max(-32768, Math.min(32767, this._outBuf[k] * 32767 | 0));
+                    this.port.postMessage(out.buffer, [out.buffer]);
+                    this._outPos = 0;
+                }
+            }
+        }
+        return true;
+    }
+}
+registerProcessor('mic-decimator', MicDecimator);
+"""
+
+@app.route('/api/ptt-worklet.js')
+def ptt_worklet_js():
+    from flask import Response as _R
+    return _R(_PTT_WORKLET_JS, mimetype='application/javascript')
+
 
 @app.route('/api/debug/abinfo')
 def debug_abinfo():
