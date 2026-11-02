@@ -5752,9 +5752,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 _pttNode = new AudioWorkletNode(_pttCtx, 'mic-decimator', { processorOptions: { ratio } });
                 _pttAnalyser = _pttCtx.createAnalyser();
                 _pttAnalyser.fftSize = 256;
-                _pttSrc = _pttCtx.createMediaStreamSource(_pttStream);
-                _pttSrc.connect(_pttAnalyser);
-                _pttSrc.connect(_pttNode);
+                // _pttSrc is created fresh on each PTT press (not here) so that
+                // Chrome properly pulls from the OS mic after AudioContext resume.
                 _pttNode.connect(_pttCtx.destination);
                 log('PTT: audio ready (rate=' + _pttCtx.sampleRate + ' ratio=' + ratio + ')', 'ok');
             } catch(e) {
@@ -5795,6 +5794,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 // touchstart), so Chrome will honour it even if the context was
                 // created by the Allstar-connect polling loop and stayed suspended.
                 if (_pttCtx.state !== 'running') await _pttCtx.resume();
+
+                // Recreate the source node every press — a node created while the
+                // context was suspended silently produces zeros even after resume.
+                if (_pttSrc) { try { _pttSrc.disconnect(); } catch(_) {} }
+                _pttSrc = _pttCtx.createMediaStreamSource(_pttStream);
+                _pttSrc.connect(_pttNode);
+                if (_pttAnalyser) _pttSrc.connect(_pttAnalyser);
+
                 if (!_pttActive) { pttStop(); return; }  // released during init
 
                 // Open WebSocket — fast on every press after the first.
