@@ -7464,23 +7464,25 @@ def tr_tg_summary():
 @sock.route('/ws/allstar-tx')
 def allstar_tx_ws(ws):
     """Receive Int16 PCM from the browser and send it up the IAX2 stack."""
-    allstar_mgr.reset_voice_ts()  # seed fresh timestamp sequence for this PTT press
-    _logged_level = False
+    allstar_mgr.reset_voice_ts()
+    try:
+        allstar_mgr.send_dtmf('99')  # cop,6: phone PTT key (ASL3 rpt.conf)
+    except Exception as e:
+        app.logger.warning(f'Allstar TX: DTMF key failed: {e}')
     try:
         while True:
             data = ws.receive()
             if data is None:
                 break
             if isinstance(data, bytes) and len(data) >= 2:
-                if not _logged_level:
-                    import struct as _s
-                    n = len(data) // 2
-                    rms = (sum(_s.unpack_from('<h', data, i*2)[0]**2 for i in range(n)) / n) ** 0.5
-                    app.logger.info(f'Allstar TX: first PCM frame len={len(data)} rms={rms:.0f}')
-                    _logged_level = True
                 allstar_mgr.send_voice(data)
     except Exception:
         pass
+    finally:
+        try:
+            allstar_mgr.send_dtmf('99')  # cop,6: phone PTT unkey
+        except Exception as e:
+            app.logger.warning(f'Allstar TX: DTMF unkey failed: {e}')
 
 
 # -------------------------
