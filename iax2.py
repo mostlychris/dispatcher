@@ -491,7 +491,11 @@ class IAX2Client:
                                 if ((s - ack_through) & 0xFF) > 128]:
                         del self._tx_buf[seq]
 
-            elif sub not in (self.IAX_PONG, self.IAX_INVAL):
+            elif sub == self.IAX_PONG:
+                # Asterisk 18+ treats PONG as reliable — must ACK it
+                self._send_iax(self.IAX_ACK)
+
+            elif sub != self.IAX_INVAL:
                 log.debug(f'IAX2: unhandled IAX sub=0x{sub:02x}, sending ACK')
                 self._send_iax(self.IAX_ACK)
 
