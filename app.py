@@ -5627,7 +5627,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         // PTT HOLD-TO-TALK
         // -------------------------
         // Persistent across presses (torn down on Allstar disconnect)
-        let _pttCtx = null, _pttStream = null, _pttNode = null, _pttAnalyser = null;
+        let _pttCtx = null, _pttStream = null, _pttNode = null, _pttAnalyser = null, _pttSrc = null;
         // Per-press
         let _pttWs = null, _pttActive = false;
         let _micDeviceId = null;
@@ -5752,9 +5752,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 _pttNode = new AudioWorkletNode(_pttCtx, 'mic-decimator', { processorOptions: { ratio } });
                 _pttAnalyser = _pttCtx.createAnalyser();
                 _pttAnalyser.fftSize = 256;
-                const src = _pttCtx.createMediaStreamSource(_pttStream);
-                src.connect(_pttAnalyser);
-                src.connect(_pttNode);
+                _pttSrc = _pttCtx.createMediaStreamSource(_pttStream);
+                _pttSrc.connect(_pttAnalyser);
+                _pttSrc.connect(_pttNode);
                 _pttNode.connect(_pttCtx.destination);
                 log('PTT: audio ready (rate=' + _pttCtx.sampleRate + ' ratio=' + ratio + ')', 'ok');
             } catch(e) {
@@ -5769,6 +5769,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         // Full teardown — called when Allstar disconnects.
         function _pttTeardown() {
             pttStop();
+            if (_pttSrc)    { try { _pttSrc.disconnect();   } catch(e) {} _pttSrc = null; }
             if (_pttNode)   { try { _pttNode.disconnect(); } catch(e) {} _pttNode = null; }
             if (_pttCtx)    { try { _pttCtx.close();        } catch(e) {} _pttCtx = null; }
             if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
