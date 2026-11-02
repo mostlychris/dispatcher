@@ -237,20 +237,38 @@ class IAX2Client:
                 self._raw_send(pkt)
                 self._voice_ts = (self._voice_ts + 20) & 0xFFFFFFFF
 
-    def _dtmf_thread(self, digits: str, inter_digit: float):
-        """Send each digit as an IAX2 TEXT frame: 'D <node> 0 1 <digit>'.
+    def _send_dtmf_frame(self, digit: str, ftype: int) -> None:
+        """Send one IAX2 DTMF BEGIN or END full frame."""
+        with self._send_lock:
+            seq = self._oseqno
+            src = self._src_call | 0x8000
+            pkt = struct.pack('>HHIBBBB',
+                              src, self._dst_call, self._ts(),
+                              seq, self._iseqno,
+                              ftype, ord(digit))
+            self._raw_send(pkt)
+            self._tx_buf[seq] = b''
+            if len(self._tx_buf) > 128:
+                del self._tx_buf[min(self._tx_buf)]
+            self._oseqno = (self._oseqno + 1) & 0xFF
 
-        iaxRPT does not use IAX2 DTMF frames or in-band audio tones.
-        It sends one TEXT frame per digit in this format, which app_rpt
-        processes directly without going through the channel DTMF queue.
+    def _dtmf_thread(self, digits: str, inter_digit: float):
+        """Send DTMF digits as IAX2 DTMF_BEGIN / DTMF_END full frames.
+
+        ASL3 app_rpt routes TEXT-frame iaxRPT DTMF through handle_link_data
+        (peer-repeater path) and does not execute phone_functions from it.
+        Proper IAX2 DTMF frames become AST_FRAME_DTMF_END events in Asterisk
+        and are processed by app_rpt's phone_functions handler.
         """
-        with self._dtmf_lock:   # serialise: only one sequence at a time
+        with self._dtmf_lock:
             try:
-                INTER_DIGIT = 0.05  # 50 ms between digits — matches iaxRPT pacing
+                DTMF_DURATION = 0.10   # 100 ms key-down per digit
+                INTER_DIGIT   = 0.05   # 50 ms gap between digits
                 for ch in digits:
-                    text = f'D {self.node} 0 1 {ch}'
-                    self._send_text_frame(text)
-                    log.debug(f'IAX2 TEXT sent: {text!r}')
+                    self._send_dtmf_frame(ch, self.FRAME_DTMF_BEGIN)
+                    time.sleep(DTMF_DURATION)
+                    self._send_dtmf_frame(ch, self.FRAME_DTMF_END)
+                    log.debug(f'IAX2 DTMF sent: {ch!r}')
                     time.sleep(INTER_DIGIT)
             except Exception:
                 log.exception('IAX2 _dtmf_thread error')
