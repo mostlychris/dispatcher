@@ -5558,7 +5558,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     const b = document.getElementById(id);
                     if (b) b.disabled = !connected;
                 });
-                if (!connected) pttStop();
+                if (!connected) _pttTeardown();
+                else            _pttInitAudio();  // pre-warm mic+ctx+worklet; no-op if ready
 
                 // keep polling while connected; stop when offline
                 if (d.state === 'connected' || d.state === 'connecting') {
@@ -5625,7 +5626,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         // -------------------------
         // PTT HOLD-TO-TALK
         // -------------------------
-        let _pttCtx = null, _pttStream = null, _pttWs = null, _pttNode = null, _pttActive = false;
+        // Persistent across presses (torn down on Allstar disconnect)
+        let _pttCtx = null, _pttStream = null, _pttNode = null, _pttAnalyser = null;
+        // Per-press
+        let _pttWs = null, _pttActive = false;
         let _micDeviceId = null;
         let _micTestRaf = null;
 
@@ -5731,9 +5735,48 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
 
+        // One-time audio setup: mic + AudioContext + AudioWorklet.
+        // Kept alive between presses so each PTT press is instant (just a WS open).
+        async function _pttInitAudio() {
+            if (_pttCtx && _pttNode && _pttStream) return;  // already ready
+            try {
+                const pttAudio = _micDeviceId
+                    ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
+                    : { echoCancellation: true, noiseSuppression: true };
+                _pttStream = await _getMicWithRetry(pttAudio, 'PTT');
+                if (_pttCtx) { try { await _pttCtx.close(); } catch(e) {} }
+                _pttCtx = new AudioContext();
+                await _pttCtx.resume();
+                await _pttCtx.audioWorklet.addModule('/api/ptt-worklet.js');
+                const ratio = Math.max(1, Math.round(_pttCtx.sampleRate / 8000));
+                _pttNode = new AudioWorkletNode(_pttCtx, 'mic-decimator', { processorOptions: { ratio } });
+                _pttAnalyser = _pttCtx.createAnalyser();
+                _pttAnalyser.fftSize = 256;
+                const src = _pttCtx.createMediaStreamSource(_pttStream);
+                src.connect(_pttAnalyser);
+                src.connect(_pttNode);
+                _pttNode.connect(_pttCtx.destination);
+                log('PTT: audio ready (rate=' + _pttCtx.sampleRate + ' ratio=' + ratio + ')', 'ok');
+            } catch(e) {
+                log('PTT: audio init failed [' + e.name + ']: ' + e.message, 'error');
+                if (_pttNode)   { try { _pttNode.disconnect(); } catch(_) {} _pttNode = null; }
+                if (_pttCtx)    { try { _pttCtx.close();        } catch(_) {} _pttCtx = null; }
+                if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
+                _pttAnalyser = null;
+            }
+        }
+
+        // Full teardown — called when Allstar disconnects.
+        function _pttTeardown() {
+            pttStop();
+            if (_pttNode)   { try { _pttNode.disconnect(); } catch(e) {} _pttNode = null; }
+            if (_pttCtx)    { try { _pttCtx.close();        } catch(e) {} _pttCtx = null; }
+            if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
+            _pttAnalyser = null;
+        }
+
         async function pttStart() {
             if (_pttActive) return;
-            // Check either button is enabled (connected)
             const btnMain = document.getElementById('btnPTT');
             if (btnMain && btnMain.disabled) return;
             _pttActive = true;
@@ -5741,23 +5784,15 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             log('Allstar TX: keyed up', 'ok');
 
             try {
-                // Open mic first; BT devices may switch HFP profile here.
-                const pttAudio = _micDeviceId
-                    ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
-                    : { echoCancellation: true, noiseSuppression: true };
-                _pttStream = await _getMicWithRetry(pttAudio, 'PTT');
+                // Initialize once; no-op on subsequent presses.
+                if (!_pttCtx || !_pttNode || !_pttStream) {
+                    await _pttInitAudio();
+                    if (!_pttCtx || !_pttNode || !_pttStream)
+                        throw new Error('PTT audio not ready');
+                }
+                if (!_pttActive) { pttStop(); return; }  // released during init
 
-                // Bail out if the button was released while getUserMedia was pending.
-                if (!_pttActive) { pttStop(); return; }
-
-                // Fresh AudioContext on every PTT press — prevents zombie nodes from
-                // previous presses accumulating in the graph and avoids any stale
-                // worklet scope state that causes ratio=1 (no decimation) on TX2+.
-                if (_pttCtx) { try { await _pttCtx.close(); } catch(e) {} }
-                _pttCtx = new AudioContext();
-                await _pttCtx.resume();
-                await _pttCtx.audioWorklet.addModule('/api/ptt-worklet.js');
-
+                // Open WebSocket — fast on every press after the first.
                 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
                 _pttWs = new WebSocket(proto + '//' + location.host + '/ws/allstar-tx');
                 _pttWs.binaryType = 'arraybuffer';
@@ -5765,39 +5800,30 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     _pttWs.onopen  = res;
                     _pttWs.onerror = rej;
                 });
-
-                const ratio = Math.max(1, Math.round(_pttCtx.sampleRate / 8000));
-                log('PTT: ctx rate=' + _pttCtx.sampleRate + ' ratio=' + ratio, 'ok');
-                _pttNode = new AudioWorkletNode(_pttCtx, 'mic-decimator', {
-                    processorOptions: { ratio }
-                });
-
-                const pttAnalyser = _pttCtx.createAnalyser();
-                pttAnalyser.fftSize = 256;
-                const pttBuf = new Uint8Array(pttAnalyser.frequencyBinCount);
-                const bar = document.getElementById('micMeterBar');
-                let rafId;
-                (function meterTick() {
-                    rafId = requestAnimationFrame(meterTick);
-                    pttAnalyser.getByteTimeDomainData(pttBuf);
-                    let peak = 0;
-                    for (let i = 0; i < pttBuf.length; i++) {
-                        const v = Math.abs(pttBuf[i] - 128) / 128;
-                        if (v > peak) peak = v;
-                    }
-                    const pct = Math.min(100, peak * 200);
-                    if (bar) { bar.style.width = pct + '%'; bar.style.background = pct > 80 ? '#ff4400' : pct > 50 ? '#ffaa00' : '#00cc44'; }
-                })();
-                _pttNode._stopMeter = () => cancelAnimationFrame(rafId);
+                if (!_pttActive) { pttStop(); return; }
 
                 _pttNode.port.onmessage = (e) => {
                     if (_pttWs && _pttWs.readyState === WebSocket.OPEN) _pttWs.send(e.data);
                 };
 
-                const src = _pttCtx.createMediaStreamSource(_pttStream);
-                src.connect(pttAnalyser);
-                src.connect(_pttNode);
-                _pttNode.connect(_pttCtx.destination);
+                // VU meter
+                if (_pttAnalyser) {
+                    const pttBuf = new Uint8Array(_pttAnalyser.frequencyBinCount);
+                    const bar = document.getElementById('micMeterBar');
+                    let rafId;
+                    (function meterTick() {
+                        rafId = requestAnimationFrame(meterTick);
+                        _pttAnalyser.getByteTimeDomainData(pttBuf);
+                        let peak = 0;
+                        for (let i = 0; i < pttBuf.length; i++) {
+                            const v = Math.abs(pttBuf[i] - 128) / 128;
+                            if (v > peak) peak = v;
+                        }
+                        const pct = Math.min(100, peak * 200);
+                        if (bar) { bar.style.width = pct + '%'; bar.style.background = pct > 80 ? '#ff4400' : pct > 50 ? '#ffaa00' : '#00cc44'; }
+                    })();
+                    _pttNode._stopMeter = () => cancelAnimationFrame(rafId);
+                }
 
             } catch(err) {
                 console.error('PTT start failed:', err);
@@ -5811,13 +5837,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _pttActive = false;
             _setPTTKeyed(false);
             log('Allstar TX: unkeyed', 'info');
-            if (_pttNode) {
-                if (_pttNode._stopMeter) _pttNode._stopMeter();
-                try { _pttNode.disconnect(); } catch(e) {}
-                _pttNode = null;
-            }
-            if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
-            if (_pttWs)     { try { _pttWs.close(); } catch(e) {} _pttWs = null; }
+            if (_pttNode && _pttNode._stopMeter) { _pttNode._stopMeter(); _pttNode._stopMeter = null; }
+            if (_pttNode) _pttNode.port.onmessage = null;
+            if (_pttWs)  { try { _pttWs.close(); } catch(e) {} _pttWs = null; }
             const bar = document.getElementById('micMeterBar');
             if (bar) bar.style.width = '0%';
         }
