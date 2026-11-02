@@ -119,6 +119,8 @@ class IAX2Client:
 
         self.state     = 'idle'   # idle | connecting | connected | error
         self.error_msg = ''
+        self.last_rx   = 0.0     # wall time of last received packet
+        self.rx_frames = 0       # total frames received this connection
 
         self._audio_cbs = []
         self._state_cbs = []
@@ -386,6 +388,8 @@ class IAX2Client:
 
             if not data:
                 continue
+            self.last_rx   = time.time()
+            self.rx_frames += 1
             if data[0] & 0x80:
                 self._handle_full(data)
             else:
@@ -453,7 +457,10 @@ class IAX2Client:
 
             elif sub == self.IAX_HANGUP:
                 self._send_iax(self.IAX_ACK)
-                self._set_state('idle')
+                cause = ies.get(0x1A, b'').decode('utf-8', errors='replace') or \
+                        ies.get(0x19, b'').decode('utf-8', errors='replace')
+                log.warning(f'IAX2: HANGUP from {self.host} cause={cause!r} ies={list(hex(k) for k in ies)}')
+                self._set_state('idle', cause or 'Remote hangup')
                 self._running = False
 
             elif sub == self.IAX_PING:

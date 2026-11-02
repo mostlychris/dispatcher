@@ -7079,6 +7079,9 @@ def allstar_debug():
         'call_token':  c._call_token is not None,
         'local_port':  c.local_port,
         'local_addr':  c._sock.getsockname() if c._sock else None,
+        'last_rx':     c.last_rx,
+        'rx_frames':   c.rx_frames,
+        'error':       c.error_msg,
     })
 
 
