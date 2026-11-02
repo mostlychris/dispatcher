@@ -2371,14 +2371,6 @@ HTML = '''
     <!-- MOBILE BOTTOM ACTION BAR (must be before <script> so getElementById works at parse time) -->
     <div id="nodeToastContainer"></div>
 
-    <div class="mobile-action-bar">
-        <button id="mobBtnDmrMonitor" class="mob-btn" onclick="toggleMonitor(this)">📻 DMR</button>
-        <button id="mobBtnAsMonitor"  class="mob-btn" onclick="toggleAllstarAudio(this)">📡 Allstar</button>
-        <button id="mobBtnPTT"        class="mob-btn mob-ptt" disabled>🎙 PTT</button>
-        <button id="mobBtnSdrAudio"   class="mob-btn" onclick="sdrToggleAudio()">SDR</button>
-        <button id="mobBtnYsfAudio"   class="mob-btn" onclick="ysfToggleAudio()">YSF</button>
-        <button id="mobBtnTrAudio"    class="mob-btn" onclick="trToggleAudio()">Trunk</button>
-    </div>
 
     <div id="audioOverlay" onclick="closeAudioOverlayIfBackdrop(event)">
         <div id="audioOverlayPanel">
@@ -2603,6 +2595,7 @@ HTML = '''
                         <span id="asNodeListBar" class="rsys-meta">--</span>
                     </div>
                     <div class="rsys-btns" onclick="event.stopPropagation()">
+                        <button id="mobBtnPTT" class="rsys-btn btn-ptt" disabled title="PTT — Hold to Talk">🎙</button>
                         <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
                         <button onclick="openAsModal()"          class="rsys-btn" title="Allstar Controls">⚙</button>
                     </div>

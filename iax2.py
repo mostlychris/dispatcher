@@ -188,33 +188,45 @@ class IAX2Client:
         self._voice_ts = None
 
     def send_voice(self, pcm_bytes: bytes) -> None:
-        """Send 16-bit 8kHz PCM as IAX2 full VOICE frames (160 samples = 20ms each).
+        """Send 16-bit 8kHz PCM as IAX2 voice frames (160 samples = 20ms each).
 
-        Timestamps increment by exactly 20ms per frame so Asterisk's jitter
-        buffer sees a steady cadence regardless of Python/GIL delivery jitter.
+        The first frame of each PTT press is a full VOICE frame (establishes the
+        codec format for Asterisk).  All subsequent frames are IAX2 mini frames:
+        4-byte header (source call + 16-bit timestamp), no sequence numbers, no
+        ACK required.  This matches what iaxRPT does and avoids exhausting the
+        8-bit _oseqno counter on longer transmissions.
         """
         if self.state != 'connected':
             return
         ulaw = _pcm2ulaw(pcm_bytes)
         chunk_size = 160  # 20ms at 8kHz ulaw
         with self._send_lock:
-            if self._voice_ts is None:
+            first = self._voice_ts is None
+            if first:
                 self._voice_ts = self._ts()
             for offset in range(0, len(ulaw), chunk_size):
                 chunk = ulaw[offset:offset + chunk_size]
                 if not chunk:
                     break
-                seq = self._oseqno
-                src = self._src_call | 0x8000
-                pkt = struct.pack('>HHIBBBB',
-                                  src, self._dst_call, self._voice_ts,
-                                  seq, self._iseqno,
-                                  self.FRAME_VOICE, 0x82) + chunk
+                if first:
+                    # Full VOICE frame — establishes codec (ULAW = 0x82)
+                    seq = self._oseqno
+                    src = self._src_call | 0x8000
+                    pkt = struct.pack('>HHIBBBB',
+                                      src, self._dst_call, self._voice_ts,
+                                      seq, self._iseqno,
+                                      self.FRAME_VOICE, 0x82) + chunk
+                    self._tx_buf[seq] = chunk
+                    if len(self._tx_buf) > 128:
+                        del self._tx_buf[min(self._tx_buf)]
+                    self._oseqno = (self._oseqno + 1) & 0xFF
+                    first = False
+                else:
+                    # Mini frame — no oseqno consumed, no ACK expected
+                    pkt = struct.pack('>HH',
+                                      self._src_call,
+                                      self._voice_ts & 0xFFFF) + chunk
                 self._raw_send(pkt)
-                self._tx_buf[seq] = chunk
-                if len(self._tx_buf) > 256:
-                    del self._tx_buf[min(self._tx_buf)]
-                self._oseqno = (self._oseqno + 1) & 0xFF
                 self._voice_ts = (self._voice_ts + 20) & 0xFFFFFFFF
 
     def _dtmf_thread(self, digits: str, inter_digit: float):
