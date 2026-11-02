@@ -913,12 +913,13 @@ def _save_allstar_state(data):
 
 class AllstarManager:
     def __init__(self):
-        self.client       = None
-        self._ws_qs       = []
-        self._lock        = threading.Lock()
-        self._last_audio  = 0.0
-        self.linked_nodes = []   # updated by 'L ' TEXT frames from app_rpt
-        self.direct_links = []   # not restored from disk — live L frames are authoritative
+        self.client            = None
+        self._ws_qs            = []
+        self._lock             = threading.Lock()
+        self._last_audio       = 0.0
+        self.linked_nodes      = []   # updated by 'L ' TEXT frames from app_rpt
+        self.direct_links      = []   # not restored from disk — live L frames are authoritative
+        self._last_text_frames = []   # rolling buffer of last 20 TEXT frames for debug
 
     def _on_audio(self, pcm: bytes):
         # Only mark active when amplitude exceeds the silence/comfort-noise floor.
@@ -940,6 +941,9 @@ class AllstarManager:
                 self._ws_qs.remove(q)
 
     def _on_text(self, msg: str):
+        self._last_text_frames.append(msg)
+        if len(self._last_text_frames) > 20:
+            self._last_text_frames.pop(0)
         # app_rpt sends 'L node1,node2,...' to report currently linked nodes.
         # An empty list arrives as 'L ' (space only).
         if msg.startswith('L '):
@@ -1678,6 +1682,7 @@ HTML = '''
         .rsys-row.rx-active .rsys-pills,
         .rsys-row.as-rx    .rsys-pills,
         .rsys-row.tr-active .rsys-pills { max-width: 240px; opacity: 1; padding: 0 6px; }
+        .rsys-row.as-connected .rsys-pills { max-width: 240px; opacity: 0.55; padding: 0 6px; }
         .tx-pill {
             display: flex; align-items: center; gap: 4px;
             padding: 2px 7px 2px 5px; border-radius: 10px;
@@ -5516,7 +5521,11 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const nowActive = !!(d.state === 'connected' && d.active);
                 if (nowActive && !wasActive) log('Allstar RX: signal on node ' + (d.node || '--'), 'ok');
                 if (!nowActive && wasActive) log('Allstar RX: signal cleared', 'info');
-                if (asSec) { asSec.classList.toggle('as-rx', nowActive); asSec.classList.toggle('rx-active', nowActive); }
+                if (asSec) {
+                    asSec.classList.toggle('as-connected', d.state === 'connected');
+                    asSec.classList.toggle('as-rx',      nowActive);
+                    asSec.classList.toggle('rx-active',  nowActive);
+                }
                 ['btnAsAudio', 'btnAsAudioSidebar', 'mobBtnAsMonitor'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.classList.toggle('streaming', !!(d.state === 'connected' && d.active) && el.classList.contains('active'));
@@ -7086,9 +7095,11 @@ def allstar_debug():
         'call_token':  c._call_token is not None,
         'local_port':  c.local_port,
         'local_addr':  c._sock.getsockname() if c._sock else None,
-        'last_rx':     c.last_rx,
-        'rx_frames':   c.rx_frames,
-        'error':       c.error_msg,
+        'last_rx':       c.last_rx,
+        'rx_frames':     c.rx_frames,
+        'error':         c.error_msg,
+        'text_frames':   allstar_mgr._last_text_frames,
+        'linked_nodes':  allstar_mgr.linked_nodes,
     })
 
 
