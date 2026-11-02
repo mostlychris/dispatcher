@@ -53,6 +53,14 @@ try:
     from config import ALLSTAR_NODE
 except ImportError:
     ALLSTAR_NODE = ''
+try:
+    from config import ALLSTAR_LOCAL_PORT
+except ImportError:
+    ALLSTAR_LOCAL_PORT = 0
+try:
+    from config import ALLSTAR_CONTEXT
+except ImportError:
+    ALLSTAR_CONTEXT = 'radio-iaxrpt'
 
 try:
     from config import API_KEY
@@ -949,7 +957,8 @@ class AllstarManager:
             return False, 'No node number configured'
         self.linked_nodes = []
         self.client = IAX2Client(
-            ALLSTAR_HOST, ALLSTAR_PORT, ALLSTAR_USER, ALLSTAR_SECRET, node
+            ALLSTAR_HOST, ALLSTAR_PORT, ALLSTAR_USER, ALLSTAR_SECRET, node,
+            context=ALLSTAR_CONTEXT, local_port=ALLSTAR_LOCAL_PORT
         )
         self.client.on_audio(self._on_audio)
         self.client.on_text(self._on_text)
@@ -7067,7 +7076,9 @@ def allstar_debug():
         'dst_call':   c._dst_call,
         'oseqno':     c._oseqno,
         'iseqno':     c._iseqno,
-        'call_token': c._call_token is not None,
+        'call_token':  c._call_token is not None,
+        'local_port':  c.local_port,
+        'local_addr':  c._sock.getsockname() if c._sock else None,
     })
 
 

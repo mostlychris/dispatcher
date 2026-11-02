@@ -97,13 +97,14 @@ class IAX2Client:
     CODEC_ULAW = 0x0004
 
     def __init__(self, host: str, port: int, username: str, secret: str,
-                 node: str, context: str = 'radio-iaxrpt'):
-        self.host     = host
-        self.port     = port
-        self.username = username
-        self.secret   = secret
-        self.node     = str(node)
-        self.context  = context
+                 node: str, context: str = 'radio-iaxrpt', local_port: int = 0):
+        self.host       = host
+        self.port       = port
+        self.username   = username
+        self.secret     = secret
+        self.node       = str(node)
+        self.context    = context
+        self.local_port = local_port
 
         self._sock       = None
         self._src_call   = 1
@@ -235,8 +236,12 @@ class IAX2Client:
     def connect(self):
         if self._running:
             return
-        self._sock       = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.settimeout(1.0)
+        if self.local_port:
+            self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._sock.bind(('', self.local_port))
+            log.info(f'IAX2: bound to local UDP port {self.local_port}')
         self._src_call   = random.randint(0x1000, 0x7FFF)
         self._dst_call   = 0
         self._oseqno     = 0

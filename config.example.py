@@ -15,6 +15,13 @@ ALLSTAR_PORT   = 4569           # IAX2 UDP port
 ALLSTAR_USER   = 'iaxrpt'       # peer name from iax.conf
 ALLSTAR_SECRET = 'YOUR_SECRET_HERE'
 ALLSTAR_NODE   = '00000'        # your local node number
+# Optional: bind the IAX2 client socket to a fixed local UDP port.
+# Required when the Allstar node is on a remote server and the Pi is behind NAT,
+# so you can open/forward that port on your router.  Leave 0 to let the OS pick.
+ALLSTAR_LOCAL_PORT = 0
+# IAX2 context used in the NEW frame — must match the [radio-iaxrpt] section
+# in iax.conf on the Allstar node.  Allstar 3 typically keeps 'radio-iaxrpt'.
+ALLSTAR_CONTEXT = 'radio-iaxrpt'
 
 # API key — required in the X-Api-Key header for service-restart endpoints.
 # Set to any random string; keep it secret.
