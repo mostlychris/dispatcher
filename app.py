@@ -5791,6 +5791,10 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     if (!_pttCtx || !_pttNode || !_pttStream)
                         throw new Error('PTT audio not ready');
                 }
+                // Resume here — this runs inside a user-gesture handler (mousedown/
+                // touchstart), so Chrome will honour it even if the context was
+                // created by the Allstar-connect polling loop and stayed suspended.
+                if (_pttCtx.state !== 'running') await _pttCtx.resume();
                 if (!_pttActive) { pttStop(); return; }  // released during init
 
                 // Open WebSocket — fast on every press after the first.
