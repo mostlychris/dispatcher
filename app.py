@@ -1591,6 +1591,17 @@ HTML = '''
         /* Button color helpers */
         .rsys-btn-go   { border-color: #2a4a2a !important; color: #6a9a6a !important; }
         .rsys-btn-warn { border-color: #442222 !important; color: #aa6666 !important; }
+        .rsys-ptt-btn {
+            align-self: stretch; min-width: 44px; margin-left: 4px; padding: 0 8px;
+            background: rgba(200,60,0,0.07); border: 1px solid rgba(200,80,0,0.28);
+            border-radius: 4px; color: #c88; font-size: 16px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; user-select: none;
+        }
+        .rsys-ptt-btn:disabled { opacity: 0.18; cursor: not-allowed; }
+        .rsys-ptt-btn.keyed {
+            background: #cc2200; color: #fff; border-color: #ff4400;
+            box-shadow: 0 0 10px #ff4400; animation: ptt-pulse 0.6s infinite alternate;
+        }
         /* left accent bar lights up on activity; no background fill */
         .rsys-row.rx-active::before { background: #3cb860; box-shadow: 0 0 10px rgba(60,200,80,0.7); }
         .rsys-row.tr-active::before { background: #5aabff; box-shadow: 0 0 10px rgba(60,130,255,0.7); }
@@ -2602,6 +2613,7 @@ HTML = '''
                     <div class="rsys-btns" onclick="event.stopPropagation()">
                         <button onclick="openAsQuickTuneModal()" class="rsys-btn" title="Allstar Favorites">★</button>
                         <button onclick="openAsModal()"          class="rsys-btn" title="Allstar Controls">⚙</button>
+                        <button id="mobBtnPTT" class="rsys-ptt-btn" disabled title="PTT — Hold to Talk">🎙</button>
                     </div>
                 </div>
 
