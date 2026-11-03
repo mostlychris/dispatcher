@@ -983,20 +983,27 @@ class AllstarManager:
             s.sendall((
                 f'Action: Command\r\nCommand: rpt show nodes {node}\r\n\r\n'
             ).encode())
+            app.logger.warning('AMI command sent, reading output')
             out = b''
-            deadline = time.time() + 5
-            while b'--END COMMAND--' not in out:
-                rem = deadline - time.time()
-                if rem <= 0:
-                    break
-                s.settimeout(rem)
-                chunk = s.recv(2048)
+            s.settimeout(2)
+            deadline = time.time() + 10
+            while time.time() < deadline:
+                try:
+                    chunk = s.recv(2048)
+                except socket.timeout:
+                    # Short read timeout — stop if we have a complete response
+                    if out and (b'--END COMMAND--' in out or out.endswith(b'\r\n\r\n')):
+                        break
+                    if out:
+                        # Give it one more second then stop
+                        deadline = min(deadline, time.time() + 1)
+                    continue
                 if not chunk:
                     break
                 out += chunk
-                if len(out) > 32768:
+                if b'--END COMMAND--' in out or len(out) > 32768:
                     break
-            app.logger.debug(f'AMI command output: {out!r}')
+            app.logger.warning(f'AMI command output ({len(out)}b): {out!r}')
             try:
                 s.sendall(b'Action: Logoff\r\n\r\n')
             except Exception:
