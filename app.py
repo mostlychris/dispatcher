@@ -935,6 +935,7 @@ class AllstarManager:
         self.direct_links      = []   # not restored from disk — live L frames are authoritative
         self._last_text_frames = []   # rolling buffer of last 20 TEXT frames for debug
         self._node_poll_stop   = threading.Event()
+        self._ami_last_error   = ''
 
     def _node_poll_loop(self, node: str):
         """Poll connected nodes via Asterisk AMI every 10 seconds."""
@@ -950,24 +951,31 @@ class AllstarManager:
 
     def _ami_query_nodes(self, node: str):
         """One-shot AMI TCP query: 'rpt show nodes NODE'. Returns list or None on error."""
+        self._ami_last_error = ''
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(5)
             s.connect((ALLSTAR_HOST, ALLSTAR_AMI_PORT))
-            s.recv(256)  # banner: "Asterisk Call Manager/X.Y\r\n"
+            # Read banner: "Asterisk Call Manager/X.Y\r\n"
+            banner = s.recv(256)
+            app.logger.debug(f'AMI banner: {banner!r}')
             s.sendall((
                 f'Action: Login\r\nUsername: {ALLSTAR_AMI_USER}\r\n'
                 f'Secret: {ALLSTAR_AMI_SECRET}\r\n\r\n'
             ).encode())
             buf = b''
-            while b'Authentication accepted' not in buf and b'Error' not in buf:
+            while b'\r\n\r\n' not in buf:
                 chunk = s.recv(2048)
                 if not chunk:
                     break
                 buf += chunk
                 if len(buf) > 4096:
                     break
-            if b'Authentication accepted' not in buf:
+            app.logger.debug(f'AMI login response: {buf!r}')
+            # ASL3 sends "Response: Success" (not always "Authentication accepted")
+            if b'Response: Success' not in buf:
+                self._ami_last_error = f'login failed: {buf.decode("utf-8", errors="replace")[:200]}'
+                app.logger.warning(f'AMI login failed: {buf!r}')
                 s.close()
                 return None
             s.sendall((
@@ -986,6 +994,7 @@ class AllstarManager:
                 out += chunk
                 if len(out) > 32768:
                     break
+            app.logger.debug(f'AMI command output: {out!r}')
             try:
                 s.sendall(b'Action: Logoff\r\n\r\n')
             except Exception:
@@ -1008,7 +1017,8 @@ class AllstarManager:
                         nodes.append({'node': num, 'mode': mode})
             return nodes
         except Exception as e:
-            app.logger.debug(f'AMI query: {e}')
+            self._ami_last_error = str(e)
+            app.logger.warning(f'AMI query: {e}')
             return None
 
     def _on_audio(self, pcm: bytes):
@@ -7275,6 +7285,7 @@ def debug_ami():
         'ami_user': ALLSTAR_AMI_USER,
         'ami_configured': bool(ALLSTAR_AMI_SECRET),
         'result': result,
+        'error': allstar_mgr._ami_last_error,
     })
 
 
