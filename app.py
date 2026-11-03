@@ -1030,6 +1030,53 @@ class AllstarManager:
             app.logger.warning(f'AMI query: {e}')
             return None
 
+    def _ami_raw_cmd(self, cmd: str) -> str:
+        """Run a single AMI Command action and return raw text output."""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(5)
+            s.connect((ALLSTAR_HOST, ALLSTAR_AMI_PORT))
+            s.recv(256)
+            s.sendall((
+                f'Action: Login\r\nUsername: {ALLSTAR_AMI_USER}\r\n'
+                f'Secret: {ALLSTAR_AMI_SECRET}\r\n\r\n'
+            ).encode())
+            buf = b''
+            while b'Response:' not in buf:
+                chunk = s.recv(2048)
+                if not chunk:
+                    break
+                buf += chunk
+                if len(buf) > 4096:
+                    break
+            if b'Response: Success' not in buf:
+                s.close()
+                return f'login failed: {buf.decode("utf-8", errors="replace")[:200]}'
+            s.sendall(f'Action: Command\r\nCommand: {cmd}\r\n\r\n'.encode())
+            out = b''
+            s.settimeout(2)
+            deadline = time.time() + 8
+            while time.time() < deadline:
+                try:
+                    chunk = s.recv(2048)
+                except socket.timeout:
+                    if out:
+                        break
+                    continue
+                if not chunk:
+                    break
+                out += chunk
+                if b'--END COMMAND--' in out or len(out) > 32768:
+                    break
+            try:
+                s.sendall(b'Action: Logoff\r\n\r\n')
+            except Exception:
+                pass
+            s.close()
+            return out.decode('utf-8', errors='replace')
+        except Exception as e:
+            return f'error: {e}'
+
     def _on_audio(self, pcm: bytes):
         # Only mark active when amplitude exceeds the silence/comfort-noise floor.
         # Asterisk 18+ sends continuous silence frames; without this check the RX
@@ -7287,6 +7334,8 @@ def debug_ami():
     """Run an immediate AMI query and return raw result — for testing AMI setup."""
     node = allstar_mgr.client.node if allstar_mgr.client else ALLSTAR_NODE
     result = allstar_mgr._ami_query_nodes(str(node))
+    # Also run a discovery query so we can see the actual rpt CLI commands available
+    discover = allstar_mgr._ami_raw_cmd('core show help rpt')
     return jsonify({
         'node': node,
         'ami_host': ALLSTAR_HOST,
@@ -7295,6 +7344,7 @@ def debug_ami():
         'ami_configured': bool(ALLSTAR_AMI_SECRET),
         'result': result,
         'error': allstar_mgr._ami_last_error,
+        'rpt_commands': discover,
     })
 
 
