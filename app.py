@@ -61,6 +61,10 @@ try:
     from config import ALLSTAR_CONTEXT
 except ImportError:
     ALLSTAR_CONTEXT = 'radio-iaxrpt'
+try:
+    from config import ALLSTAR_SSH_USER
+except ImportError:
+    ALLSTAR_SSH_USER = ''
 
 try:
     from config import API_KEY
@@ -916,23 +920,26 @@ _ALLSTAR_LOCAL = ALLSTAR_HOST in ('127.0.0.1', 'localhost', '::1', '')
 def _rpt_show_nodes(node: str) -> list:
     """Query asterisk for current connected nodes; returns [{node, mode}] or []."""
     try:
-        result = subprocess.run(
-            ['asterisk', '-rx', f'rpt show nodes {node}'],
-            capture_output=True, text=True, timeout=3
-        )
+        if _ALLSTAR_LOCAL:
+            cmd = ['asterisk', '-rx', f'rpt show nodes {node}']
+        elif ALLSTAR_SSH_USER:
+            cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3',
+                   f'{ALLSTAR_SSH_USER}@{ALLSTAR_HOST}',
+                   'asterisk', '-rx', f'rpt show nodes {node}']
+        else:
+            return []
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
         out = result.stdout + result.stderr
     except Exception:
         return []
     nodes = []
     seen = set()
     for line in out.splitlines():
-        # Match 5-7 digit node numbers, skip the queried node itself
         for m in re.finditer(r'\b(\d{5,7})\b', line):
             num = m.group(1)
             if num == node or num in seen:
                 continue
             seen.add(num)
-            # Mode: R(eceive-only), T(ransceive), M(onitor), L(ocal)
             mm = re.search(r'\b([RTMLrtml])\b', line)
             mode = mm.group(1).upper() if mm else 'T'
             nodes.append({'node': num, 'mode': mode})
@@ -1032,7 +1039,7 @@ class AllstarManager:
         self.client.on_audio(self._on_audio)
         self.client.on_text(self._on_text)
         self.client.connect()
-        if _ALLSTAR_LOCAL:
+        if _ALLSTAR_LOCAL or ALLSTAR_SSH_USER:
             t = threading.Thread(target=self._node_poll_loop, args=(node,),
                                  daemon=True, name='allstar-node-poll')
             t.start()
