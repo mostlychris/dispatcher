@@ -911,15 +911,56 @@ def _save_allstar_state(data):
     except Exception as e:
         print(f"Warning: could not save allstar state: {e}")
 
+_ALLSTAR_LOCAL = ALLSTAR_HOST in ('127.0.0.1', 'localhost', '::1', '')
+
+def _rpt_show_nodes(node: str) -> list:
+    """Query asterisk for current connected nodes; returns [{node, mode}] or []."""
+    try:
+        result = subprocess.run(
+            ['asterisk', '-rx', f'rpt show nodes {node}'],
+            capture_output=True, text=True, timeout=3
+        )
+        out = result.stdout + result.stderr
+    except Exception:
+        return []
+    nodes = []
+    seen = set()
+    for line in out.splitlines():
+        # Match 5-7 digit node numbers, skip the queried node itself
+        for m in re.finditer(r'\b(\d{5,7})\b', line):
+            num = m.group(1)
+            if num == node or num in seen:
+                continue
+            seen.add(num)
+            # Mode: R(eceive-only), T(ransceive), M(onitor), L(ocal)
+            mm = re.search(r'\b([RTMLrtml])\b', line)
+            mode = mm.group(1).upper() if mm else 'T'
+            nodes.append({'node': num, 'mode': mode})
+    return nodes
+
+
 class AllstarManager:
     def __init__(self):
         self.client            = None
         self._ws_qs            = []
         self._lock             = threading.Lock()
         self._last_audio       = 0.0
-        self.linked_nodes      = []   # updated by 'L ' TEXT frames from app_rpt
+        self.linked_nodes      = []   # updated by TEXT frames + background node poll
         self.direct_links      = []   # not restored from disk — live L frames are authoritative
         self._last_text_frames = []   # rolling buffer of last 20 TEXT frames for debug
+        self._node_poll_stop   = threading.Event()
+
+    def _node_poll_loop(self, node: str):
+        """Background thread: refresh linked_nodes from asterisk every 5 s."""
+        stop = self._node_poll_stop
+        stop.clear()
+        while not stop.wait(5):
+            if not self.client or self.client.state != 'connected':
+                continue
+            nodes = _rpt_show_nodes(node)
+            # Only overwrite if we got a non-empty result or we're clearly connected
+            # (empty result means no linked nodes, not a query failure when output had node header)
+            self.linked_nodes = nodes
 
     def _on_audio(self, pcm: bytes):
         # Only mark active when amplitude exceeds the silence/comfort-noise floor.
@@ -991,9 +1032,14 @@ class AllstarManager:
         self.client.on_audio(self._on_audio)
         self.client.on_text(self._on_text)
         self.client.connect()
+        if _ALLSTAR_LOCAL:
+            t = threading.Thread(target=self._node_poll_loop, args=(node,),
+                                 daemon=True, name='allstar-node-poll')
+            t.start()
         return True, f'Connecting to node {node}...'
 
     def disconnect(self):
+        self._node_poll_stop.set()
         if self.client:
             self.client.disconnect()
             self.client = None
