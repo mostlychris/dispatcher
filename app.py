@@ -925,17 +925,8 @@ class AllstarManager:
         self._node_poll_stop   = threading.Event()
 
     def _node_poll_loop(self, node: str):
-        """Send *70 (ilink,5) every 15 s to keep linked_nodes fresh via TEXT frames."""
-        stop = self._node_poll_stop
-        stop.clear()
-        stop.wait(3)  # let connection settle before first query
-        while not stop.is_set():
-            if self.client and self.client.state == 'connected':
-                try:
-                    self.client.send_dtmf('*70')
-                except Exception:
-                    pass
-            stop.wait(15)
+        """Placeholder — node list comes from CONNECTED/REMDISC TEXT frames."""
+        self._node_poll_stop.clear()
 
     def _on_audio(self, pcm: bytes):
         # Only mark active when amplitude exceeds the silence/comfort-noise floor.
