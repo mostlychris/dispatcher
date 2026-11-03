@@ -61,6 +61,18 @@ try:
     from config import ALLSTAR_CONTEXT
 except ImportError:
     ALLSTAR_CONTEXT = 'radio-iaxrpt'
+try:
+    from config import ALLSTAR_AMI_USER
+except ImportError:
+    ALLSTAR_AMI_USER = 'dispatcher'
+try:
+    from config import ALLSTAR_AMI_SECRET
+except ImportError:
+    ALLSTAR_AMI_SECRET = ''
+try:
+    from config import ALLSTAR_AMI_PORT
+except ImportError:
+    ALLSTAR_AMI_PORT = 5038
 
 try:
     from config import API_KEY
@@ -925,8 +937,79 @@ class AllstarManager:
         self._node_poll_stop   = threading.Event()
 
     def _node_poll_loop(self, node: str):
-        """Placeholder — node list comes from CONNECTED/REMDISC TEXT frames."""
+        """Poll connected nodes via Asterisk AMI every 10 seconds."""
         self._node_poll_stop.clear()
+        if not ALLSTAR_AMI_SECRET:
+            return
+        while not self._node_poll_stop.wait(10):
+            if not self.client or self.client.state != 'connected':
+                continue
+            result = self._ami_query_nodes(node)
+            if result is not None:
+                self.linked_nodes = result
+
+    def _ami_query_nodes(self, node: str):
+        """One-shot AMI TCP query: 'rpt show nodes NODE'. Returns list or None on error."""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(5)
+            s.connect((ALLSTAR_HOST, ALLSTAR_AMI_PORT))
+            s.recv(256)  # banner: "Asterisk Call Manager/X.Y\r\n"
+            s.sendall((
+                f'Action: Login\r\nUsername: {ALLSTAR_AMI_USER}\r\n'
+                f'Secret: {ALLSTAR_AMI_SECRET}\r\n\r\n'
+            ).encode())
+            buf = b''
+            while b'Authentication accepted' not in buf and b'Error' not in buf:
+                chunk = s.recv(2048)
+                if not chunk:
+                    break
+                buf += chunk
+                if len(buf) > 4096:
+                    break
+            if b'Authentication accepted' not in buf:
+                s.close()
+                return None
+            s.sendall((
+                f'Action: Command\r\nCommand: rpt show nodes {node}\r\n\r\n'
+            ).encode())
+            out = b''
+            deadline = time.time() + 5
+            while b'--END COMMAND--' not in out:
+                rem = deadline - time.time()
+                if rem <= 0:
+                    break
+                s.settimeout(rem)
+                chunk = s.recv(2048)
+                if not chunk:
+                    break
+                out += chunk
+                if len(out) > 32768:
+                    break
+            try:
+                s.sendall(b'Action: Logoff\r\n\r\n')
+            except Exception:
+                pass
+            s.close()
+            text = out.decode('utf-8', errors='replace')
+            nodes, seen = [], set()
+            # Primary format: "49172(T)" or "556982(R)"
+            for m in re.finditer(r'\b(\d{5,7})\(([RTMLrtm])\)', text):
+                num, mode = m.group(1), m.group(2).upper()
+                if num != node and num not in seen:
+                    seen.add(num)
+                    nodes.append({'node': num, 'mode': mode})
+            # Fallback: "Output: 49172 T" or bare "49172 T" on a line
+            if not nodes:
+                for m in re.finditer(r'(?:Output:\s+)?(\d{5,7})\s+([RTMLrtm])(?:\s|$)', text):
+                    num, mode = m.group(1), m.group(2).upper()
+                    if num != node and num not in seen:
+                        seen.add(num)
+                        nodes.append({'node': num, 'mode': mode})
+            return nodes
+        except Exception as e:
+            app.logger.debug(f'AMI query: {e}')
+            return None
 
     def _on_audio(self, pcm: bytes):
         # Only mark active when amplitude exceeds the silence/comfort-noise floor.

@@ -22,6 +22,24 @@ ALLSTAR_LOCAL_PORT = 0
 # IAX2 context used in the NEW frame — must match the [radio-iaxrpt] section
 # in iax.conf on the Allstar node.  Allstar 3 typically keeps 'radio-iaxrpt'.
 ALLSTAR_CONTEXT = 'radio-iaxrpt'
+# Asterisk Manager Interface (AMI) — used to silently query connected nodes.
+# On the Allstar host, add a stanza to /etc/asterisk/manager.conf and reload:
+#
+#   [general]
+#   enabled = yes
+#   port = 5038
+#
+#   [dispatcher]           ; matches ALLSTAR_AMI_USER below
+#   secret = yourpassword  ; matches ALLSTAR_AMI_SECRET below
+#   permit = <dispatcher-IP>/255.255.255.255
+#   read = command
+#   write = command
+#
+# Then: asterisk -rx "module reload manager"
+# Leave ALLSTAR_AMI_SECRET empty to disable node polling (safe default).
+ALLSTAR_AMI_USER   = 'dispatcher'
+ALLSTAR_AMI_SECRET = ''
+ALLSTAR_AMI_PORT   = 5038
 
 # API key — required in the X-Api-Key header for service-restart endpoints.
 # Set to any random string; keep it secret.
