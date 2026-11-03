@@ -7466,7 +7466,7 @@ def allstar_tx_ws(ws):
     """Receive Int16 PCM from the browser and send it up the IAX2 stack."""
     allstar_mgr.reset_voice_ts()
     try:
-        allstar_mgr.send_dtmf('99')  # cop,6: phone PTT key (ASL3 rpt.conf)
+        allstar_mgr.send_dtmf('*99')  # cop,6: phone PTT key; * activates function mode in app_rpt
     except Exception as e:
         app.logger.warning(f'Allstar TX: DTMF key failed: {e}')
     try:
@@ -7480,7 +7480,7 @@ def allstar_tx_ws(ws):
         pass
     finally:
         try:
-            allstar_mgr.send_dtmf('99')  # cop,6: phone PTT unkey
+            allstar_mgr.send_dtmf('*99')  # cop,6: phone PTT unkey
         except Exception as e:
             app.logger.warning(f'Allstar TX: DTMF unkey failed: {e}')
 
