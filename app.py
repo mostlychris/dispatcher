@@ -964,7 +964,7 @@ class AllstarManager:
                 f'Secret: {ALLSTAR_AMI_SECRET}\r\n\r\n'
             ).encode())
             buf = b''
-            while b'\r\n\r\n' not in buf:
+            while b'Response:' not in buf:
                 chunk = s.recv(2048)
                 if not chunk:
                     break
@@ -972,7 +972,6 @@ class AllstarManager:
                 if len(buf) > 4096:
                     break
             app.logger.debug(f'AMI login response: {buf!r}')
-            # ASL3 sends "Response: Success" (not always "Authentication accepted")
             if b'Response: Success' not in buf:
                 self._ami_last_error = f'login failed: {buf.decode("utf-8", errors="replace")[:200]}'
                 app.logger.warning(f'AMI login failed: {buf!r}')
