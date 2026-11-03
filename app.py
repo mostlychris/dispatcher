@@ -7259,6 +7259,22 @@ def allstar_debug():
         'error':         c.error_msg,
         'text_frames':   allstar_mgr._last_text_frames,
         'linked_nodes':  allstar_mgr.linked_nodes,
+        'ami_configured': bool(ALLSTAR_AMI_SECRET),
+    })
+
+
+@app.route('/api/debug/ami')
+def debug_ami():
+    """Run an immediate AMI query and return raw result — for testing AMI setup."""
+    node = allstar_mgr.client.node if allstar_mgr.client else ALLSTAR_NODE
+    result = allstar_mgr._ami_query_nodes(str(node))
+    return jsonify({
+        'node': node,
+        'ami_host': ALLSTAR_HOST,
+        'ami_port': ALLSTAR_AMI_PORT,
+        'ami_user': ALLSTAR_AMI_USER,
+        'ami_configured': bool(ALLSTAR_AMI_SECRET),
+        'result': result,
     })
 
 
