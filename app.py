@@ -955,14 +955,17 @@ class AllstarManager:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(5)
+            app.logger.warning(f'AMI connecting to {ALLSTAR_HOST}:{ALLSTAR_AMI_PORT}')
             s.connect((ALLSTAR_HOST, ALLSTAR_AMI_PORT))
+            app.logger.warning('AMI connected, reading banner')
             # Read banner: "Asterisk Call Manager/X.Y\r\n"
             banner = s.recv(256)
-            app.logger.debug(f'AMI banner: {banner!r}')
+            app.logger.warning(f'AMI banner: {banner!r}')
             s.sendall((
                 f'Action: Login\r\nUsername: {ALLSTAR_AMI_USER}\r\n'
                 f'Secret: {ALLSTAR_AMI_SECRET}\r\n\r\n'
             ).encode())
+            app.logger.warning('AMI login sent, reading response')
             buf = b''
             while b'Response:' not in buf:
                 chunk = s.recv(2048)
@@ -971,7 +974,7 @@ class AllstarManager:
                 buf += chunk
                 if len(buf) > 4096:
                     break
-            app.logger.debug(f'AMI login response: {buf!r}')
+            app.logger.warning(f'AMI login response: {buf!r}')
             if b'Response: Success' not in buf:
                 self._ami_last_error = f'login failed: {buf.decode("utf-8", errors="replace")[:200]}'
                 app.logger.warning(f'AMI login failed: {buf!r}')
