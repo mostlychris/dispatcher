@@ -69,7 +69,9 @@ class IAX2Client:
     # FRAME_CONTROL subclasses (AST_CONTROL_*)
     CTRL_HANGUP      = 0x01
     CTRL_RINGING     = 0x03
-    CTRL_ANSWER      = 0x0F
+    CTRL_ANSWER      = 0x04
+    CTRL_KEY         = 0x0C  # AST_CONTROL_RADIO_KEY
+    CTRL_UNKEY       = 0x0D  # AST_CONTROL_RADIO_UNKEY
     CTRL_HOLD        = 0x11
     CTRL_UNHOLD      = 0x12
 
@@ -236,6 +238,24 @@ class IAX2Client:
                                       self._voice_ts & 0xFFFF) + chunk
                 self._raw_send(pkt)
                 self._voice_ts = (self._voice_ts + 20) & 0xFFFFFFFF
+
+    def send_radio_key(self, key: bool) -> None:
+        """Send AST_CONTROL_RADIO_KEY or RADIO_UNKEY to key/unkey TX.
+
+        This is how DroidStar (and iaxRPT) actually key the transmitter —
+        protocol-level CONTROL frames rather than DTMF phone-mode commands.
+        """
+        if self.state != 'connected':
+            raise RuntimeError('Not connected')
+        sub = self.CTRL_KEY if key else self.CTRL_UNKEY
+        with self._send_lock:
+            src = self._src_call | 0x8000
+            pkt = struct.pack('>HHIBBBB',
+                              src, self._dst_call, self._ts(),
+                              self._oseqno, self._iseqno,
+                              self.FRAME_CONTROL, sub)
+            self._raw_send(pkt)
+            self._oseqno = (self._oseqno + 1) & 0xFF
 
     def _send_dtmf_frame(self, digit: str, ftype: int) -> None:
         """Send one IAX2 DTMF BEGIN or END full frame."""
@@ -542,7 +562,8 @@ class IAX2Client:
             # require ACKs.  Missing these ACKs leaves the channel in a half-open
             # state where RX works but app_rpt won't route TX audio to the radio.
             ctrl_names = {self.CTRL_HANGUP: 'HANGUP', self.CTRL_RINGING: 'RINGING',
-                          self.CTRL_ANSWER: 'ANSWER', self.CTRL_HOLD: 'HOLD',
+                          self.CTRL_ANSWER: 'ANSWER', self.CTRL_KEY: 'KEY',
+                          self.CTRL_UNKEY: 'UNKEY', self.CTRL_HOLD: 'HOLD',
                           self.CTRL_UNHOLD: 'UNHOLD'}
             log.info(f'IAX2: CONTROL sub=0x{sub:02x} ({ctrl_names.get(sub, "?")}) — ACKing')
             self._send_iax(self.IAX_ACK)

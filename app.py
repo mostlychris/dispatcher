@@ -1041,6 +1041,11 @@ class AllstarManager:
             raise RuntimeError('Not connected to Allstar')
         self.client.send_dtmf(digits, inter_digit=inter_digit)
 
+    def send_radio_key(self, key: bool):
+        if not self.client or self.client.state != 'connected':
+            raise RuntimeError('Not connected to Allstar')
+        self.client.send_radio_key(key)
+
     def add_listener(self, q):
         with self._lock:
             self._ws_qs.append(q)
@@ -7466,7 +7471,7 @@ def allstar_tx_ws(ws):
     """Receive Int16 PCM from the browser and send it up the IAX2 stack."""
     allstar_mgr.reset_voice_ts()
     try:
-        allstar_mgr.send_dtmf('*99')  # key TX: * activates function mode, 99 = cop,6
+        allstar_mgr.send_radio_key(True)  # AST_CONTROL_RADIO_KEY
     except Exception as e:
         app.logger.warning(f'Allstar TX: key failed: {e}')
     try:
@@ -7480,7 +7485,7 @@ def allstar_tx_ws(ws):
         pass
     finally:
         try:
-            allstar_mgr.send_dtmf('#')  # unkey TX: # is the endchar that stops transmit
+            allstar_mgr.send_radio_key(False)  # AST_CONTROL_RADIO_UNKEY
         except Exception as e:
             app.logger.warning(f'Allstar TX: unkey failed: {e}')
 
