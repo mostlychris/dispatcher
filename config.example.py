@@ -12,10 +12,6 @@ AUDIO_WS_URL = 'wss://yourdomain.com/audio-ws/'
 # Add a peer in /etc/asterisk/iax.conf matching ALLSTAR_USER / ALLSTAR_SECRET.
 ALLSTAR_HOST   = '127.0.0.1'   # Asterisk host — set to remote IP if not on this Pi
 ALLSTAR_PORT   = 4569           # IAX2 UDP port
-# SSH user on the Asterisk host, used to query connected nodes via
-# 'asterisk -rx rpt show nodes'.  Leave empty to disable node polling.
-# Requires passwordless SSH key auth from this machine to ALLSTAR_HOST.
-ALLSTAR_SSH_USER = ''           # e.g. 'repeater' or 'root'
 ALLSTAR_USER   = 'iaxrpt'       # peer name from iax.conf
 ALLSTAR_SECRET = 'YOUR_SECRET_HERE'
 ALLSTAR_NODE   = '00000'        # your local node number

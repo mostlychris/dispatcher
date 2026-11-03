@@ -61,10 +61,6 @@ try:
     from config import ALLSTAR_CONTEXT
 except ImportError:
     ALLSTAR_CONTEXT = 'radio-iaxrpt'
-try:
-    from config import ALLSTAR_SSH_USER
-except ImportError:
-    ALLSTAR_SSH_USER = ''
 
 try:
     from config import API_KEY
@@ -915,35 +911,6 @@ def _save_allstar_state(data):
     except Exception as e:
         print(f"Warning: could not save allstar state: {e}")
 
-_ALLSTAR_LOCAL = ALLSTAR_HOST in ('127.0.0.1', 'localhost', '::1', '')
-
-def _rpt_show_nodes(node: str) -> list:
-    """Query asterisk for current connected nodes; returns [{node, mode}] or []."""
-    try:
-        if _ALLSTAR_LOCAL:
-            cmd = ['asterisk', '-rx', f'rpt show nodes {node}']
-        elif ALLSTAR_SSH_USER:
-            cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3',
-                   f'{ALLSTAR_SSH_USER}@{ALLSTAR_HOST}',
-                   'asterisk', '-rx', f'rpt show nodes {node}']
-        else:
-            return []
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        out = result.stdout + result.stderr
-    except Exception:
-        return []
-    nodes = []
-    seen = set()
-    for line in out.splitlines():
-        for m in re.finditer(r'\b(\d{5,7})\b', line):
-            num = m.group(1)
-            if num == node or num in seen:
-                continue
-            seen.add(num)
-            mm = re.search(r'\b([RTMLrtml])\b', line)
-            mode = mm.group(1).upper() if mm else 'T'
-            nodes.append({'node': num, 'mode': mode})
-    return nodes
 
 
 class AllstarManager:
@@ -958,16 +925,17 @@ class AllstarManager:
         self._node_poll_stop   = threading.Event()
 
     def _node_poll_loop(self, node: str):
-        """Background thread: refresh linked_nodes from asterisk every 5 s."""
+        """Send *70 (ilink,5) every 15 s to keep linked_nodes fresh via TEXT frames."""
         stop = self._node_poll_stop
         stop.clear()
-        while not stop.wait(5):
-            if not self.client or self.client.state != 'connected':
-                continue
-            nodes = _rpt_show_nodes(node)
-            # Only overwrite if we got a non-empty result or we're clearly connected
-            # (empty result means no linked nodes, not a query failure when output had node header)
-            self.linked_nodes = nodes
+        stop.wait(3)  # let connection settle before first query
+        while not stop.is_set():
+            if self.client and self.client.state == 'connected':
+                try:
+                    self.client.send_dtmf('*70')
+                except Exception:
+                    pass
+            stop.wait(15)
 
     def _on_audio(self, pcm: bytes):
         # Only mark active when amplitude exceeds the silence/comfort-noise floor.
@@ -1009,21 +977,30 @@ class AllstarManager:
             self.linked_nodes = nodes
 
         elif msg.startswith('T '):
-            # ASL3: incremental telemetry events
-            # T <node> CONNECTED,<local>,<remote>  — node linked
-            # T <node> REMDISC,<remote>             — node unlinked
+            # ASL3 TEXT frame events
             parts = msg.split(None, 2)
             if len(parts) == 3:
                 sub_parts = parts[2].split(',')
                 event = sub_parts[0]
                 if event == 'CONNECTED' and len(sub_parts) >= 3:
+                    # T <node> CONNECTED,<local>,<remote>
                     remote = sub_parts[2].strip()
                     if remote.isdigit() and remote != self.client.node:
                         if not any(n['node'] == remote for n in self.linked_nodes):
                             self.linked_nodes.append({'node': remote, 'mode': 'T'})
                 elif event == 'REMDISC' and len(sub_parts) >= 2:
+                    # T <node> REMDISC,<remote>
                     remote = sub_parts[1].strip()
                     self.linked_nodes = [n for n in self.linked_nodes if n['node'] != remote]
+                elif event == 'STATUS':
+                    # T <node> STATUS,<node>,<code>,<M><nodenum>,...
+                    # Response to *70 (ilink,5) — full snapshot of connected nodes
+                    nodes = []
+                    for field in sub_parts[3:]:
+                        m = re.match(r'^([RTMLrtml])(\d{4,7})$', field.strip())
+                        if m:
+                            nodes.append({'node': m.group(2), 'mode': m.group(1).upper()})
+                    self.linked_nodes = nodes
 
     def connect(self, node=None):
         if self.client and self.client.state in ('connecting', 'connected'):
@@ -1039,10 +1016,9 @@ class AllstarManager:
         self.client.on_audio(self._on_audio)
         self.client.on_text(self._on_text)
         self.client.connect()
-        if _ALLSTAR_LOCAL or ALLSTAR_SSH_USER:
-            t = threading.Thread(target=self._node_poll_loop, args=(node,),
-                                 daemon=True, name='allstar-node-poll')
-            t.start()
+        t = threading.Thread(target=self._node_poll_loop, args=(node,),
+                             daemon=True, name='allstar-node-poll')
+        t.start()
         return True, f'Connecting to node {node}...'
 
     def disconnect(self):
