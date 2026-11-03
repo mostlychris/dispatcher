@@ -7466,6 +7466,10 @@ def allstar_tx_ws(ws):
     """Receive Int16 PCM from the browser and send it up the IAX2 stack."""
     allstar_mgr.reset_voice_ts()
     try:
+        allstar_mgr.send_dtmf('*99')  # key TX: * activates function mode, 99 = cop,6
+    except Exception as e:
+        app.logger.warning(f'Allstar TX: key failed: {e}')
+    try:
         while True:
             data = ws.receive()
             if data is None:
@@ -7474,6 +7478,11 @@ def allstar_tx_ws(ws):
                 allstar_mgr.send_voice(data)
     except Exception:
         pass
+    finally:
+        try:
+            allstar_mgr.send_dtmf('#')  # unkey TX: # is the endchar that stops transmit
+        except Exception as e:
+            app.logger.warning(f'Allstar TX: unkey failed: {e}')
 
 
 # -------------------------
