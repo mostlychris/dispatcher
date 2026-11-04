@@ -1011,15 +1011,15 @@ class AllstarManager:
             s.close()
             text = out.decode('utf-8', errors='replace')
             nodes, seen = [], set()
-            # Primary format: "49172(T)" or "556982(R)"
-            for m in re.finditer(r'\b(\d{5,7})\(([RTMLrtm])\)', text):
-                num, mode = m.group(1), m.group(2).upper()
+            # ASL3 format: "Output: T556982" (mode letter prefix, no parens)
+            for m in re.finditer(r'Output:\s+([RTMLrtm])(\d{4,7})\b', text):
+                mode, num = m.group(1).upper(), m.group(2)
                 if num != node and num not in seen:
                     seen.add(num)
                     nodes.append({'node': num, 'mode': mode})
-            # Fallback: "Output: 49172 T" or bare "49172 T" on a line
+            # Fallback: "49172(T)" or "49172 T" formats (older ASL)
             if not nodes:
-                for m in re.finditer(r'(?:Output:\s+)?(\d{5,7})\s+([RTMLrtm])(?:\s|$)', text):
+                for m in re.finditer(r'\b(\d{4,7})\(([RTMLrtm])\)', text):
                     num, mode = m.group(1), m.group(2).upper()
                     if num != node and num not in seen:
                         seen.add(num)
