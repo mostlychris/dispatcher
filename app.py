@@ -7346,6 +7346,7 @@ def debug_ami():
     result = allstar_mgr._ami_query_nodes(str(node))
     # Also run a discovery query so we can see the actual rpt CLI commands available
     raw_nodes = allstar_mgr._ami_raw_cmd(f'rpt nodes {node}')
+    raw_lstats = allstar_mgr._ami_raw_cmd(f'rpt lstats {node}')
     return jsonify({
         'node': node,
         'ami_host': ALLSTAR_HOST,
@@ -7355,6 +7356,7 @@ def debug_ami():
         'result': result,
         'error': allstar_mgr._ami_last_error,
         'rpt_nodes_raw': raw_nodes,
+        'rpt_lstats_raw': raw_lstats,
     })
 
 
