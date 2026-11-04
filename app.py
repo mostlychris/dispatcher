@@ -6007,19 +6007,25 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 src.connect(_pttNode);
                 _pttNode.connect(_pttCtx.destination);
                 log('PTT: audio ready (rate=' + _pttCtx.sampleRate + ' ratio=' + ratio + ')', 'ok');
-                // Pre-open the persistent TX WebSocket while still in HTTP/1.1 territory.
-                await _openPttTxWs();
-                if (_pttWsKeepalive) clearInterval(_pttWsKeepalive);
-                _pttWsKeepalive = setInterval(() => {
-                    if (!_pttActive && (!_pttWs || _pttWs.readyState !== WebSocket.OPEN))
-                        _openPttTxWs().catch(() => {});
-                }, 25000);
             } catch(e) {
                 log('PTT: audio init failed [' + e.name + ']: ' + e.message, 'error');
                 if (_pttNode)   { try { _pttNode.disconnect(); } catch(_) {} _pttNode = null; }
                 if (_pttCtx)    { try { await _pttCtx.close(); } catch(_) {} _pttCtx = null; }
                 if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
                 _pttAnalyser = null;
+            }
+            // Pre-open TX WebSocket after audio is ready.  Failure here is non-fatal
+            // — the WebSocket will reconnect when PTT is first pressed.
+            if (_pttCtx && _pttNode && _pttStream) {
+                try {
+                    await _openPttTxWs();
+                } catch(_) {}
+                if (!_pttWsKeepalive) {
+                    _pttWsKeepalive = setInterval(() => {
+                        if (!_pttActive && (!_pttWs || _pttWs.readyState !== WebSocket.OPEN))
+                            _openPttTxWs().catch(() => {});
+                    }, 25000);
+                }
             }
         }
 
