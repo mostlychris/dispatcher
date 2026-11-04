@@ -943,7 +943,14 @@ class AllstarManager:
         self._node_poll_stop.clear()
         if not ALLSTAR_AMI_SECRET:
             return
-        while not self._node_poll_stop.wait(10):
+        # Short initial delay so the IAX2 connection stabilises, then poll immediately.
+        if self._node_poll_stop.wait(2):
+            return
+        first = True
+        while True:
+            if not first and self._node_poll_stop.wait(10):
+                break
+            first = False
             if not self.client or self.client.state != 'connected':
                 continue
             result = self._ami_query_nodes(node)
@@ -1090,8 +1097,9 @@ class AllstarManager:
             return None
         result, seen = [], set()
         for line in text.splitlines():
-            # "49172     209.112.244.28      0           OUT        00:04:10:656        ESTABLISHED"
-            m = re.match(r'\s*(\d{4,7})\s+\S+\s+\d+\s+(OUT|IN)\s', line)
+            # Lines arrive as "Output: 49172     209.112.244.28      0   OUT   ..."
+            # Use search (not match) so the Output: prefix is skipped automatically.
+            m = re.search(r'\b(\d{4,7})\s+\S+\s+\d+\s+(OUT|IN)\b', line)
             if m:
                 num, direction = m.group(1), m.group(2)
                 if num not in seen:
