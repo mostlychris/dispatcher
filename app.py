@@ -5977,9 +5977,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         async function _pttInitAudio() {
             if (_pttCtx && _pttNode && _pttStream) return;  // already ready
             try {
+                // Radio TX: disable all browser DSP — echo cancellation zeroes the
+                // mic when RX audio is playing, and noise suppression/AGC mangle
+                // voice levels that the radio network expects to be unprocessed.
                 const pttAudio = _micDeviceId
-                    ? { deviceId: { exact: _micDeviceId }, echoCancellation: true, noiseSuppression: true }
-                    : { echoCancellation: true, noiseSuppression: true };
+                    ? { deviceId: { exact: _micDeviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+                    : { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
                 _pttStream = await _getMicWithRetry(pttAudio, 'PTT');
                 if (_pttCtx) { try { await _pttCtx.close(); } catch(e) {} }
                 _pttCtx = new AudioContext();
@@ -5997,17 +6000,17 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             } catch(e) {
                 log('PTT: audio init failed [' + e.name + ']: ' + e.message, 'error');
                 if (_pttNode)   { try { _pttNode.disconnect(); } catch(_) {} _pttNode = null; }
-                if (_pttCtx)    { try { _pttCtx.close();        } catch(_) {} _pttCtx = null; }
+                if (_pttCtx)    { try { await _pttCtx.close(); } catch(_) {} _pttCtx = null; }
                 if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
                 _pttAnalyser = null;
             }
         }
 
         // Full teardown — called when Allstar disconnects.
-        function _pttTeardown() {
+        async function _pttTeardown() {
             pttStop();
             if (_pttNode)   { try { _pttNode.disconnect(); } catch(e) {} _pttNode = null; }
-            if (_pttCtx)    { try { _pttCtx.close();        } catch(e) {} _pttCtx = null; }
+            if (_pttCtx)    { try { await _pttCtx.close(); } catch(e) {} _pttCtx = null; }
             if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
             _pttAnalyser = null;
         }
