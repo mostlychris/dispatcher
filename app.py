@@ -6054,19 +6054,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
                 let _txPeak = 0, _txChunks = 0;
                 _pttNode.port.onmessage = (e) => {
-                    if (e.data && e.data.type === 'diag') {
-                        const d = e.data;
-                        const msg = `Worklet input: inputs=${d.nIn} channels=${d.nCh} len=${d.len} peak=${d.pk.toFixed(6)}`;
-                        console.log(msg);
-                        log('PTT worklet: ' + msg, d.pk > 0 ? 'ok' : 'warn');
-                        return;
-                    }
                     _txChunks++;
                     const v = new Int16Array(e.data);
                     for (let i = 0; i < v.length; i++) { const a = Math.abs(v[i]); if (a > _txPeak) _txPeak = a; }
                     if (_txChunks === 10) console.log('TX audio check (10 chunks): peak=' + _txPeak + ' byteLen=' + e.data.byteLength);
                     if (_pttWs && _pttWs.readyState === WebSocket.OPEN) _pttWs.send(e.data);
                 };
+                _pttNode.port.postMessage('start');  // signal worklet to begin sending frames
 
                 // VU meter
                 if (_pttAnalyser) {
@@ -6100,7 +6094,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _setPTTKeyed(false);
             log('Allstar TX: unkeyed', 'info');
             if (_pttNode && _pttNode._stopMeter) { _pttNode._stopMeter(); _pttNode._stopMeter = null; }
-            if (_pttNode) _pttNode.port.onmessage = null;
+            if (_pttNode) { _pttNode.port.postMessage('stop'); _pttNode.port.onmessage = null; }
             if (_pttWs)  { try { _pttWs.close(); } catch(e) {} _pttWs = null; }
             const bar = document.getElementById('micMeterBar');
             if (bar) bar.style.width = '0%';
@@ -7315,24 +7309,28 @@ _PTT_WORKLET_JS = """\
 class MicDecimator extends AudioWorkletProcessor {
     constructor(options) {
         super();
-        this._ratio   = options.processorOptions.ratio;
-        this._acc     = 0.0;
-        this._accN    = 0;
-        this._outBuf  = new Float32Array(160);
-        this._outPos  = 0;
-        this._diagDone = false;
+        this._ratio  = options.processorOptions.ratio;
+        this._acc    = 0.0;
+        this._accN   = 0;
+        this._outBuf = new Float32Array(160);
+        this._outPos = 0;
+        this._active = false;  // only send frames while PTT is held
+        this.port.onmessage = (e) => {
+            if (e.data === 'start') {
+                // Flush any accumulated partial buffer so the first
+                // frame sent is clean audio from this press only.
+                this._acc    = 0.0;
+                this._accN   = 0;
+                this._outPos = 0;
+                this._active = true;
+            } else if (e.data === 'stop') {
+                this._active = false;
+            }
+        };
     }
     process(inputs) {
         const ch = inputs[0] && inputs[0][0];
-        if (!this._diagDone) {
-            this._diagDone = true;
-            const nIn = inputs.length, nCh = inputs[0] ? inputs[0].length : 0;
-            const len = ch ? ch.length : 0;
-            let pk = 0;
-            if (ch) for (let i = 0; i < ch.length; i++) { const a = Math.abs(ch[i]); if (a > pk) pk = a; }
-            this.port.postMessage({type:'diag', nIn, nCh, len, pk});
-        }
-        if (!ch) return true;
+        if (!ch || !this._active) return true;
         for (let i = 0; i < ch.length; i++) {
             this._acc += ch[i];
             this._accN++;
