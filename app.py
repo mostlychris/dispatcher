@@ -6040,6 +6040,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     if (!_pttCtx || !_pttNode || !_pttStream)
                         throw new Error('PTT audio not ready');
                 }
+                // Resume in case the browser suspended the AudioContext.
+                if (_pttCtx && _pttCtx.state !== 'running') await _pttCtx.resume();
                 if (!_pttActive) { pttStop(); return; }  // released during init
 
                 // Open WebSocket — fast on every press after the first.
@@ -7781,6 +7783,8 @@ def allstar_tx_ws(ws):
     except Exception as e:
         app.logger.warning(f'Allstar TX ({ptt_mode}): key failed: {e}')
     peak_sample = 0
+    import time as _time, struct as _struct
+    _last_send = 0.0
     try:
         while True:
             data = ws.receive()
@@ -7788,12 +7792,19 @@ def allstar_tx_ws(ws):
                 break
             if isinstance(data, bytes) and len(data) >= 2:
                 # Track peak amplitude to verify mic is capturing real audio.
-                import struct as _struct
                 n = len(data) // 2
                 for s in _struct.unpack_from(f'<{n}h', data):
                     if abs(s) > peak_sample:
                         peak_sample = abs(s)
+                # Pace IAX2 sends to ~20ms intervals.  The browser main thread
+                # may batch worklet messages and flush several frames at once;
+                # sending them in a burst confuses Asterisk's jitter buffer.
+                now = _time.monotonic()
+                gap = now - _last_send
+                if _last_send and gap < 0.018:
+                    _time.sleep(0.018 - gap)
                 allstar_mgr.send_voice(data)
+                _last_send = _time.monotonic()
                 frames_sent += 1
     except Exception as e:
         app.logger.warning(f'Allstar TX: stream error: {e}')
