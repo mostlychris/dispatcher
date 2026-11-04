@@ -1011,13 +1011,15 @@ class AllstarManager:
             s.close()
             text = out.decode('utf-8', errors='replace')
             nodes, seen = [], set()
-            # ASL3 format: "Output: T556982" (mode letter prefix, no parens)
-            for m in re.finditer(r'Output:\s+([RTMLrtm])(\d{4,7})\b', text):
+            # ASL3: "Output: T1006, T2434, T28528" — strip the AMI prefix, then
+            # find every M+digits token (word boundary keeps TKG5KYM callsigns out)
+            clean = re.sub(r'Output:\s*', ' ', text)
+            for m in re.finditer(r'\b([RTMLrtm])(\d{4,7})\b', clean):
                 mode, num = m.group(1).upper(), m.group(2)
                 if num != node and num not in seen:
                     seen.add(num)
                     nodes.append({'node': num, 'mode': mode})
-            # Fallback: "49172(T)" or "49172 T" formats (older ASL)
+            # Fallback: older ASL "49172(T)" format
             if not nodes:
                 for m in re.finditer(r'\b(\d{4,7})\(([RTMLrtm])\)', text):
                     num, mode = m.group(1), m.group(2).upper()
@@ -5699,6 +5701,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 _checkNodeChanges(d.state === 'connected' ? (d.linked_nodes || []) : []);
                 _setDirectLink(d.state === 'connected' && liveNodes ? liveNodes : null);
                 // Update both the modal node list and the panel row sub-line.
+                // Sort: nodes the dispatcher explicitly linked come first, rest numeric.
+                const _dlSet = new Set((d.direct_links || []).map(String));
+                const _sortedNodes = [...(d.linked_nodes || [])].sort((a, b) => {
+                    const aP = _dlSet.has(a.node) ? 0 : 1;
+                    const bP = _dlSet.has(b.node) ? 0 : 1;
+                    if (aP !== bP) return aP - bP;
+                    return parseInt(a.node) - parseInt(b.node);
+                });
                 const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
                 const BAR_MAX = 4;
                 function _renderNodeHtml(nodes, maxShow) {
@@ -5714,9 +5724,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 }
                 const nodeListEl  = document.getElementById('asNodeList');
                 const nodeListBar = document.getElementById('asNodeListBar');
-                const hasNodes = d.state === 'connected' && d.linked_nodes && d.linked_nodes.length;
-                const nodesHtmlFull = hasNodes ? _renderNodeHtml(d.linked_nodes, 0) : null;
-                const nodesHtmlBar  = hasNodes ? _renderNodeHtml(d.linked_nodes, BAR_MAX) : null;
+                const hasNodes = d.state === 'connected' && _sortedNodes.length > 0;
+                const nodesHtmlFull = hasNodes ? _renderNodeHtml(_sortedNodes, BAR_MAX) : null;
+                const nodesHtmlBar  = hasNodes ? _renderNodeHtml(_sortedNodes, BAR_MAX) : null;
                 const noneText  = d.state === 'connected' ? '(none)' : '--';
                 if (nodeListEl)  { if (nodesHtmlFull) nodeListEl.innerHTML  = nodesHtmlFull; else nodeListEl.textContent  = noneText; }
                 if (nodeListBar) { if (nodesHtmlBar)  nodeListBar.innerHTML = nodesHtmlBar;  else nodeListBar.textContent = noneText; }
