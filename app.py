@@ -5996,6 +5996,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 _pttAnalyser = _pttCtx.createAnalyser();
                 _pttAnalyser.fftSize = 256;
                 const src = _pttCtx.createMediaStreamSource(_pttStream);
+                // Firefox: MediaStreamAudioSourceNode must have its own path to
+                // destination or its pull-graph scheduler won't render it, leaving
+                // AudioWorkletNode inputs as silence.  Zero-gain node suppresses output.
+                const _srcKeepAlive = _pttCtx.createGain();
+                _srcKeepAlive.gain.value = 0;
+                src.connect(_srcKeepAlive);
+                _srcKeepAlive.connect(_pttCtx.destination);
                 src.connect(_pttAnalyser);
                 src.connect(_pttNode);
                 _pttNode.connect(_pttCtx.destination);
@@ -6047,6 +6054,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
                 let _txPeak = 0, _txChunks = 0;
                 _pttNode.port.onmessage = (e) => {
+                    if (e.data && e.data.type === 'diag') {
+                        const d = e.data;
+                        const msg = `Worklet input: inputs=${d.nIn} channels=${d.nCh} len=${d.len} peak=${d.pk.toFixed(6)}`;
+                        console.log(msg);
+                        log('PTT worklet: ' + msg, d.pk > 0 ? 'ok' : 'warn');
+                        return;
+                    }
                     _txChunks++;
                     const v = new Int16Array(e.data);
                     for (let i = 0; i < v.length; i++) { const a = Math.abs(v[i]); if (a > _txPeak) _txPeak = a; }
@@ -7306,9 +7320,18 @@ class MicDecimator extends AudioWorkletProcessor {
         this._accN    = 0;
         this._outBuf  = new Float32Array(160);
         this._outPos  = 0;
+        this._diagDone = false;
     }
     process(inputs) {
-        const ch = inputs[0][0];
+        const ch = inputs[0] && inputs[0][0];
+        if (!this._diagDone) {
+            this._diagDone = true;
+            const nIn = inputs.length, nCh = inputs[0] ? inputs[0].length : 0;
+            const len = ch ? ch.length : 0;
+            let pk = 0;
+            if (ch) for (let i = 0; i < ch.length; i++) { const a = Math.abs(ch[i]); if (a > pk) pk = a; }
+            this.port.postMessage({type:'diag', nIn, nCh, len, pk});
+        }
         if (!ch) return true;
         for (let i = 0; i < ch.length; i++) {
             this._acc += ch[i];
