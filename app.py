@@ -5893,6 +5893,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         function onMicDeviceChange() {
             _micDeviceId = document.getElementById('micDeviceSelect').value || null;
+            // Tear down and re-init the audio stream so the new device takes effect.
+            // Skip if PTT is active (can't swap mid-transmission).
+            if (_pttActive) return;
+            if (_pttNode)   { try { _pttNode.disconnect(); } catch(e) {} _pttNode = null; }
+            if (_pttCtx)    { _pttCtx.close().catch(() => {}); _pttCtx = null; }
+            if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
+            _pttAnalyser = null;
+            _pttInitAudio().catch(() => {});
         }
 
         // Retry getUserMedia up to 3 times for Bluetooth HFP devices that need time
@@ -5984,6 +5992,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     ? { deviceId: { exact: _micDeviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
                     : { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
                 _pttStream = await _getMicWithRetry(pttAudio, 'PTT');
+                populateMicDevices().catch(() => {});  // labels now available (Firefox needs this)
                 const _track = _pttStream.getAudioTracks()[0];
                 const _settings = _track ? _track.getSettings() : {};
                 log('PTT mic: ' + (_track ? _track.label : 'none') + ' ec=' + _settings.echoCancellation + ' muted=' + (_track && _track.muted), 'ok');
