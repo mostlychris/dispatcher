@@ -5984,6 +5984,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     ? { deviceId: { exact: _micDeviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
                     : { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
                 _pttStream = await _getMicWithRetry(pttAudio, 'PTT');
+                const _track = _pttStream.getAudioTracks()[0];
+                const _settings = _track ? _track.getSettings() : {};
+                log('PTT mic: ' + (_track ? _track.label : 'none') + ' ec=' + _settings.echoCancellation + ' muted=' + (_track && _track.muted), 'ok');
                 if (_pttCtx) { try { await _pttCtx.close(); } catch(e) {} }
                 _pttCtx = new AudioContext();
                 await _pttCtx.resume();
@@ -6042,7 +6045,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 });
                 if (!_pttActive) { pttStop(); return; }
 
+                let _txPeak = 0, _txChunks = 0;
                 _pttNode.port.onmessage = (e) => {
+                    _txChunks++;
+                    const v = new Int16Array(e.data);
+                    for (let i = 0; i < v.length; i++) { const a = Math.abs(v[i]); if (a > _txPeak) _txPeak = a; }
+                    if (_txChunks === 10) console.log('TX audio check (10 chunks): peak=' + _txPeak + ' byteLen=' + e.data.byteLength);
                     if (_pttWs && _pttWs.readyState === WebSocket.OPEN) _pttWs.send(e.data);
                 };
 
