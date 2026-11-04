@@ -73,6 +73,10 @@ try:
     from config import ALLSTAR_AMI_PORT
 except ImportError:
     ALLSTAR_AMI_PORT = 5038
+try:
+    from config import ALLSTAR_DTMF_PTT
+except ImportError:
+    ALLSTAR_DTMF_PTT = False
 
 try:
     from config import API_KEY
@@ -7718,26 +7722,64 @@ def tr_tg_summary():
 
 @sock.route('/ws/allstar-tx')
 def allstar_tx_ws(ws):
-    """Receive Int16 PCM from the browser and send it up the IAX2 stack."""
+    """Receive Int16 PCM from the browser and send it up the IAX2 stack.
+
+    Two keying modes (set ALLSTAR_DTMF_PTT in config.py):
+      False (default): AST_CONTROL_RADIO_KEY/UNKEY frames — works with the
+                        standard iaxRPT dialplan (no P flag in Rpt()).
+      True:            DTMF *99 / # — required when the dialplan uses the P
+                        (phone patch) flag: exten=N,1,Rpt(N|XP).
+    """
     allstar_mgr.reset_voice_ts()
+    frames_sent = 0
+    ptt_mode = 'DTMF' if ALLSTAR_DTMF_PTT else 'RADIO_KEY'
     try:
-        allstar_mgr.send_radio_key(True)  # AST_CONTROL_RADIO_KEY
+        if ALLSTAR_DTMF_PTT:
+            # Phone-patch mode: *99 keys the transmitter.
+            # send_dtmf is non-blocking (runs in a thread); each of the 3 digits
+            # takes 150 ms, so we wait 600 ms before sending voice to ensure the
+            # DTMF sequence completes before audio arrives at app_rpt.
+            allstar_mgr.send_dtmf('*99')
+            app.logger.warning('Allstar TX: DTMF *99 sent (phone-patch key)')
+            import time as _time
+            _time.sleep(0.6)
+        else:
+            allstar_mgr.send_radio_key(True)
+            app.logger.warning('Allstar TX: RADIO_KEY sent')
     except Exception as e:
-        app.logger.warning(f'Allstar TX: key failed: {e}')
+        app.logger.warning(f'Allstar TX ({ptt_mode}): key failed: {e}')
+    peak_sample = 0
     try:
         while True:
             data = ws.receive()
             if data is None:
                 break
             if isinstance(data, bytes) and len(data) >= 2:
+                # Track peak amplitude to verify mic is capturing real audio.
+                import struct as _struct
+                n = len(data) // 2
+                for s in _struct.unpack_from(f'<{n}h', data):
+                    if abs(s) > peak_sample:
+                        peak_sample = abs(s)
                 allstar_mgr.send_voice(data)
-    except Exception:
-        pass
+                frames_sent += 1
+    except Exception as e:
+        app.logger.warning(f'Allstar TX: stream error: {e}')
     finally:
+        # peak_sample range: 0=silence, 32767=full scale; >1000 = audible speech
+        app.logger.warning(
+            f'Allstar TX ({ptt_mode}): done — {frames_sent} PCM chunks, '
+            f'peak={peak_sample} (0=silence, 32767=max)'
+        )
         try:
-            allstar_mgr.send_radio_key(False)  # AST_CONTROL_RADIO_UNKEY
+            if ALLSTAR_DTMF_PTT:
+                allstar_mgr.send_dtmf('#')
+                app.logger.warning('Allstar TX: DTMF # sent (phone-patch unkey)')
+            else:
+                allstar_mgr.send_radio_key(False)
+                app.logger.warning('Allstar TX: RADIO_UNKEY sent')
         except Exception as e:
-            app.logger.warning(f'Allstar TX: unkey failed: {e}')
+            app.logger.warning(f'Allstar TX ({ptt_mode}): unkey failed: {e}')
 
 
 # -------------------------

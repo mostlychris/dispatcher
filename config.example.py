@@ -40,6 +40,15 @@ ALLSTAR_CONTEXT = 'radio-iaxrpt'
 ALLSTAR_AMI_USER   = 'dispatcher'
 ALLSTAR_AMI_SECRET = ''
 ALLSTAR_AMI_PORT   = 5038
+# PTT keying mode.
+# False (default): uses AST_CONTROL_RADIO_KEY/UNKEY frames — the standard
+#   iaxRPT approach.  Your dialplan should NOT have the P flag:
+#     exten = 556980,1,Rpt(556980|X)
+# True: uses DTMF *99 (key) / # (unkey) — required when the dialplan uses
+#   the P (phone patch) flag:
+#     exten = 556980,1,Rpt(556980|XP)
+#   Remove the P flag and set this to False for best results.
+ALLSTAR_DTMF_PTT   = False
 
 # API key — required in the X-Api-Key header for service-restart endpoints.
 # Set to any random string; keep it secret.
