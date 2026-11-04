@@ -5726,11 +5726,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 nodeEl.textContent = d.node || '--';
                 // Prefer linked_nodes (live IAX2 'L' frames) over direct_links (dispatcher-managed).
                 // linked_nodes reflects external changes; direct_links is only updated by this app.
-                const liveNodes = d.linked_nodes && d.linked_nodes.length
-                    ? d.linked_nodes.map(n => n.node)
-                    : (d.direct_links && d.direct_links.length ? d.direct_links : null);
                 _checkNodeChanges(d.state === 'connected' ? (d.linked_nodes || []) : []);
-                _setDirectLink(d.state === 'connected' && liveNodes ? liveNodes : null);
+                // Pill: show OUT direct links (from rpt lstats) — works regardless of connect method.
+                // Fall back to dispatcher direct_links if lstats hasn't populated yet.
+                const _outLinks = (d.lstats_links || []).filter(l => l.direction === 'OUT').map(l => l.node);
+                const _pillNodes = _outLinks.length ? _outLinks
+                    : (d.direct_links && d.direct_links.length ? d.direct_links : null);
+                _setDirectLink(d.state === 'connected' && _pillNodes ? _pillNodes : null);
                 // Update both the modal node list and the panel row sub-line.
                 // Sort: direct OUT links (we connected to them) first, then IN, then rest numeric.
                 // lstats_links from rpt lstats catches all direct links regardless of how connected.
@@ -5747,12 +5749,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 function _renderNodeHtml(nodes, maxShow) {
                     const show = maxShow ? nodes.slice(0, maxShow) : nodes;
                     const overflow = maxShow && nodes.length > maxShow ? nodes.length - maxShow : 0;
-                    const html = show.map(n =>
-                        `<span style="display:inline-block;margin-right:10px;">` +
-                        `<span style="color:#7e7;">${n.node}</span>` +
-                        `<span style="color:#aaa;font-size:10px;"> ${modeLabel[n.mode] || n.mode}</span>` +
-                        `</span>`
-                    ).join('');
+                    const html = show.map(n => {
+                        const fav = _asFavsCache.find(f => f.node === String(n.node));
+                        const label = fav && fav.label ? fav.label : n.node;
+                        return `<span style="display:inline-block;margin-right:10px;">` +
+                               `<span style="color:#7e7;">${label}</span>` +
+                               `<span style="color:#aaa;font-size:10px;"> ${modeLabel[n.mode] || n.mode}</span>` +
+                               `</span>`;
+                    }).join('');
                     return overflow ? html + `<span style="color:#666;font-size:10px;">+${overflow}</span>` : html;
                 }
                 const nodeListEl  = document.getElementById('asNodeList');
