@@ -5865,8 +5865,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         // -------------------------
         // Persistent across presses (torn down on Allstar disconnect)
         let _pttCtx = null, _pttStream = null, _pttNode = null, _pttAnalyser = null;
-        // Per-press
-        let _pttWs = null, _pttActive = false;
+        let _pttWs = null, _pttWsKeepalive = null;
+        let _pttActive = false;
         let _micDeviceId = null;
         let _micTestRaf = null;
 
@@ -6007,6 +6007,13 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 src.connect(_pttNode);
                 _pttNode.connect(_pttCtx.destination);
                 log('PTT: audio ready (rate=' + _pttCtx.sampleRate + ' ratio=' + ratio + ')', 'ok');
+                // Pre-open the persistent TX WebSocket while still in HTTP/1.1 territory.
+                await _openPttTxWs();
+                if (_pttWsKeepalive) clearInterval(_pttWsKeepalive);
+                _pttWsKeepalive = setInterval(() => {
+                    if (!_pttActive && (!_pttWs || _pttWs.readyState !== WebSocket.OPEN))
+                        _openPttTxWs().catch(() => {});
+                }, 25000);
             } catch(e) {
                 log('PTT: audio init failed [' + e.name + ']: ' + e.message, 'error');
                 if (_pttNode)   { try { _pttNode.disconnect(); } catch(_) {} _pttNode = null; }
@@ -6016,9 +6023,24 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             }
         }
 
+        // Open (or reuse) the persistent TX WebSocket.
+        async function _openPttTxWs() {
+            if (_pttWs && _pttWs.readyState === WebSocket.OPEN) return;
+            if (_pttWs) { try { _pttWs.close(); } catch(_) {} }
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(proto + '//' + location.host + '/ws/allstar-tx');
+            ws.binaryType = 'arraybuffer';
+            await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+            _pttWs = ws;
+            ws.onclose = () => { if (_pttWs === ws) _pttWs = null; };
+            log('PTT TX WebSocket connected', 'ok');
+        }
+
         // Full teardown — called when Allstar disconnects.
         async function _pttTeardown() {
             pttStop();
+            if (_pttWsKeepalive) { clearInterval(_pttWsKeepalive); _pttWsKeepalive = null; }
+            if (_pttWs)     { try { _pttWs.close(); } catch(e) {} _pttWs = null; }
             if (_pttNode)   { try { _pttNode.disconnect(); } catch(e) {} _pttNode = null; }
             if (_pttCtx)    { try { await _pttCtx.close(); } catch(e) {} _pttCtx = null; }
             if (_pttStream) { _pttStream.getTracks().forEach(t => t.stop()); _pttStream = null; }
@@ -6044,15 +6066,11 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 if (_pttCtx && _pttCtx.state !== 'running') await _pttCtx.resume();
                 if (!_pttActive) { pttStop(); return; }  // released during init
 
-                // Open WebSocket — fast on every press after the first.
-                const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                _pttWs = new WebSocket(proto + '//' + location.host + '/ws/allstar-tx');
-                _pttWs.binaryType = 'arraybuffer';
-                await new Promise((res, rej) => {
-                    _pttWs.onopen  = res;
-                    _pttWs.onerror = rej;
-                });
+                // Ensure the persistent TX WebSocket is open (reconnect if dropped).
+                if (!_pttWs || _pttWs.readyState !== WebSocket.OPEN)
+                    await _openPttTxWs();
                 if (!_pttActive) { pttStop(); return; }
+                _pttWs.send('start');
 
                 let _txPeak = 0, _txChunks = 0;
                 _pttNode.port.onmessage = (e) => {
@@ -6097,7 +6115,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             log('Allstar TX: unkeyed', 'info');
             if (_pttNode && _pttNode._stopMeter) { _pttNode._stopMeter(); _pttNode._stopMeter = null; }
             if (_pttNode) { _pttNode.port.postMessage('stop'); _pttNode.port.onmessage = null; }
-            if (_pttWs)  { try { _pttWs.close(); } catch(e) {} _pttWs = null; }
+            if (_pttWs && _pttWs.readyState === WebSocket.OPEN) { try { _pttWs.send('stop'); } catch(e) {} }
             const bar = document.getElementById('micMeterBar');
             if (bar) bar.style.width = '0%';
         }
@@ -7756,49 +7774,75 @@ def tr_tg_summary():
 
 @sock.route('/ws/allstar-tx')
 def allstar_tx_ws(ws):
-    """Receive Int16 PCM from the browser and send it up the IAX2 stack.
+    """Persistent TX WebSocket — one connection per Allstar session, reused across PTT presses.
 
-    Two keying modes (set ALLSTAR_DTMF_PTT in config.py):
-      False (default): AST_CONTROL_RADIO_KEY/UNKEY frames — works with the
-                        standard iaxRPT dialplan (no P flag in Rpt()).
-      True:            DTMF *99 / # — required when the dialplan uses the P
-                        (phone patch) flag: exten=N,1,Rpt(N|XP).
+    Protocol (text messages from browser):
+      'start' — key TX (send RADIO_KEY or DTMF *99), begin accepting audio frames
+      'stop'  — unkey TX; connection stays open for the next press
+      anything else — ignored (keepalive ping)
+
+    Binary messages (Int16 PCM, 320 bytes = 20 ms of 8 kHz audio):
+      Forwarded to IAX2 as ulaw voice frames only while keyed.
+
+    Keeping a persistent connection avoids a fresh TLS/HTTP handshake on every
+    PTT press, which fixes a Chrome HTTP/2 WebSocket upgrade failure where Chrome
+    tries RFC 8441 extended CONNECT on the existing h2 session and gets an error
+    the browser surfaces as "Invalid frame header".
     """
-    allstar_mgr.reset_voice_ts()
-    frames_sent = 0
-    ptt_mode = 'DTMF' if ALLSTAR_DTMF_PTT else 'RADIO_KEY'
-    try:
-        if ALLSTAR_DTMF_PTT:
-            # Phone-patch mode: *99 keys the transmitter.
-            # send_dtmf is non-blocking (runs in a thread); each of the 3 digits
-            # takes 150 ms, so we wait 600 ms before sending voice to ensure the
-            # DTMF sequence completes before audio arrives at app_rpt.
-            allstar_mgr.send_dtmf('*99')
-            app.logger.warning('Allstar TX: DTMF *99 sent (phone-patch key)')
-            import time as _time
-            _time.sleep(0.6)
-        else:
-            allstar_mgr.send_radio_key(True)
-            app.logger.warning('Allstar TX: RADIO_KEY sent')
-    except Exception as e:
-        app.logger.warning(f'Allstar TX ({ptt_mode}): key failed: {e}')
-    peak_sample = 0
     import time as _time, struct as _struct
+    ptt_mode = 'DTMF' if ALLSTAR_DTMF_PTT else 'RADIO_KEY'
+    keyed = False
+    frames_sent = peak_sample = 0
     _last_send = 0.0
+
     try:
         while True:
             data = ws.receive()
             if data is None:
-                break
-            if isinstance(data, bytes) and len(data) >= 2:
-                # Track peak amplitude to verify mic is capturing real audio.
+                break  # client disconnected
+
+            if isinstance(data, str):
+                cmd = data.strip()
+
+                if cmd == 'start' and not keyed:
+                    allstar_mgr.reset_voice_ts()
+                    keyed = True
+                    frames_sent = peak_sample = 0
+                    _last_send = 0.0
+                    try:
+                        if ALLSTAR_DTMF_PTT:
+                            allstar_mgr.send_dtmf('*99')
+                            app.logger.warning('Allstar TX: DTMF *99 sent (phone-patch key)')
+                            _time.sleep(0.6)
+                        else:
+                            allstar_mgr.send_radio_key(True)
+                            app.logger.warning('Allstar TX: RADIO_KEY sent')
+                    except Exception as e:
+                        app.logger.warning(f'Allstar TX ({ptt_mode}): key failed: {e}')
+
+                elif cmd == 'stop' and keyed:
+                    keyed = False
+                    app.logger.warning(
+                        f'Allstar TX ({ptt_mode}): done — {frames_sent} PCM chunks, '
+                        f'peak={peak_sample} (0=silence, 32767=max)'
+                    )
+                    try:
+                        if ALLSTAR_DTMF_PTT:
+                            allstar_mgr.send_dtmf('#')
+                            app.logger.warning('Allstar TX: DTMF # sent (phone-patch unkey)')
+                        else:
+                            allstar_mgr.send_radio_key(False)
+                            app.logger.warning('Allstar TX: RADIO_UNKEY sent')
+                    except Exception as e:
+                        app.logger.warning(f'Allstar TX ({ptt_mode}): unkey failed: {e}')
+                # else: keepalive ping or unknown — ignore
+
+            elif isinstance(data, bytes) and len(data) >= 2 and keyed:
                 n = len(data) // 2
                 for s in _struct.unpack_from(f'<{n}h', data):
                     if abs(s) > peak_sample:
                         peak_sample = abs(s)
-                # Pace IAX2 sends to ~20ms intervals.  The browser main thread
-                # may batch worklet messages and flush several frames at once;
-                # sending them in a burst confuses Asterisk's jitter buffer.
+                # Pace IAX2 sends to ~20ms intervals to prevent burst delivery.
                 now = _time.monotonic()
                 gap = now - _last_send
                 if _last_send and gap < 0.018:
@@ -7806,23 +7850,19 @@ def allstar_tx_ws(ws):
                 allstar_mgr.send_voice(data)
                 _last_send = _time.monotonic()
                 frames_sent += 1
+
     except Exception as e:
         app.logger.warning(f'Allstar TX: stream error: {e}')
     finally:
-        # peak_sample range: 0=silence, 32767=full scale; >1000 = audible speech
-        app.logger.warning(
-            f'Allstar TX ({ptt_mode}): done — {frames_sent} PCM chunks, '
-            f'peak={peak_sample} (0=silence, 32767=max)'
-        )
-        try:
-            if ALLSTAR_DTMF_PTT:
-                allstar_mgr.send_dtmf('#')
-                app.logger.warning('Allstar TX: DTMF # sent (phone-patch unkey)')
-            else:
-                allstar_mgr.send_radio_key(False)
-                app.logger.warning('Allstar TX: RADIO_UNKEY sent')
-        except Exception as e:
-            app.logger.warning(f'Allstar TX ({ptt_mode}): unkey failed: {e}')
+        if keyed:
+            app.logger.warning('Allstar TX: cleanup unkey on disconnect')
+            try:
+                if ALLSTAR_DTMF_PTT:
+                    allstar_mgr.send_dtmf('#')
+                else:
+                    allstar_mgr.send_radio_key(False)
+            except Exception:
+                pass
 
 
 # -------------------------
