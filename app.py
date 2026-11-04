@@ -981,7 +981,7 @@ class AllstarManager:
                 s.close()
                 return None
             s.sendall((
-                f'Action: Command\r\nCommand: rpt show nodes {node}\r\n\r\n'
+                f'Action: Command\r\nCommand: rpt nodes {node}\r\n\r\n'
             ).encode())
             app.logger.warning('AMI command sent, reading output')
             out = b''
@@ -7335,7 +7335,7 @@ def debug_ami():
     node = allstar_mgr.client.node if allstar_mgr.client else ALLSTAR_NODE
     result = allstar_mgr._ami_query_nodes(str(node))
     # Also run a discovery query so we can see the actual rpt CLI commands available
-    discover = allstar_mgr._ami_raw_cmd('core show help rpt')
+    raw_nodes = allstar_mgr._ami_raw_cmd(f'rpt nodes {node}')
     return jsonify({
         'node': node,
         'ami_host': ALLSTAR_HOST,
@@ -7344,7 +7344,7 @@ def debug_ami():
         'ami_configured': bool(ALLSTAR_AMI_SECRET),
         'result': result,
         'error': allstar_mgr._ami_last_error,
-        'rpt_commands': discover,
+        'rpt_nodes_raw': raw_nodes,
     })
 
 
