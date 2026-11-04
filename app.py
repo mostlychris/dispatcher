@@ -931,8 +931,9 @@ class AllstarManager:
         self._ws_qs            = []
         self._lock             = threading.Lock()
         self._last_audio       = 0.0
-        self.linked_nodes      = []   # updated by TEXT frames + background node poll
-        self.direct_links      = []   # not restored from disk — live L frames are authoritative
+        self.linked_nodes      = []   # all connected nodes from rpt nodes (AMI)
+        self.lstats_links      = []   # direct links only from rpt lstats: [{node, direction}]
+        self.direct_links      = []   # dispatcher-managed explicit links (persisted)
         self._last_text_frames = []   # rolling buffer of last 20 TEXT frames for debug
         self._node_poll_stop   = threading.Event()
         self._ami_last_error   = ''
@@ -948,6 +949,9 @@ class AllstarManager:
             result = self._ami_query_nodes(node)
             if result is not None:
                 self.linked_nodes = result
+            lstats = self._ami_query_lstats(node)
+            if lstats is not None:
+                self.lstats_links = lstats
 
     def _ami_query_nodes(self, node: str):
         """One-shot AMI TCP query: 'rpt show nodes NODE'. Returns list or None on error."""
@@ -1079,6 +1083,22 @@ class AllstarManager:
         except Exception as e:
             return f'error: {e}'
 
+    def _ami_query_lstats(self, node: str):
+        """Parse rpt lstats for direct links: [{node, direction}] or None on error."""
+        text = self._ami_raw_cmd(f'rpt lstats {node}')
+        if text.startswith('error:'):
+            return None
+        result, seen = [], set()
+        for line in text.splitlines():
+            # "49172     209.112.244.28      0           OUT        00:04:10:656        ESTABLISHED"
+            m = re.match(r'\s*(\d{4,7})\s+\S+\s+\d+\s+(OUT|IN)\s', line)
+            if m:
+                num, direction = m.group(1), m.group(2)
+                if num not in seen:
+                    seen.add(num)
+                    result.append({'node': num, 'direction': direction})
+        return result
+
     def _on_audio(self, pcm: bytes):
         # Only mark active when amplitude exceeds the silence/comfort-noise floor.
         # Asterisk 18+ sends continuous silence frames; without this check the RX
@@ -1168,6 +1188,7 @@ class AllstarManager:
         if self.client:
             self.client.disconnect()
             self.client = None
+        self.lstats_links = []
         self._set_direct_links([])
 
     def reset_voice_ts(self):
@@ -1195,7 +1216,8 @@ class AllstarManager:
     def status(self):
         if not self.client:
             return {'state': 'idle', 'node': '', 'error': '', 'active': False,
-                    'direct_links': self.direct_links, 'linked_nodes': self.linked_nodes}
+                    'direct_links': self.direct_links, 'linked_nodes': self.linked_nodes,
+                    'lstats_links': self.lstats_links}
         active = (self.client.state == 'connected' and
                   time.time() - self._last_audio < 0.6)
         return {
@@ -1205,6 +1227,7 @@ class AllstarManager:
             'active':       active,
             'direct_links': self.direct_links,
             'linked_nodes': self.linked_nodes,
+            'lstats_links': self.lstats_links,
         }
 
     def send_dtmf(self, digits: str, inter_digit: float = 0.0):
@@ -5701,12 +5724,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 _checkNodeChanges(d.state === 'connected' ? (d.linked_nodes || []) : []);
                 _setDirectLink(d.state === 'connected' && liveNodes ? liveNodes : null);
                 // Update both the modal node list and the panel row sub-line.
-                // Sort: nodes the dispatcher explicitly linked come first, rest numeric.
-                const _dlSet = new Set((d.direct_links || []).map(String));
+                // Sort: direct OUT links (we connected to them) first, then IN, then rest numeric.
+                // lstats_links from rpt lstats catches all direct links regardless of how connected.
+                const _outSet = new Set((d.lstats_links || []).filter(l => l.direction === 'OUT').map(l => l.node));
+                const _inSet  = new Set((d.lstats_links || []).filter(l => l.direction === 'IN').map(l => l.node));
                 const _sortedNodes = [...(d.linked_nodes || [])].sort((a, b) => {
-                    const aP = _dlSet.has(a.node) ? 0 : 1;
-                    const bP = _dlSet.has(b.node) ? 0 : 1;
-                    if (aP !== bP) return aP - bP;
+                    const aPri = _outSet.has(a.node) ? 0 : _inSet.has(a.node) ? 1 : 2;
+                    const bPri = _outSet.has(b.node) ? 0 : _inSet.has(b.node) ? 1 : 2;
+                    if (aPri !== bPri) return aPri - bPri;
                     return parseInt(a.node) - parseInt(b.node);
                 });
                 const modeLabel = {R: 'Mon', T: 'Xcv', M: 'Mon', L: 'Loc'};
