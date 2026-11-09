@@ -178,7 +178,8 @@ def _load_tr_calls():
         with open(TR_CALLS_FILE) as f:
             calls = json.load(f)
         existing = set(os.listdir(TR_AUDIO_DIR))
-        return [c for c in calls if c.get('audio') and c['audio'] in existing]
+        valid = [c for c in calls if c.get('audio') and c['audio'] in existing]
+        return sorted(valid, key=lambda c: c.get('start_time', 0), reverse=True)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return []
 
@@ -1182,7 +1183,9 @@ class AllstarManager:
         node = str(node or ALLSTAR_NODE).strip()
         if not node:
             return False, 'No node number configured'
-        self.linked_nodes = []
+        self.linked_nodes  = []
+        self.lstats_links  = []
+        self._set_direct_links([])
         self.client = IAX2Client(
             ALLSTAR_HOST, ALLSTAR_PORT, ALLSTAR_USER, ALLSTAR_SECRET, node,
             context=ALLSTAR_CONTEXT, local_port=ALLSTAR_LOCAL_PORT
@@ -2344,6 +2347,7 @@ HTML = '''
         .tr-tg-sub  { font-size:10px; color:#777; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .tr-call-meta { font-size:10px; color:#666; text-align:right; white-space:nowrap; flex-shrink:0; }
         .tr-emerg-tag { font-size:9px; color:#ff6666; font-weight:bold; margin-left:4px; }
+        .tr-late-tag  { font-size:9px; color:#f0a030; font-weight:bold; margin-left:4px; }
         .qt-hist-net {
             font-size: 9px; color: #999;
             margin-right: 5px; letter-spacing: 0.5px;
@@ -6189,6 +6193,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var TR_INTER_CALL_MS   = 800;   // gap between calls in ms
         var TR_BATCH_WINDOW_MS = 3000;  // hold before playing first call after silence (out-of-order arrival window)
         var _trBatchTimer      = null;  // pending batch-window timeout id
+        var _trHighWaterMark   = 0;    // highest start_time seen; late arrivals are flagged
 
         // Web Audio normalization chain state
         var _trNormEnabled    = false;
@@ -6779,7 +6784,17 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
 
         // ---- Incoming call ----
         function _onTrCall(call) {
-            _trCalls.unshift(call);
+            const callTs = call.start_time || 0;
+            // Flag calls that arrive well after their chronological slot — these
+            // are long recordings that finished late (upload happens at call end).
+            if (_trHighWaterMark && callTs < _trHighWaterMark - 30) {
+                call._lateArrival = true;
+            }
+            if (callTs > _trHighWaterMark) _trHighWaterMark = callTs;
+            // Sorted insert into display list (newest first)
+            let si = 0;
+            while (si < _trCalls.length && (_trCalls[si].start_time || 0) >= callTs) si++;
+            _trCalls.splice(si, 0, call);
             if (_trCalls.length > 200) _trCalls.pop();
 
             if (call.system && !_trSystems[call.system]) {
@@ -6999,6 +7014,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     fetch('/api/tr/systems'),
                 ]);
                 _trCalls  = await callsR.json();
+                _trHighWaterMark = _trCalls.length ? (_trCalls[0].start_time || 0) : 0;
                 const sysList = await sysR.json();
                 sysList.forEach(s => { _trSystems[s.short_name] = s.label; });
                 _rebuildSystemFilter();
@@ -7081,13 +7097,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                 const freq     = c.freq ? (c.freq / 1e6).toFixed(4) + ' MHz' : '';
                 const ts       = new Date(c.start_time * 1000).toLocaleTimeString();
                 const emerg    = c.emergency ? '<span class="tr-emerg-tag">EMERG</span>' : '';
+                const late     = c._lateArrival ? '<span class="tr-late-tag">⚠ late</span>' : '';
                 const playing  = (_trPlaying && _trPlaying.id === c.id) ? ' playing' : '';
                 const disabled = _isTrDisabled(c) ? ' style="opacity:0.35"' : '';
                 const sys      = escHtml(_trSystems[c.system] || c.system || '');
                 return `<div class="tr-call-row${c.emergency ? ' emergency' : ''}${playing}"${disabled} data-callid="${escHtml(String(c.id))}" onclick="_playTrCallById(this.dataset.callid)">
                     <div class="tr-sys-badge">${escHtml(sys)}</div>
                     <div class="tr-call-info">
-                        <div class="tr-tg-name">${escHtml(tgLabel)}${emerg}</div>
+                        <div class="tr-tg-name">${escHtml(tgLabel)}${emerg}${late}</div>
                         <div class="tr-tg-sub">${escHtml(sub)}</div>
                     </div>
                     <div class="tr-call-meta">${escHtml(ts)}<br>${escHtml(dur)}${dur && freq ? ' · ' : ''}${escHtml(freq)}</div>
@@ -7671,7 +7688,11 @@ def tr_call_upload():
 
     evicted_audio = None
     with tr_calls_lock:
-        tr_calls.insert(0, call)
+        new_ts = call.get('start_time', 0)
+        i = 0
+        while i < len(tr_calls) and tr_calls[i].get('start_time', 0) > new_ts:
+            i += 1
+        tr_calls.insert(i, call)
         if len(tr_calls) > TR_MAX_CALLS:
             old = tr_calls.pop()
             evicted_audio = old.get('audio')
