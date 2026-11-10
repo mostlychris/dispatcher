@@ -3574,7 +3574,7 @@ HTML = '''
                     _updateSdrDisplay();
                     _updateSdrAudioBtn();
                 } else if (data.event === 'sdr_audio_stats') {
-                    if (data.out_samples !== undefined) _sdrOutSamples = data.out_samples;
+                    // out_samples no longer used for lag (replaced by buffered.end - currentTime)
                 } else if (data.event === 'sdr_signal') {
                     _onSdrSignal(data);
                 } else if (data.event === 'sdr_channels_update') {
@@ -4091,12 +4091,12 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _sdrHoldFreq      = null;
         var _sdrActivateTimer = null;
         var _sdrClearTimer    = null;
-        // Lag measurement (mirrors scanner app's _audioLagMs logic)
-        var _SDR_AUDIO_RATE   = 24000;
-        var _sdrOutSamples    = 0;    // latest out_samples from sdr_audio_stats
-        var _sdrLagMs            = 0;    // current measured lag in ms
-        var _sdrTxLagMs          = 0;    // lag captured at freq_change time
-        const _SDR_LAG_MAX_MS    = 2000;
+        // Lag measurement: use buffered.end - currentTime (browser-native, no SSE counter)
+        var _sdrLagMs         = 0;    // smoothed lag in ms
+        var _sdrTxLagMs       = 0;    // lag captured at freq_change time (badge display only)
+        var _sdrLagHistory    = [];   // rolling window for smoothing
+        const _SDR_LAG_MAX_MS = 2500;
+        const _SDR_LAG_SMOOTH = 6;    // samples (~1.2s at 200ms interval)
 
         function _updateSdrLagBadge() {
             const el = document.getElementById('sdrLagBadge');
@@ -4108,12 +4108,15 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         }
 
         setInterval(function() {
-            // Wait until currentTime has advanced past the initial buffering phase before
-            // computing lag — early reads produce inflated raw values because out_samples
-            // arrives via SSE before the audio element has caught up.
-            if (!_sdrAudioEl || _sdrAudioEl.paused || _sdrAudioEl.currentTime < 1.5 || !_sdrOutSamples) return;
-            const raw = Math.max(0, (_sdrOutSamples - _sdrAudioEl.currentTime * _SDR_AUDIO_RATE) / _SDR_AUDIO_RATE * 1000);
-            if (raw < _SDR_LAG_MAX_MS) _sdrLagMs = raw;
+            if (!_sdrAudioEl || _sdrAudioEl.paused || _sdrAudioEl.currentTime < 1.0) return;
+            if (!_sdrAudioEl.buffered || _sdrAudioEl.buffered.length === 0) return;
+            const bufEnd = _sdrAudioEl.buffered.end(_sdrAudioEl.buffered.length - 1);
+            const raw = Math.max(0, (bufEnd - _sdrAudioEl.currentTime) * 1000);
+            if (raw < _SDR_LAG_MAX_MS) {
+                _sdrLagHistory.push(raw);
+                if (_sdrLagHistory.length > _SDR_LAG_SMOOTH) _sdrLagHistory.shift();
+                _sdrLagMs = _sdrLagHistory.reduce(function(a,b){return a+b;},0) / _sdrLagHistory.length;
+            }
             _updateSdrLagBadge();
         }, 200);
 
@@ -4151,14 +4154,14 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _sdrAudioEl.addEventListener('ended', function() {
                 if (_sdrAudioEnabled) {
                     console.log('[sdr] stream ended — reconnecting');
-                    _sdrOutSamples = 0; _sdrLagMs = 0;
+                    _sdrLagMs = 0; _sdrLagHistory = [];
                     setTimeout(_sdrConnectAudio, 400);
                 }
             });
             _sdrAudioEl.addEventListener('error', function() {
                 if (_sdrAudioEnabled) {
                     console.log('[sdr] stream error — reconnecting');
-                    _sdrOutSamples = 0; _sdrLagMs = 0;
+                    _sdrLagMs = 0; _sdrLagHistory = [];
                     setTimeout(_sdrConnectAudio, 1000);
                 }
             });
@@ -4201,7 +4204,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         function _sdrConnectAudio() {
             if (!_sdrAudioEl) return;
             _sdrEnsureCtx();
-            _sdrOutSamples = 0; _sdrLagMs = 0;  // server resets counter on each new connection
+            _sdrLagMs = 0; _sdrLagHistory = [];  // reset on new connection
             _sdrAudioEl.src = '/api/sdr/stream';
             if (_sdrCtx && _sdrCtx.state === 'suspended') _sdrCtx.resume();
             _sdrAudioEl.play().catch(() => {});
@@ -4320,9 +4323,9 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                     _sdrSetSignalBars(db);
                     return;
                 }
-                // First active signal — delay display by lag captured at freq_change
+                // First active signal — delay display by current smoothed lag
                 if (!_sdrActivateTimer) {
-                    const lag = _sdrTxLagMs;
+                    const lag = _sdrLagMs;
                     _sdrActivateTimer = setTimeout(function() {
                         _sdrActivateTimer = null;
                         _sdrActive = true;
