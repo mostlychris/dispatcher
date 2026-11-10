@@ -4091,6 +4091,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _sdrHoldFreq      = null;
         var _sdrActivateTimer = null;
         var _sdrClearTimer    = null;
+        var _sdrPendingClear  = false;  // signal went inactive before activate timer fired
+        var _sdrInactiveAt    = 0;      // Date.now() when early signal=false arrived
         // Lag measurement: use buffered.end - currentTime (browser-native, no SSE counter)
         var _sdrLagMs         = 0;    // smoothed lag in ms
         var _sdrTxLagMs       = 0;    // lag captured at freq_change time (badge display only)
@@ -4313,17 +4315,25 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _updateSdrAudioBtn();
         }
 
+        function _sdrDoClear() {
+            _sdrClearTimer = null;
+            _sdrActive = false;
+            document.getElementById('sdrSection').classList.remove('rx-active');
+            _sdrSetSignalBars(null);
+            _updateSdrDisplay();
+            _updateSdrAudioBtn();
+        }
+
         function _onSdrSignal(m) {
             const active = !!m.active;
             const db = m.db;
             if (active) {
                 if (_sdrClearTimer) { clearTimeout(_sdrClearTimer); _sdrClearTimer = null; }
+                _sdrPendingClear = false;
                 if (_sdrActive) {
-                    // Already displayed — just update dB live
                     _sdrSetSignalBars(db);
                     return;
                 }
-                // First active signal — delay display by current smoothed lag
                 if (!_sdrActivateTimer) {
                     const lag = _sdrLagMs;
                     _sdrActivateTimer = setTimeout(function() {
@@ -4333,22 +4343,26 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
                         _sdrSetSignalBars(db);
                         _updateSdrDisplay();
                         _updateSdrAudioBtn();
+                        if (_sdrPendingClear) {
+                            // Signal ended before we fired — clear after remaining audio drains
+                            _sdrPendingClear = false;
+                            const elapsed = Date.now() - _sdrInactiveAt;
+                            const remaining = Math.max(50, _sdrLagMs - elapsed);
+                            _sdrClearTimer = setTimeout(_sdrDoClear, remaining);
+                        }
                     }, lag);
                 }
             } else {
-                if (_sdrActivateTimer) { clearTimeout(_sdrActivateTimer); _sdrActivateTimer = null; }
+                if (_sdrActivateTimer) {
+                    // Burst ended before activate timer fired — let it fire so UI shows briefly,
+                    // then clear once the remaining audio has drained.
+                    _sdrPendingClear = true;
+                    _sdrInactiveAt = Date.now();
+                    return;
+                }
                 if (!_sdrActive) return;
-                // Delay clear by current lag so display holds until audio drains
-                const lag = _sdrLagMs;
                 if (_sdrClearTimer) clearTimeout(_sdrClearTimer);
-                _sdrClearTimer = setTimeout(function() {
-                    _sdrClearTimer = null;
-                    _sdrActive = false;
-                    document.getElementById('sdrSection').classList.remove('rx-active');
-                    _sdrSetSignalBars(null);
-                    _updateSdrDisplay();
-                    _updateSdrAudioBtn();
-                }, lag);
+                _sdrClearTimer = setTimeout(_sdrDoClear, _sdrLagMs);
             }
         }
 
