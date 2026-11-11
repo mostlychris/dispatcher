@@ -4093,6 +4093,8 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
         var _sdrClearTimer    = null;
         var _sdrPendingClear  = false;  // signal went inactive before activate timer fired
         var _sdrInactiveAt    = 0;      // Date.now() when early signal=false arrived
+        var _sdrWatchdog      = null;   // forces clear if signal=false is never received
+        const SDR_WATCHDOG_MS = 12000;  // max time UI stays active without a signal update
         // Lag measurement: use buffered.end - currentTime (browser-native, no SSE counter)
         var _sdrLagMs         = 0;    // smoothed lag in ms
         var _sdrTxLagMs       = 0;    // lag captured at freq_change time (badge display only)
@@ -4306,6 +4308,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _sdrCurrentFreq  = m.freq  || null;
             _sdrCurrentLabel = m.label || m.freq || null;
             _sdrTxLagMs = _sdrLagMs;   // capture lag at channel-change time
+            _sdrCancelWatchdog();
             if (_sdrActivateTimer) { clearTimeout(_sdrActivateTimer); _sdrActivateTimer = null; }
             if (_sdrClearTimer)    { clearTimeout(_sdrClearTimer);    _sdrClearTimer    = null; }
             _sdrActive = false;
@@ -4315,7 +4318,22 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             _updateSdrAudioBtn();
         }
 
+        function _sdrArmWatchdog() {
+            if (_sdrWatchdog) clearTimeout(_sdrWatchdog);
+            _sdrWatchdog = setTimeout(function() {
+                _sdrWatchdog = null;
+                if (_sdrActivateTimer) { clearTimeout(_sdrActivateTimer); _sdrActivateTimer = null; }
+                if (_sdrClearTimer)    { clearTimeout(_sdrClearTimer);    _sdrClearTimer    = null; }
+                _sdrPendingClear = false;
+                _sdrDoClear();
+            }, SDR_WATCHDOG_MS);
+        }
+        function _sdrCancelWatchdog() {
+            if (_sdrWatchdog) { clearTimeout(_sdrWatchdog); _sdrWatchdog = null; }
+        }
+
         function _sdrDoClear() {
+            _sdrCancelWatchdog();
             _sdrClearTimer = null;
             _sdrActive = false;
             document.getElementById('sdrSection').classList.remove('rx-active');
@@ -4330,6 +4348,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             if (active) {
                 if (_sdrClearTimer) { clearTimeout(_sdrClearTimer); _sdrClearTimer = null; }
                 _sdrPendingClear = false;
+                _sdrArmWatchdog();
                 if (_sdrActive) {
                     _sdrSetSignalBars(db);
                     return;
