@@ -5481,7 +5481,7 @@ registerProcessor('pcm-ring-processor', PCMRingProcessor);
             }
 
             document.getElementById('asRemoteNode').value = node;
-            allstarLink('transceive');
+            allstarLink('monitor');
         }
 
         function escHtml(s) {
